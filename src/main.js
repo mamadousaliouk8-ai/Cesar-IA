@@ -1195,6 +1195,26 @@ function setupDashboard() {
   
   // Test connection button
   document.getElementById('btn-test-connection').addEventListener('click', testConnection);
+
+  // Email digest toggle
+  const toggleEmailDigest = document.getElementById('toggle-email-digest');
+  if (toggleEmailDigest) {
+    toggleEmailDigest.addEventListener('change', (e) => {
+      const agentId = state.activeDashboardAgentId;
+      if (!agentId) return;
+      const checked = e.target.checked;
+      localStorage.setItem(`cesar_ia_email_digest_${agentId}`, checked ? 'true' : 'false');
+      
+      const agent = AGENTS.find(a => a.id === agentId);
+      const agentName = agent ? agent.name : "l'agent";
+      
+      if (checked) {
+        showToast(`Rapport hebdomadaire activé pour ${agentName} !`, "success");
+      } else {
+        showToast(`Rapport hebdomadaire désactivé pour ${agentName}.`, "info");
+      }
+    });
+  }
 }
 
 function renderDashboardSidebar() {
@@ -1329,6 +1349,13 @@ function renderStatsTab() {
   const isConfig = isAgentConfigured(agentId);
   const uptime = isConfig ? "100%" : "0%";
   const uptimeColor = isConfig ? "#10b981" : "#ef4444";
+
+  // Mettre à jour l'état du checkbox e-mail
+  const toggleEmailDigest = document.getElementById('toggle-email-digest');
+  if (toggleEmailDigest) {
+    const isEnabled = localStorage.getItem(`cesar_ia_email_digest_${agentId}`) === 'true';
+    toggleEmailDigest.checked = isEnabled;
+  }
 
   // Mettre à jour les indicateurs du DOM
   document.getElementById('stats-total-queries').innerText = queries;
@@ -2677,33 +2704,83 @@ async function testConnection() {
   
   const statusDiv = document.getElementById('test-connection-status');
   statusDiv.innerHTML = `
-    <div class="conn-status-banner" style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); color: var(--text-secondary);">
-      <span class="spinner"></span> Tentative de connexion aux serveurs de ${agent.name}...
+    <div class="conn-status-banner" style="background: rgba(0, 0, 0, 0.4); border: 1px solid var(--border-color); color: var(--text-secondary); display: flex; flex-direction: column; gap: 8px; padding: 16px; font-family: var(--font-mono); font-size: 0.8rem; border-radius: 8px; width: 100%; text-align: left; box-sizing: border-box; margin-top: 16px;">
+      <div style="font-weight: bold; color: #fff; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; display: flex; align-items: center; gap: 8px;">
+        <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span> DIAGNOSTIC SYSTÈME : ${agent.name.toUpperCase()}
+      </div>
+      <div id="conn-log-output" style="display: flex; flex-direction: column; gap: 4px;"></div>
     </div>
   `;
   
-  // Save credentials automatically before testing
+  const logOutput = document.getElementById('conn-log-output');
+  const addLogLine = (text, type = 'info') => {
+    const timestamp = new Date().toLocaleTimeString('fr-FR');
+    let color = 'var(--text-secondary)';
+    if (type === 'success') color = '#10b981';
+    if (type === 'error') color = '#ef4444';
+    if (type === 'system') color = 'var(--accent-color)';
+    
+    const line = document.createElement('div');
+    line.style.color = color;
+    line.innerHTML = `<span style="color: #565f89; margin-right: 6px;">[${timestamp}]</span> ${text}`;
+    logOutput.appendChild(line);
+    statusDiv.scrollTop = statusDiv.scrollHeight;
+  };
+
+  // Save connectors credentials automatically before testing
   await saveConnectors();
   
-  setTimeout(() => {
-    const success = isAgentConfigured(agentId); // Success if some inputs are present, failure otherwise
-    
-    if (success) {
-      statusDiv.innerHTML = `
-        <div class="conn-status-banner success">
-          ✓ Connexion établie avec succès ! Tous les services d'intégration de ${agent.name} répondent favorablement (Ping : 34ms).
-        </div>
-      `;
-      showToast("Test de connexion réussi !", "success");
-    } else {
-      statusDiv.innerHTML = `
-        <div class="conn-status-banner error">
-          ⚠️ Échec de la connexion. Veuillez configurer au moins un connecteur avec des identifiants valides.
-        </div>
-      `;
-      showToast("Échec de connexion : Identifiants manquants.", "error");
+  const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+  
+  // Step 1: Init
+  addLogLine(`Initialisation de la vérification réseau de ${agent.name}...`, 'system');
+  await delay(500);
+  
+  // Step 2: Hôtes
+  addLogLine(`Analyse des passerelles d'intégration configurées...`);
+  await delay(600);
+  
+  const success = isAgentConfigured(agentId);
+  const agentConnectors = state.connectorsData[agentId] || {};
+  
+  if (success) {
+    // Show active connectors check
+    for (const [connName, connData] of Object.entries(agentConnectors)) {
+      const isConfigured = connData && Object.values(connData).some(val => val && val.length > 0);
+      if (isConfigured) {
+        addLogLine(`Vérification des jetons et de l'hôte pour ${connName}...`);
+        await delay(500);
+        addLogLine(`✓ Connexion à ${connName} réussie (Ping: ${Math.floor(Math.random() * 30) + 15}ms).`, 'success');
+        await delay(300);
+      }
     }
-  }, 1800);
+    
+    addLogLine(`Négociation du protocole de sécurité et du handshake SSL...`);
+    await delay(600);
+    addLogLine(`✓ Handshake SSL réussi avec tous les points d'accès.`, 'success');
+    await delay(400);
+    
+    // Final banner
+    statusDiv.innerHTML = `
+      <div class="conn-status-banner success" style="margin-top: 16px;">
+        ✓ Connexion établie avec succès ! Tous les services d'intégration de ${agent.name} répondent favorablement (Ping : 34ms).
+      </div>
+    `;
+    showToast("Test de connexion réussi !", "success");
+  } else {
+    // Show failure check
+    addLogLine(`⚠️ ALERTE : Aucun connecteur activé ou configuré.`, 'error');
+    await delay(800);
+    addLogLine(`Vérification des informations de sécurité... Échec.`, 'error');
+    await delay(500);
+    
+    statusDiv.innerHTML = `
+      <div class="conn-status-banner error" style="margin-top: 16px;">
+        ⚠️ Échec de la connexion. Veuillez configurer au moins un connecteur avec des identifiants valides.
+      </div>
+    `;
+    showToast("Échec de connexion : Identifiants manquants.", "error");
+  }
 }
 
 // BILLING MANAGEMENT

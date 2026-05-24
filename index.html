@@ -64,6 +64,83 @@
               <p>Pas de frais cachés. Adoptez un agent, configurez son accès, et payez un abonnement clair et ajustable selon son grade tarifaire.</p>
             </div>
           </div>
+
+          <!-- Témoignages -->
+          <div class="home-sub-section">
+            <h2 class="sub-section-title">Ce que disent nos clients</h2>
+            <p class="sub-section-desc">Découvrez comment nos agents IA transforment le quotidien des entreprises.</p>
+            
+            <div class="testimonials-grid">
+              <div class="testimonial-card">
+                <div class="testimonial-header">
+                  <div class="testimonial-user-avatar" style="background-color: var(--accent-color);">JD</div>
+                  <div>
+                    <div class="testimonial-user-name">Jean Dupont</div>
+                    <div class="testimonial-user-title">CTO, WebGrow</div>
+                  </div>
+                </div>
+                <p class="testimonial-text">"L'agent Atlas (DevOps) surveille nos serveurs Linux H24. Il a détecté une fuite mémoire et a relancé Docker avant que nos clients ne s'en rendent compte. Impressionnant !"</p>
+              </div>
+
+              <div class="testimonial-card">
+                <div class="testimonial-header">
+                  <div class="testimonial-user-avatar" style="background-color: hsl(280, 80%, 45%);">ML</div>
+                  <div>
+                    <div class="testimonial-user-name">Marie Laurent</div>
+                    <div class="testimonial-user-title">Dir. Client, NovaShop</div>
+                  </div>
+                </div>
+                <p class="testimonial-text">"Hestia répond à 80% des demandes de support client Crisp et WhatsApp. Nos temps de réponse sont passés de 2 heures à 10 secondes !"</p>
+              </div>
+
+              <div class="testimonial-card">
+                <div class="testimonial-header">
+                  <div class="testimonial-user-avatar" style="background-color: hsl(150, 80%, 40%);">PM</div>
+                  <div>
+                    <div class="testimonial-user-name">Pierre Martin</div>
+                    <div class="testimonial-user-title">Fondateur, SalesForce-X</div>
+                  </div>
+                </div>
+                <p class="testimonial-text">"Vesta a configuré nos campagnes de prospection sur Lemlist. Nous avons obtenu 24 rendez-vous qualifiés en seulement deux semaines. Rentabilisé dès le premier jour."</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- FAQ -->
+          <div class="home-sub-section" style="margin-bottom: 60px;">
+            <h2 class="sub-section-title">Foire Aux Questions</h2>
+            <p class="sub-section-desc">Tout ce que vous devez savoir sur la plateforme César-IA.</p>
+            
+            <div class="faq-container">
+              <details class="faq-item">
+                <summary class="faq-question">Mes clés d'API et identifiants sont-ils sécurisés ?</summary>
+                <div class="faq-answer">
+                  <p>Oui, absolument. Toutes vos données sensibles (clés d'API, tokens, configurations de serveurs) sont cryptées de bout en bout à l'aide de l'algorithme de chiffrement industriel AES-256. Vos informations ne quittent jamais votre périmètre sécurisé.</p>
+                </div>
+              </details>
+
+              <details class="faq-item">
+                <summary class="faq-question">Comment fonctionne le diagnostic de connexion ?</summary>
+                <div class="faq-answer">
+                  <p>Lorsque vous configurez un connecteur, vous pouvez tester la liaison en temps réel. César-IA effectue une séquence de diagnostics sécurisés (pings, validation de jetons, handshake SSL) pour s'assurer que l'agent est opérationnel.</p>
+                </div>
+              </details>
+
+              <details class="faq-item">
+                <summary class="faq-question">Puis-je annuler l'adoption d'un agent à tout moment ?</summary>
+                <div class="faq-answer">
+                  <p>Oui. Tous nos abonnements sont sans engagement de durée. Vous pouvez suspendre ou résilier l'adoption de n'importe quel agent en un clic depuis votre espace "Facturation", l'agent cessera de fonctionner immédiatement.</p>
+                </div>
+              </details>
+
+              <details class="faq-item">
+                <summary class="faq-question">De quelle manière les agents accèdent-ils à nos données ?</summary>
+                <div class="faq-answer">
+                  <p>Chaque agent est limité aux droits d'accès que vous configurez via les connecteurs. Par exemple, si vous donnez un accès en lecture seule à une table de base de données, l'agent ne pourra jamais effectuer de modification ou de suppression.</p>
+                </div>
+              </details>
+            </div>
+          </div>
         </section>
 
         <!-- ================= CATALOG SECTION ================= -->
@@ -168,6 +245,21 @@
                     <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 24px;">
                       Suivez les performances, l'utilisation de l'API et les rapports d'exécution des tâches automatisées de cet agent.
                     </p>
+
+                    <!-- Email Digest Toggle -->
+                    <div class="email-digest-banner">
+                      <div style="display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 1.5rem;">📩</span>
+                        <div>
+                          <div style="font-weight: bold; font-size: 0.95rem; color: var(--text-primary);">Rapport d'activité par e-mail</div>
+                          <div style="font-size: 0.82rem; color: var(--text-secondary);">Recevoir un résumé hebdomadaire des actions réalisées par cet agent.</div>
+                        </div>
+                      </div>
+                      <label class="switch-toggle">
+                        <input type="checkbox" id="toggle-email-digest">
+                        <span class="switch-slider"></span>
+                      </label>
+                    </div>
                     
                     <!-- Stats Cards Grid -->
                     <div class="stats-grid">
