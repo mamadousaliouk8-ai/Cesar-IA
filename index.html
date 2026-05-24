@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>César-IA - Plateforme SaaS d'Agents IA Connectés</title>
+  </head>
+  <body>
+    <!-- Background glow shapes -->
+    <div class="glow-bg"></div>
+
+    <div class="app-container">
+      <!-- Top Navigation Bar -->
+      <header class="navbar">
+        <a href="#" class="logo-container" id="logo-home">
+          <div class="logo-icon">C</div>
+          <span>César-IA</span>
+        </a>
+        <nav class="nav-links">
+          <a href="#" class="nav-link active" data-route="home">Accueil</a>
+          <a href="#" class="nav-link" data-route="catalog">Catalogue</a>
+          <a href="#" class="nav-link" data-route="dashboard" id="nav-dashboard-link">Tableau de Bord</a>
+          <a href="#" class="nav-link" data-route="billing" id="nav-billing-link">Facturation</a>
+        </nav>
+        <div class="nav-auth" id="auth-nav-container">
+          <button class="btn btn-secondary btn-sm" id="btn-login-open">Se connecter</button>
+          <button class="btn btn-primary btn-sm" id="btn-signup-open">Créer un compte</button>
+        </div>
+      </header>
+
+      <!-- Main Section Container (SPA Routes) -->
+      <main class="content-area">
+        
+        <!-- ================= HOME SECTION ================= -->
+        <section id="route-home" class="route-section active">
+          <div class="hero-section">
+            <div class="hero-badge">⚡ Agence d'Agents Autonomes & Connectés</div>
+            <h1>Déployez des <span>Agents IA</span> sur vos serveurs et logiciels</h1>
+            <p class="hero-subtitle">
+              Adoptez parmi 15 agents IA spécialisés. Connectez-les à vos outils (Slack, SSH, SQL, Gmail) et laissez-les automatiser vos opérations complexes en toute autonomie.
+            </p>
+            <div class="hero-ctas">
+              <button class="btn btn-primary btn-lg" id="btn-hero-catalog">Découvrir le Catalogue</button>
+              <button class="btn btn-secondary btn-lg" id="btn-hero-explain">Comment ça marche ?</button>
+            </div>
+          </div>
+
+          <!-- Feature Highlights -->
+          <div class="features-grid">
+            <div class="feature-card">
+              <div class="feature-icon">🔌</div>
+              <h3>Connectivité Universelle</h3>
+              <p>Chaque agent s'intègre à vos serveurs via SSH, vos bases de données via SQL, et vos applications professionnelles favorites via API.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">🔑</div>
+              <h3>Sécurité de Niveau Bancaire</h3>
+              <p>Vos clés d'API et identifiants de serveurs sont cryptés de bout en bout dans notre coffre-fort de sécurité AES-256.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">💳</div>
+              <h3>Facturation à l'Agent</h3>
+              <p>Pas de frais cachés. Adoptez un agent, configurez son accès, et payez un abonnement clair et ajustable selon son grade tarifaire.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= CATALOG SECTION ================= -->
+        <section id="route-catalog" class="route-section">
+          <div class="section-header">
+            <h2>Catalogue des Agents</h2>
+            <p>Découvrez nos 15 agents IA spécialisés et adoptez celui dont vous avez besoin.</p>
+          </div>
+
+          <!-- Filters -->
+          <div class="filter-tabs" id="catalog-filters">
+            <button class="filter-tab active" data-category="all">Tous les agents</button>
+            <button class="filter-tab" data-category="Infrastructure">Infrastructure & DevOps</button>
+            <button class="filter-tab" data-category="Données & Analytics">Données & Analytics</button>
+            <button class="filter-tab" data-category="Ventes">Ventes & Prospection</button>
+            <button class="filter-tab" data-category="Marketing">Marketing & Médias</button>
+            <button class="filter-tab" data-category="Développement">Développement & Code</button>
+            <button class="filter-tab" data-category="Relation Client">Relation Client</button>
+            <button class="filter-tab" data-category="Gestion de Projet">Gestion de Projet</button>
+            <button class="filter-tab" data-category="Finance & Admin">Administration & Finance</button>
+          </div>
+
+          <!-- Grid layout for the 15 agents -->
+          <div class="catalog-grid" id="agents-catalog-grid">
+            <!-- Injected dynamically via app.js -->
+          </div>
+        </section>
+
+        <!-- ================= DASHBOARD SECTION ================= -->
+        <section id="route-dashboard" class="route-section">
+          <div class="dashboard-layout">
+            <!-- Sidebar: List of Adopted Agents -->
+            <div class="dashboard-sidebar">
+              <div class="sidebar-title">Mes Agents Adoptés</div>
+              <div class="adopted-agents-list" id="sidebar-adopted-list">
+                <!-- Injected dynamically via app.js -->
+              </div>
+            </div>
+
+            <!-- Main Panel: Chat or Connector Config -->
+            <div class="dashboard-panel" id="dashboard-main-panel">
+              <!-- Empty state: visible if no agent is selected -->
+              <div class="dashboard-empty" id="dashboard-empty-state">
+                <div class="dashboard-empty-icon">🤖</div>
+                <h3>Sélectionnez un agent</h3>
+                <p>Choisissez un agent dans la liste latérale pour commencer à discuter ou configurer ses accès serveurs et logiciels.</p>
+              </div>
+
+              <!-- Active Agent View: Header + Tabs (Chat / Connectors) -->
+              <div class="tab-content-wrapper" style="display: none; flex-direction: column; height: 100%;" id="active-agent-panel">
+                <div class="panel-header">
+                  <div class="panel-agent-meta">
+                    <span class="item-avatar" id="active-agent-avatar" style="font-size: 1.5rem;">📊</span>
+                    <div>
+                      <div class="panel-agent-name" id="active-agent-name">Sybil</div>
+                      <div class="panel-agent-title" id="active-agent-title">Analyste de Données</div>
+                    </div>
+                  </div>
+                  <div class="panel-tabs">
+                    <button class="panel-tab active" data-tab="chat">Discussion</button>
+                    <button class="panel-tab" data-tab="connectors">Connecteurs & Logiciels</button>
+                    <button class="panel-tab" data-tab="stats">Statistiques & Usage</button>
+                  </div>
+                </div>
+
+                <!-- Chat tab -->
+                <div class="tab-content active" id="tab-chat">
+                  <div class="chat-messages" id="chat-messages-container">
+                    <!-- Messages injected dynamically -->
+                  </div>
+                  <div class="chat-input-bar">
+                    <input type="text" id="chat-user-input" placeholder="Envoyer un message à l'agent..." />
+                    <button class="btn btn-primary" id="btn-chat-send">Envoyer</button>
+                  </div>
+                </div>
+
+                <!-- Connectors tab -->
+                <div class="tab-content" id="tab-connectors">
+                  <div class="connectors-layout">
+                    <h3>Configuration des Connexions de l'Agent</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 24px;">
+                      Donnez à cet agent l'accès aux serveurs, bases de données ou logiciels requis pour réaliser ses missions.
+                    </p>
+                    
+                    <div class="connectors-grid" id="connectors-form-grid">
+                      <!-- Dynamically generated fields based on agent connectors -->
+                    </div>
+
+                    <div style="display: flex; gap: 12px; align-items: center;">
+                      <button class="btn btn-primary" id="btn-save-connectors">Enregistrer les identifiants</button>
+                      <button class="btn btn-secondary" id="btn-test-connection">Tester la connexion</button>
+                    </div>
+                    
+                    <div id="test-connection-status"></div>
+                  </div>
+                </div>
+
+                <!-- Stats tab -->
+                <div class="tab-content" id="tab-stats">
+                  <div class="stats-layout">
+                    <h3>Activité & Consommation de l'Agent</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 24px;">
+                      Suivez les performances, l'utilisation de l'API et les rapports d'exécution des tâches automatisées de cet agent.
+                    </p>
+                    
+                    <!-- Stats Cards Grid -->
+                    <div class="stats-grid">
+                      <div class="stats-card">
+                        <div class="stats-card-title">Requêtes IA</div>
+                        <div class="stats-card-value" id="stats-total-queries">143</div>
+                        <div class="stats-card-desc">Messages & commandes traités</div>
+                      </div>
+                      <div class="stats-card">
+                        <div class="stats-card-title">Tokens Consommés</div>
+                        <div class="stats-card-value" id="stats-total-tokens">42.5k</div>
+                        <div class="stats-card-desc">Volume de texte traité</div>
+                      </div>
+                      <div class="stats-card">
+                        <div class="stats-card-title">Tâches Automatisées</div>
+                        <div class="stats-card-value" id="stats-total-tasks">24</div>
+                        <div class="stats-card-desc">Scripts & API déclenchés</div>
+                      </div>
+                      <div class="stats-card">
+                        <div class="stats-card-title">Statut Connexions</div>
+                        <div class="stats-card-value" id="stats-uptime" style="color: #10b981;">100%</div>
+                        <div class="stats-card-desc">Disponibilité connecteurs</div>
+                      </div>
+                    </div>
+
+                    <!-- Chart Container -->
+                    <div class="stats-chart-card">
+                      <div class="stats-chart-header">
+                        <h4>Volume d'Activité (7 derniers jours)</h4>
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">Mise à jour en direct</span>
+                      </div>
+                      <div class="stats-chart-body" id="stats-chart-container">
+                        <!-- Custom SVG Chart will be injected here -->
+                      </div>
+                    </div>
+
+                    <!-- Execution Logs Console -->
+                    <div class="stats-logs-card">
+                      <div class="stats-logs-header">
+                        <h4>Journal d'Exécution Récent</h4>
+                        <div class="console-dot-indicator"></div>
+                      </div>
+                      <div class="stats-logs-body console-terminal" id="stats-logs-container">
+                        <!-- Logs injected dynamically -->
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= BILLING SECTION ================= -->
+        <section id="route-billing" class="route-section">
+          <div class="section-header">
+            <h2>Espace Facturation</h2>
+            <p>Gérez vos moyens de paiement, vos abonnements d'agents actifs et téléchargez vos factures.</p>
+          </div>
+
+          <div class="billing-layout">
+            <!-- Left: Current plans & Invoices -->
+            <div>
+              <!-- Current Subscriptions -->
+              <div class="billing-card">
+                <h3>Abonnements Agents Actifs</h3>
+                <div id="active-subscriptions-list">
+                  <!-- Injected dynamically -->
+                </div>
+              </div>
+
+              <!-- Invoices History -->
+              <div class="billing-card">
+                <h3>Historique des Factures</h3>
+                <table class="invoice-table">
+                  <thead>
+                    <tr>
+                      <th>N° Facture</th>
+                      <th>Date</th>
+                      <th>Agent</th>
+                      <th>Montant</th>
+                      <th>Statut</th>
+                      <th style="text-align: center;">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="invoices-list-body">
+                    <!-- Injected dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Right: Summary and Payment Methods -->
+            <div>
+              <div class="summary-box">
+                <h3>Résumé Mensuel</h3>
+                <div id="billing-summary-items">
+                  <!-- Injected dynamically -->
+                </div>
+                <div class="summary-row total">
+                  <span>Total Mensuel</span>
+                  <span id="billing-summary-total">0.00 €</span>
+                </div>
+                <button class="btn btn-primary" style="width: 100%; margin-top: 20px;" id="btn-update-billing">Mettre à jour le moyen de paiement</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= ADMIN SECTION ================= -->
+        <section id="route-admin" class="route-section">
+          <div class="section-header">
+            <h2>Console d'Administration Propriétaire</h2>
+            <p>Vue globale sur l'activité des clients et des agents de votre plateforme César-IA.</p>
+          </div>
+
+          <div class="admin-layout">
+            <!-- Stats Row -->
+            <div class="features-grid" style="margin-bottom: 30px;">
+              <div class="feature-card" style="padding: 20px; text-align: center;">
+                <h3>Clients Inscrits</h3>
+                <div id="admin-stat-users" style="font-size: 2.5rem; font-weight: 800; color: var(--accent-color); margin-top: 10px;">0</div>
+              </div>
+              <div class="feature-card" style="padding: 20px; text-align: center;">
+                <h3>Agents Adoptés</h3>
+                <div id="admin-stat-adopted" style="font-size: 2.5rem; font-weight: 800; color: #10b981; margin-top: 10px;">0</div>
+              </div>
+              <div class="feature-card" style="padding: 20px; text-align: center;">
+                <h3>Revenus Mensuels (Simulés)</h3>
+                <div id="admin-stat-revenue" style="font-size: 2.5rem; font-weight: 800; color: #f59e0b; margin-top: 10px;">0.00 €</div>
+              </div>
+            </div>
+
+            <!-- Gemini API Configuration Card -->
+            <div class="billing-card" style="margin-bottom: 30px;">
+              <h3>Configuration de l'API Google Gemini</h3>
+              <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 16px;">
+                Renseignez votre clé API Google Gemini pour donner vie aux agents. Si aucune clé n'est fournie, l'application fonctionnera en mode simulation locale.
+              </p>
+              <div style="display: flex; gap: 14px; align-items: flex-end;">
+                <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                  <label for="admin-gemini-key">Clé API Google Gemini</label>
+                  <input type="password" id="admin-gemini-key" placeholder="AIzaSy..." style="width: 100%; font-family: monospace;" />
+                </div>
+                <button class="btn btn-primary" id="btn-save-gemini-key" style="height: 42px;">Enregistrer</button>
+                <button class="btn btn-secondary" id="btn-test-gemini-key" style="height: 42px;">Tester</button>
+              </div>
+              <div id="gemini-key-status" style="margin-top: 10px; font-size: 0.85rem; font-weight: 500;"></div>
+            </div>
+
+            <!-- Stripe Payment Links Configuration Card -->
+            <div class="billing-card" style="margin-bottom: 30px;" id="admin-stripe-config">
+              <h3>Configuration des Liens de Paiement Stripe</h3>
+              <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 16px;">
+                Associez chaque agent de la plateforme à un lien de paiement Stripe Payment Link réel créé sur votre tableau de bord Stripe.
+                Si aucun lien n'est renseigné pour un agent, l'application utilisera le formulaire de paiement par carte simulé.
+              </p>
+              <div style="max-height: 350px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 16px; background: rgba(0, 0, 0, 0.2);">
+                <table class="invoice-table" style="margin: 0; border: none; width: 100%;">
+                  <thead style="position: sticky; top: 0; background: rgba(15, 15, 20, 0.95); z-index: 1;">
+                    <tr>
+                      <th style="padding: 10px 14px;">Agent</th>
+                      <th style="padding: 10px 14px; text-align: center; width: 90px;">Prix</th>
+                      <th style="padding: 10px 14px;">Stripe Payment Link URL</th>
+                    </tr>
+                  </thead>
+                  <tbody id="admin-stripe-links-tbody">
+                    <!-- Rempli dynamiquement en JS pour les 15 agents -->
+                  </tbody>
+                </table>
+              </div>
+              <div style="display: flex; justify-content: flex-end;">
+                <button class="btn btn-primary" id="btn-save-stripe-links" style="height: 42px;">Enregistrer les liens Stripe</button>
+              </div>
+            </div>
+
+            <!-- Invoices and clients tables -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+              <!-- Clients Profiles List -->
+              <div class="billing-card">
+                <h3>Comptes Clients</h3>
+                <table class="invoice-table">
+                  <thead>
+                    <tr>
+                      <th>Email</th>
+                      <th>ID Utilisateur</th>
+                      <th>Rôle</th>
+                    </tr>
+                  </thead>
+                  <tbody id="admin-users-list">
+                    <!-- Injected dynamically -->
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- All Adoptions / Subscriptions -->
+              <div class="billing-card">
+                <h3>Abonnements Clients Actifs</h3>
+                <table class="invoice-table">
+                  <thead>
+                    <tr>
+                      <th>Client</th>
+                      <th>Agent</th>
+                      <th>Date d'adoption</th>
+                    </tr>
+                  </thead>
+                  <tbody id="admin-adoptions-list">
+                    <!-- Injected dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+
+    <!-- ================= AUTH MODAL (DIALOG) ================= -->
+    <dialog id="auth-modal" class="auth-dialog" closedby="any" aria-labelledby="auth-dialog-title">
+      <button class="dialog-close-btn" id="btn-auth-close">×</button>
+      <div class="dialog-header">
+        <h3 id="auth-dialog-title">Bienvenue</h3>
+        <p id="auth-dialog-desc">Veuillez créer un compte pour adopter des agents.</p>
+      </div>
+      
+      <form id="auth-form" method="dialog">
+        <div class="form-group">
+          <label for="auth-email">Adresse Email</label>
+          <input type="email" id="auth-email" required placeholder="nom@entreprise.com" />
+        </div>
+        <div class="form-group">
+          <label for="auth-password">Mot de passe</label>
+          <input type="password" id="auth-password" required placeholder="••••••••" minlength="6" />
+        </div>
+        
+        <div id="auth-modal-error" style="color: #ff5252; background: rgba(255, 82, 82, 0.08); border: 1px solid rgba(255, 82, 82, 0.15); padding: 8px 12px; border-radius: 6px; font-size: 0.85rem; margin-top: 12px; display: none; text-align: center; font-weight: 500;"></div>
+        <div id="auth-debug-log" style="font-family: monospace; font-size: 0.8rem; background: #111; color: #00ff00; padding: 10px; margin-top: 12px; border: 1px solid #333; border-radius: 6px; max-height: 120px; overflow-y: auto; text-align: left;">[Système] Prêt à enregistrer les diagnostics...</div>
+        
+        <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 14px;" id="btn-auth-submit">Continuer</button>
+      </form>
+      
+      <div class="dialog-footer">
+        <span id="auth-toggle-msg">Pas encore de compte ?</span>
+        <a href="#" id="auth-toggle-link">Créer un compte</a>
+      </div>
+    </dialog>
+
+    <!-- ================= ADOPT/CHECKOUT MODAL (DIALOG) ================= -->
+    <dialog id="adopt-modal" class="adopt-dialog" closedby="any" aria-labelledby="adopt-dialog-title">
+      <button class="dialog-close-btn" id="btn-adopt-close">×</button>
+      <div class="dialog-header">
+        <h3 id="adopt-dialog-title">Adopter l'Agent</h3>
+        <p>Confirmez votre abonnement pour activer l'agent.</p>
+      </div>
+
+      <div class="dialog-body">
+        <div class="checkout-agent-preview">
+          <span id="checkout-agent-avatar" style="font-size: 2.2rem;">📊</span>
+          <div>
+            <h4 id="checkout-agent-name" style="font-weight: 700;">Sybil</h4>
+            <span id="checkout-agent-title" style="font-size: 0.8rem; color: var(--text-secondary);">Analyste de Données & BI</span>
+          </div>
+        </div>
+
+        <div class="checkout-details">
+          <div class="checkout-row">
+            <span>Frais d'abonnement</span>
+            <span id="checkout-price-fees">49.00 € / mois</span>
+          </div>
+          <div class="checkout-row">
+            <span>Moyen de paiement sécurisé</span>
+            <span id="checkout-payment-method-label">Stripe Connect</span>
+          </div>
+          <div class="checkout-row total">
+            <span>Total à payer (par mois)</span>
+            <span id="checkout-price-total">49.00 €</span>
+          </div>
+        </div>
+
+        <!-- Mode Indicator Note -->
+        <div id="checkout-payment-type-note" style="margin-top: 12px; font-size: 0.8rem; padding: 10px; border-radius: 6px; text-align: center; border: 1px solid rgba(255,255,255,0.05);">
+          <!-- Dynamique -->
+        </div>
+
+        <!-- Conteneur Formulaire de paiement simulé (repli) -->
+        <div id="checkout-payment-form-container" style="display: none; margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 15px;">
+          <h5 style="margin-bottom: 12px; font-weight: 600; font-size: 0.85rem; color: var(--accent-color);">Saisie de la Carte (Simulation Stripe)</h5>
+          
+          <div class="form-group" style="margin-bottom: 10px;">
+            <label for="checkout-card-name" style="font-size: 0.7rem; margin-bottom: 4px;">Titulaire de la carte</label>
+            <input type="text" id="checkout-card-name" placeholder="Jean Dupont" style="width: 100%; height: 36px; font-size: 0.8rem;" />
+          </div>
+          
+          <div class="form-group" style="margin-bottom: 10px;">
+            <label for="checkout-card-number" style="font-size: 0.7rem; margin-bottom: 4px;">Numéro de carte</label>
+            <div style="position: relative;">
+              <input type="text" id="checkout-card-number" placeholder="4242 4242 4242 4242" maxlength="19" style="width: 100%; height: 36px; font-size: 0.8rem; padding-right: 40px; font-family: monospace;" />
+              <span id="card-brand-icon" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 1.1rem;">💳</span>
+            </div>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 10px;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="checkout-card-expiry" style="font-size: 0.7rem; margin-bottom: 4px;">Expiration</label>
+              <input type="text" id="checkout-card-expiry" placeholder="MM/YY" maxlength="5" style="width: 100%; height: 36px; font-size: 0.8rem; text-align: center; font-family: monospace;" />
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="checkout-card-cvc" style="font-size: 0.7rem; margin-bottom: 4px;">CVC</label>
+              <input type="text" id="checkout-card-cvc" placeholder="123" maxlength="4" style="width: 100%; height: 36px; font-size: 0.8rem; text-align: center; font-family: monospace;" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 12px; margin-top: 10px;">
+        <button class="btn btn-secondary" style="flex: 1;" id="btn-adopt-cancel">Annuler</button>
+        <button class="btn btn-primary" style="flex: 2; gap: 8px;" id="btn-adopt-confirm">
+          💳 Confirmer & Payer
+        </button>
+      </div>
+    </dialog>
+
+    <!-- ================= INVOICE DETAILS MODAL (DIALOG) ================= -->
+    <dialog id="invoice-modal" class="invoice-dialog" closedby="any" aria-labelledby="invoice-dialog-title">
+      <div id="invoice-print-area">
+        <!-- Header -->
+        <div class="invoice-header">
+          <div>
+            <div class="invoice-logo">
+              César<span style="color: #6366f1;">•IA</span>
+            </div>
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">Plateforme d'Agents IA Autonomes</div>
+          </div>
+          <div style="text-align: right;">
+            <span class="badge-paid-invoice">Payée</span>
+            <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 10px;" id="invoice-modal-date">Date : --/--/----</div>
+            <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-primary); margin-top: 2px;" id="invoice-modal-num">Facture N° : INV-000000</div>
+          </div>
+        </div>
+
+        <!-- Addresses -->
+        <div class="invoice-addresses">
+          <div>
+            <div class="address-title">Émetteur</div>
+            <div style="font-weight: 700; color: var(--text-primary);">César-IA Inc.</div>
+            <div style="color: var(--text-secondary);">128 Rue La Boétie</div>
+            <div style="color: var(--text-secondary);">75008 Paris, France</div>
+            <div style="color: var(--text-secondary);">billing@cesar-ia.com</div>
+          </div>
+          <div>
+            <div class="address-title">Destinataire</div>
+            <div style="font-weight: 700; color: var(--text-primary);" id="invoice-modal-client-email">client@email.com</div>
+            <div style="color: var(--text-secondary);" id="invoice-modal-client-id">ID Client : usr_xxxxxx</div>
+          </div>
+        </div>
+
+        <!-- Table -->
+        <table class="invoice-details-table">
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th style="text-align: center; width: 80px;">Quantité</th>
+              <th style="text-align: right; width: 120px;">Prix Unitaire</th>
+              <th style="text-align: right; width: 120px;">Montant HT</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding: 15px 0;">
+                <div style="font-weight: 700; color: var(--text-primary);" id="invoice-modal-agent-name">Abonnement Agent Sybil</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Accès illimité aux fonctionnalités de l'agent IA</div>
+              </td>
+              <td style="text-align: center;">1</td>
+              <td style="text-align: right;" id="invoice-modal-unit-price">49.00 €</td>
+              <td style="text-align: right;" id="invoice-modal-amount-ht">40.83 €</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Summary -->
+        <div class="invoice-summary-container">
+          <div class="invoice-summary-box">
+            <div class="invoice-summary-row">
+              <span>Sous-total HT</span>
+              <span id="invoice-modal-subtotal">40.83 €</span>
+            </div>
+            <div class="invoice-summary-row">
+              <span>TVA (20%)</span>
+              <span id="invoice-modal-vat">8.17 €</span>
+            </div>
+            <div class="invoice-summary-row total">
+              <span>Total TTC</span>
+              <span id="invoice-modal-total">49.00 €</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="invoice-footer">
+          <div>Cette facture tient lieu de preuve de paiement pour votre abonnement mensuel César-IA.</div>
+          <div>Pour toute question, contactez notre service comptabilité à <span style="font-weight: 600; color: var(--text-secondary);">billing@cesar-ia.com</span>.</div>
+        </div>
+      </div>
+      
+      <!-- Actions Section (Hidden on Print) -->
+      <div class="invoice-actions-footer">
+        <button class="btn btn-secondary" id="btn-invoice-close">Fermer</button>
+        <button class="btn btn-primary" id="btn-invoice-print">🖨️ Imprimer la facture</button>
+      </div>
+    </dialog>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="app-toast">
+      <span class="toast-success-icon">✓</span>
+      <span id="toast-message">Message d'information</span>
+    </div>
+
+    <!-- Panneau de diagnostic flottant -->
+    <div id="floating-debug-panel" style="position: fixed; bottom: 10px; right: 10px; z-index: 10000; background: rgba(0,0,0,0.9); color: #00ff00; font-family: monospace; font-size: 0.8rem; padding: 12px; border-radius: 8px; border: 1px solid #333; width: 350px; max-height: 200px; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.5); text-align: left; pointer-events: auto;">
+      <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #444; padding-bottom: 4px; margin-bottom: 6px; font-weight: bold; color: #fff;">
+        <span>Diagnostics César-IA</span>
+        <button onclick="document.getElementById('floating-debug-panel').style.display='none'" style="background: none; border: none; color: #ff5252; cursor: pointer; font-weight: bold;">[Fermer]</button>
+      </div>
+      <div id="floating-debug-log" style="white-space: pre-wrap; word-break: break-all;">[Système] Prêt...</div>
+    </div>
+
+    <!-- Main Module Script -->
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
