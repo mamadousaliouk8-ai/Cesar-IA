@@ -210,6 +210,18 @@ function initApp() {
       logDebug(`ℹ️ Note : L'application tourne sur le port ${currentPort}. Si Stripe vous redirige vers le port 5173, modifiez manuellement le port dans la barre d'adresse de votre navigateur pour ${currentPort}.`);
     }
 
+    // Contrôle d'affichage du panneau de diagnostic flottant (masqué par défaut en production)
+    const debugPanel = document.getElementById('floating-debug-panel');
+    if (debugPanel) {
+      const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const forceDebug = window.location.search.includes('debug=true');
+      if (isLocal || forceDebug) {
+        debugPanel.style.display = 'block';
+      } else {
+        debugPanel.style.display = 'none';
+      }
+    }
+
     setupRoutes();
     setupAuth();
     setupCatalog();
