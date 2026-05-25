@@ -154,6 +154,208 @@ async function runEmail(connectors, to, subject, body) {
   }
 }
 
+// n8n Webhook Action
+async function runN8N(connectors, action, details, payload, agentName) {
+  const n8nInfo = connectors["n8n Webhook"] || Object.values(connectors).find((v, k) => k && typeof k === 'string' && k.includes("n8n"));
+  if (!n8nInfo || !n8nInfo.token) {
+    return { error: "Erreur: Le connecteur n8n Webhook n'est pas configuré. Veuillez insérer l'URL de votre Webhook n8n." };
+  }
+  
+  try {
+    const res = await fetch(n8nInfo.token, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action,
+        details,
+        payload,
+        agent: agentName,
+        timestamp: new Date().toISOString()
+      })
+    });
+    
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+    }
+    return { success: true, status: res.status, message: "Workflow déclenché avec succès sur n8n !" };
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
+// Notion API Page Creator
+async function runNotion(connectors, databaseId, title, contentMarkdown) {
+  const notionInfo = connectors["Notion"] || Object.values(connectors).find((v, k) => k && typeof k === 'string' && k.includes("Notion"));
+  if (!notionInfo || !notionInfo.token) {
+    return { error: "Erreur: Le connecteur Notion n'est pas configuré. Veuillez renseigner le jeton Notion API." };
+  }
+
+  const finalDbId = databaseId || notionInfo.domain;
+  if (!finalDbId) {
+    return { error: "Erreur: Aucun ID de base de données (Database ID) Notion n'a été fourni." };
+  }
+
+  const paragraphs = contentMarkdown.split('\n').filter(p => p.trim().length > 0);
+  const children = paragraphs.map(p => ({
+    object: 'block',
+    type: 'paragraph',
+    paragraph: {
+      rich_text: [{ type: 'text', text: { content: p.substring(0, 2000) } }]
+    }
+  }));
+
+  try {
+    const res = await fetch('https://api.notion.com/v1/pages', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${notionInfo.token}`,
+        'Notion-Version': '2022-06-28',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        parent: { database_id: finalDbId },
+        properties: {
+          title: {
+            title: [
+              { text: { content: title } }
+            ]
+          }
+        },
+        children: children.slice(0, 100)
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+    return { success: true, pageId: data.id, url: data.url };
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
+// WordPress REST API Draft Creator
+async function runWordPress(connectors, title, contentHtml) {
+  const wpInfo = connectors["WordPress"] || Object.values(connectors).find((v, k) => k && typeof k === 'string' && k.includes("WordPress"));
+  if (!wpInfo || !wpInfo.token || !wpInfo.domain) {
+    return { error: "Erreur: Le connecteur WordPress n'est pas configuré (token ou domaine manquant)." };
+  }
+
+  let username = 'admin';
+  let password = wpInfo.token;
+  if (wpInfo.token.includes(':')) {
+    const parts = wpInfo.token.split(':');
+    username = parts[0];
+    password = parts.slice(1).join(':');
+  }
+
+  const cleanDomain = wpInfo.domain.replace(/\/$/, ''); // Retirer le slash final
+  const authHeader = 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64');
+
+  try {
+    const res = await fetch(`${cleanDomain}/wp-json/wp/v2/posts`, {
+      method: 'POST',
+      headers: {
+        'Authorization': authHeader,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        title: title,
+        content: contentHtml,
+        status: 'draft'
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+    return { success: true, postId: data.id, link: data.link, status: data.status };
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
+// GitHub REST API Issue Creator
+async function runGitHub(connectors, title, body) {
+  const ghInfo = connectors["GitHub"] || connectors["GitHub Actions"] || Object.values(connectors).find((v, k) => k && typeof k === 'string' && k.includes("GitHub"));
+  if (!ghInfo || !ghInfo.token || !ghInfo.domain) {
+    return { error: "Erreur: Le connecteur GitHub n'est pas configuré (token ou dépôt manquant)." };
+  }
+
+  const repo = ghInfo.domain.trim(); // Doit être sous la forme "proprietaire/depot"
+
+  try {
+    const res = await fetch(`https://api.github.com/repos/${repo}/issues`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `token ${ghInfo.token}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Cesar-IA-Agent',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        title,
+        body
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+    return { success: true, issueNumber: data.number, url: data.html_url };
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
+// Airtable REST API Record Insertion
+async function runAirtable(connectors, baseId, tableName, fieldsJson) {
+  const airtableInfo = connectors["Airtable"] || Object.values(connectors).find((v, k) => k && typeof k === 'string' && k.includes("Airtable"));
+  if (!airtableInfo || !airtableInfo.token) {
+    return { error: "Erreur: Le connecteur Airtable n'est pas configuré." };
+  }
+
+  let finalBaseId = baseId || airtableInfo.domain;
+  let finalTableName = tableName;
+  if (!finalBaseId) {
+    return { error: "Erreur: ID de Base Airtable manquant." };
+  }
+
+  if (finalBaseId.includes('/')) {
+    const parts = finalBaseId.split('/');
+    finalBaseId = parts[0];
+    finalTableName = parts[1];
+  }
+
+  if (!finalTableName) {
+    return { error: "Erreur: Nom de la table Airtable manquant (renseignez le sous la forme 'baseId/nomTable' dans le domaine du connecteur)." };
+  }
+
+  try {
+    const res = await fetch(`https://api.airtable.com/v0/${finalBaseId}/${encodeURIComponent(finalTableName)}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${airtableInfo.token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        records: [{ fields: fieldsJson }]
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error?.message || `HTTP ${res.status}`);
+    }
+    return { success: true, recordId: data.records[0].id };
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
 export default async function handler(req, res) {
   // CORS Configuration
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -174,7 +376,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { contents, systemInstruction, apiKey: clientApiKey, connectors = {} } = req.body;
+    const { contents, systemInstruction, apiKey: clientApiKey, connectors = {}, agentName = 'César-IA Agent' } = req.body;
     
     const apiKey = clientApiKey || process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
     if (!apiKey) {
@@ -252,6 +454,108 @@ export default async function handler(req, res) {
               },
               required: ["to", "subject", "body"]
             }
+          },
+          {
+            name: "trigger_workflow_action",
+            description: "Déclenche un workflow automatique externe complexe sur n'importe quel logiciel (LinkedIn, Salesforce, HubSpot, Shopify, etc.) via le connecteur de Webhook n8n/Make du client.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                action: {
+                  type: "STRING",
+                  description: "L'action à accomplir (ex: 'post_linkedin', 'update_crm_lead', 'fetch_shopify_orders')."
+                },
+                details: {
+                  type: "STRING",
+                  description: "Une description en langage naturel des instructions du client."
+                },
+                payload: {
+                  type: "OBJECT",
+                  description: "Un objet JSON contenant les paramètres clés de l'action (ex: { post_text: 'hello' } ou { lead_email: 'jean@dupont.com' })."
+                }
+              },
+              required: ["action", "details", "payload"]
+            }
+          },
+          {
+            name: "create_notion_page",
+            description: "Crée une nouvelle page ou note dans la base de données Notion de l'utilisateur.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                databaseId: {
+                  type: "STRING",
+                  description: "ID de la base de données Notion (facultatif si configuré par défaut)."
+                },
+                title: {
+                  type: "STRING",
+                  description: "Titre de la nouvelle page Notion."
+                },
+                contentMarkdown: {
+                  type: "STRING",
+                  description: "Contenu de la page au format Markdown."
+                }
+              },
+              required: ["title", "contentMarkdown"]
+            }
+          },
+          {
+            name: "create_wordpress_draft",
+            description: "Rédige et enregistre un brouillon d'article de blog sur le site WordPress de l'utilisateur.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                title: {
+                  type: "STRING",
+                  description: "Le titre de l'article."
+                },
+                contentHtml: {
+                  type: "STRING",
+                  description: "Le contenu HTML de l'article."
+                }
+              },
+              required: ["title", "contentHtml"]
+            }
+          },
+          {
+            name: "create_github_issue",
+            description: "Crée un nouveau ticket de bug ou de tâche (issue) sur le dépôt GitHub de l'utilisateur.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                title: {
+                  type: "STRING",
+                  description: "Le titre du ticket."
+                },
+                body: {
+                  type: "STRING",
+                  description: "La description textuelle ou Markdown détaillée du ticket."
+                }
+              },
+              required: ["title", "body"]
+            }
+          },
+          {
+            name: "insert_airtable_record",
+            description: "Insère une ligne de données (record) dans la table Airtable spécifiée.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                baseId: {
+                  type: "STRING",
+                  description: "ID de la base de données Airtable (facultatif si configuré dans le domaine)."
+                },
+                tableName: {
+                  type: "STRING",
+                  description: "Nom de la table (ex: 'Prospects', 'Logs', 'Ventes')."
+                },
+                fieldsJson: {
+                  type: "OBJECT",
+                  description: "Objet JSON clé-valeur représentant les colonnes et leurs valeurs à insérer."
+                }
+              },
+              required: ["tableName", "fieldsJson"]
+            }
           }
         ]
       }
@@ -301,6 +605,16 @@ export default async function handler(req, res) {
             functionResult = await runSlack(connectors, functionArgs.message);
           } else if (functionName === 'send_email') {
             functionResult = await runEmail(connectors, functionArgs.to, functionArgs.subject, functionArgs.body);
+          } else if (functionName === 'trigger_workflow_action') {
+            functionResult = await runN8N(connectors, functionArgs.action, functionArgs.details, functionArgs.payload, agentName);
+          } else if (functionName === 'create_notion_page') {
+            functionResult = await runNotion(connectors, functionArgs.databaseId, functionArgs.title, functionArgs.contentMarkdown);
+          } else if (functionName === 'create_wordpress_draft') {
+            functionResult = await runWordPress(connectors, functionArgs.title, functionArgs.contentHtml);
+          } else if (functionName === 'create_github_issue') {
+            functionResult = await runGitHub(connectors, functionArgs.title, functionArgs.body);
+          } else if (functionName === 'insert_airtable_record') {
+            functionResult = await runAirtable(connectors, functionArgs.baseId, functionArgs.tableName, functionArgs.fieldsJson);
           } else {
             functionResult = { error: `Outil ${functionName} inconnu.` };
           }

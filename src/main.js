@@ -2514,7 +2514,8 @@ async function sendChatMessage() {
           contents: contents,
           systemInstruction: systemInstruction,
           apiKey: localKey, // Passe la clé locale si elle existe, sinon le backend prendra celle d'environnement
-          connectors: connectors
+          connectors: connectors,
+          agentName: agent.name
         })
       });
       
