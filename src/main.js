@@ -2504,6 +2504,7 @@ async function sendChatMessage() {
     // 1. Tenter d'utiliser la route Serverless Vercel sécurisée
     try {
       logDebug("[Gemini Chat] Envoi du message à la route Serverless sécurisée...");
+      const connectors = state.connectorsData[agentId] || {};
       res = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -2512,7 +2513,8 @@ async function sendChatMessage() {
         body: JSON.stringify({
           contents: contents,
           systemInstruction: systemInstruction,
-          apiKey: localKey // Passe la clé locale si elle existe, sinon le backend prendra celle d'environnement
+          apiKey: localKey, // Passe la clé locale si elle existe, sinon le backend prendra celle d'environnement
+          connectors: connectors
         })
       });
       
