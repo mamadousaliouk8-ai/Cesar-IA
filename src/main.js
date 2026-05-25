@@ -228,6 +228,7 @@ function initApp() {
     setupDashboard();
     setupGeminiAdmin();
     setupStripeAdmin();
+    setupAdminTools();
     setupBilling();
     setupModals();
     setupInvoiceModal();
@@ -2088,6 +2089,130 @@ async function setupStripeAdmin() {
     
     btnSave.disabled = false;
     btnSave.innerText = "Enregistrer les Liens";
+  });
+}
+
+function setupAdminTools() {
+  const btnAdoptAll = document.getElementById('btn-admin-adopt-all');
+  if (!btnAdoptAll) return;
+  
+  btnAdoptAll.addEventListener('click', async () => {
+    if (!state.currentUser) {
+      showToast("Veuillez vous connecter pour adopter des agents.", "warning");
+      return;
+    }
+    
+    // Vérification de sécurité supplémentaire
+    if (!state.currentUser.isAdmin) {
+      showToast("Accès refusé. Vous devez être administrateur.", "error");
+      return;
+    }
+    
+    btnAdoptAll.disabled = true;
+    const originalText = btnAdoptAll.innerText;
+    btnAdoptAll.innerHTML = `<span class="spinner" style="display:inline-block; width:12px; height:12px; border-width:2px; vertical-align:middle; margin-right:4px;"></span> Adoption en cours...`;
+    
+    // Identifier les agents non encore adoptés
+    const agentsToAdopt = AGENTS.filter(agent => !state.adoptedAgents.includes(agent.id));
+    
+    if (agentsToAdopt.length === 0) {
+      showToast("Vous avez déjà adopté tous les agents !", "info");
+      btnAdoptAll.disabled = false;
+      btnAdoptAll.innerText = originalText;
+      return;
+    }
+    
+    logDebug(`[Admin Tools] Adoption de ${agentsToAdopt.length} agents en cours...`);
+    
+    if (isMock) {
+      // Simulation locale
+      agentsToAdopt.forEach(agent => {
+        state.adoptedAgents.push(agent.id);
+        
+        // Créer une facture simulée
+        const invoiceNo = `INV-MOCK-ADMIN-${agent.id.toUpperCase()}-${Math.floor(10000 + Math.random() * 90000)}`;
+        state.invoices.push({
+          id: invoiceNo,
+          date: new Date().toLocaleDateString('fr-FR'),
+          agentName: agent.name,
+          price: agent.price,
+          status: 'Payée'
+        });
+      });
+      
+      if (state.currentUser) {
+        state.currentUser.adopted = state.adoptedAgents;
+      }
+      saveMockState();
+      
+      // Laisser un petit délai pour le ressenti utilisateur
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+    } else {
+      // Supabase réel
+      try {
+        logDebug(`[Admin Tools] Envoi des adoptions à Supabase pour l'utilisateur ${state.currentUser.uid}...`);
+        
+        // Insérer les adoptions une par une (ou en parallèle via Promise.all) en ignorant les doublons
+        await Promise.all(agentsToAdopt.map(async (agent) => {
+          try {
+            await supabaseFetch('adopted_agents', {
+              method: 'POST',
+              body: { user_id: state.currentUser.uid, agent_id: agent.id }
+            });
+          } catch (errAdopt) {
+            if (!errAdopt.message.includes('23505') && !errAdopt.message.includes('409') && !errAdopt.message.includes('duplicate')) {
+              throw errAdopt;
+            }
+          }
+        }));
+        
+        logDebug(`[Admin Tools] Création des factures dans Supabase...`);
+        await Promise.all(agentsToAdopt.map(async (agent) => {
+          const invoiceNo = `INV-ADMIN-${agent.id.toUpperCase()}-${Math.floor(10000 + Math.random() * 90000)}`;
+          try {
+            await supabaseFetch('invoices', {
+              method: 'POST',
+              body: {
+                user_id: state.currentUser.uid,
+                invoice_number: invoiceNo,
+                agent_name: agent.name,
+                price: agent.price,
+                status: 'Payée'
+              }
+            });
+          } catch (errInv) {
+            // Ignorer les erreurs d'insertion de factures de test
+          }
+        }));
+        
+        // Recharger les données de l'utilisateur pour synchroniser l'état
+        await loadUserData();
+        
+      } catch (error) {
+        console.error("Erreur d'adoption groupée admin:", error);
+        logDebug(`[Admin Tools] Échec de l'adoption groupée: ${error.message}`);
+        showToast("Erreur lors de l'activation des abonnements sur Supabase.", "error");
+        btnAdoptAll.disabled = false;
+        btnAdoptAll.innerText = originalText;
+        return;
+      }
+    }
+    
+    showToast(`Félicitations ! Les ${agentsToAdopt.length} agents ont été adoptés avec succès.`, "success");
+    
+    // Mettre à jour l'interface globale
+    renderCatalog();
+    renderBilling();
+    renderDashboardSidebar();
+    
+    // Si l'admin se trouve sur l'onglet admin, réactualiser les statistiques et listes
+    if (state.activeRoute === 'admin') {
+      await renderAdminPanel();
+    }
+    
+    btnAdoptAll.disabled = false;
+    btnAdoptAll.innerText = originalText;
   });
 }
 
