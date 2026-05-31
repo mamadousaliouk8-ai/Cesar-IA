@@ -3178,7 +3178,7 @@ async function disconnectAgent() {
   const agent = AGENTS.find(a => a.id === agentId);
   const agentName = agent ? agent.name : "cet agent";
   
-  const ok = confirm(`Êtes-vous sûr de vouloir déconnecter l'agent ${agentName} et supprimer tous ses accès configurés ?`);
+  const ok = confirm(`Êtes-vous sûr de vouloir déconnecter l'agent ${agentName} et révoquer tous ses accès sécurisés ?\n\n⚠️ Note : Cette action supprime les identifiants de l'agent mais ne résilie pas votre abonnement commercial. Pour résilier votre abonnement et stopper la facturation, veuillez vous rendre dans l'onglet Facturation.`);
   if (!ok) return;
   
   // Wipe credentials locally
