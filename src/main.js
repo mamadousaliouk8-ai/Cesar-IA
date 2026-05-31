@@ -187,11 +187,91 @@ const state = {
   activeDashboardAgentId: null, // Selected agent in the dashboard sidebar
   activeDashboardTab: 'chat', // 'chat' or 'connectors'
   adoptedAgents: [], // list of adopted agent ids
+  activePack: null, // 'starter', 'pro', or 'business'
+  cancelledAgents: [], // list of agent ids scheduled for cancellation
+  cancelledPacks: [], // list of pack ids scheduled for cancellation
   connectorsData: {}, // { agentId: { connectorName: { field1: val, ... } } }
   invoices: [],
   cardDetailsSaved: false,
-  stripeLinks: {} // { agentId: url }
+  stripeLinks: {}, // { agentId: url }
+  tourActive: false
 };
+
+const PACKS = {
+  starter: {
+    name: "Starter Pack",
+    price: 447.00,
+    setupFee: 800,
+    agents: ["chronos", "apollo", "nemesis", "iris"]
+  },
+  pro: {
+    name: "Pro Pack",
+    price: 2016.75,
+    setupFee: 2500,
+    agents: ["chronos", "apollo", "nemesis", "iris", "hermes", "hestia", "vesta", "sybil", "athena", "demeter", "janus"]
+  },
+  business: {
+    name: "Business All-Access",
+    price: 3364.50,
+    setupFee: 4500,
+    agents: ["chronos", "apollo", "nemesis", "iris", "hermes", "hestia", "vesta", "sybil", "athena", "demeter", "janus", "atlas", "ares", "hephaestus"]
+  }
+};
+
+function getActivePack() {
+  if (!state.currentUser) return null;
+  return localStorage.getItem(`cesar_ia_active_pack_${state.currentUser.uid}`) || null;
+}
+
+function setActivePack(packId) {
+  if (!state.currentUser) return;
+  if (packId) {
+    localStorage.setItem(`cesar_ia_active_pack_${state.currentUser.uid}`, packId);
+    state.activePack = packId;
+  } else {
+    localStorage.removeItem(`cesar_ia_active_pack_${state.currentUser.uid}`);
+    state.activePack = null;
+  }
+}
+
+function isAgentAdopted(agentId) {
+  if (!state.currentUser) return false;
+  if (agentId === 'zeus') {
+    return state.adoptedAgents.includes('zeus');
+  }
+  if (state.activePack === 'business') {
+    return true; // all 14 agents
+  }
+  if (state.activePack === 'pro') {
+    const proAndStarter = ['chronos', 'apollo', 'nemesis', 'iris', 'hermes', 'hestia', 'vesta', 'sybil', 'athena', 'demeter', 'janus'];
+    if (proAndStarter.includes(agentId)) return true;
+  }
+  if (state.activePack === 'starter') {
+    const starter = ['chronos', 'apollo', 'nemesis', 'iris'];
+    if (starter.includes(agentId)) return true;
+  }
+  return state.adoptedAgents.includes(agentId);
+}
+
+function getAdoptedAgentIds() {
+  if (state.tourActive) {
+    const ids = new Set(state.adoptedAgents);
+    ids.add('sybil');
+    return Array.from(ids);
+  }
+  if (!state.currentUser) return [];
+  const ids = new Set(state.adoptedAgents);
+  if (state.activePack === 'starter') {
+    ['chronos', 'apollo', 'nemesis', 'iris'].forEach(id => ids.add(id));
+  } else if (state.activePack === 'pro') {
+    ['chronos', 'apollo', 'nemesis', 'iris', 'hermes', 'hestia', 'vesta', 'sybil', 'athena', 'demeter', 'janus'].forEach(id => ids.add(id));
+  } else if (state.activePack === 'business') {
+    AGENTS.forEach(a => {
+      if (a.id !== 'zeus') ids.add(a.id);
+    });
+  }
+  return Array.from(ids);
+}
 
 // Seed Initial Data (e.g. if user is preloaded for quick demo, or we let them sign up)
 function initApp() {
@@ -232,6 +312,7 @@ function initApp() {
     setupBilling();
     setupModals();
     setupInvoiceModal();
+    initOnboardingTour();
     updateUI();
     
     // Restaurer le rendu initial de la route si elle est publique (comme 'catalog')
@@ -256,8 +337,8 @@ function setupRoutes() {
       e.preventDefault();
       const route = link.getAttribute('data-route');
       
-      // Access control: dashboard and billing require user to be logged in
-      if ((route === 'dashboard' || route === 'billing') && !state.currentUser) {
+      // Access control: dashboard and billing require user to be logged in (unless active tour is running)
+      if ((route === 'dashboard' || route === 'billing') && !state.currentUser && !state.tourActive) {
         showToast("Veuillez d'abord vous connecter ou créer un compte.", "warning");
         openAuthModal(route === 'dashboard' ? 'Inscription requise pour le Dashboard' : 'Inscription requise pour la Facturation');
         return;
@@ -313,6 +394,7 @@ function navigateTo(route) {
     renderDashboardPanel();
   } else if (route === 'billing') {
     renderBilling();
+    initPricingCalculator();
   } else if (route === 'admin') {
     renderAdminPanel();
   }
@@ -515,6 +597,7 @@ async function handleLogout() {
   if (isMock) {
     state.currentUser = null;
     state.adoptedAgents = [];
+    state.activePack = null;
     state.activeDashboardAgentId = null;
     state.invoices = [];
     state.connectorsData = {};
@@ -636,9 +719,12 @@ async function initSupabaseAuth() {
       logDebug("Aucune session active, réinitialisation de l'état.");
       state.currentUser = null;
       state.adoptedAgents = [];
+      state.activePack = null;
       state.activeDashboardAgentId = null;
       state.invoices = [];
       state.connectorsData = {};
+      state.cancelledAgents = [];
+      state.cancelledPacks = [];
       
       updateUI();
     }
@@ -649,6 +735,9 @@ async function loadUserData() {
   if (isMock || !state.currentUser) return;
   
   try {
+    state.activePack = getActivePack();
+    state.cancelledAgents = JSON.parse(localStorage.getItem(`cesar_ia_cancelled_agents_${state.currentUser.uid}`) || '[]');
+    state.cancelledPacks = JSON.parse(localStorage.getItem(`cesar_ia_cancelled_packs_${state.currentUser.uid}`) || '[]');
     // Tester le fetch direct avant les requêtes client Supabase pour isoler le problème réseau
     await testDirectFetch();
     
@@ -747,6 +836,8 @@ function saveMockState() {
   localStorage.setItem('cesar_ia_mock_adopted', JSON.stringify(state.adoptedAgents));
   localStorage.setItem('cesar_ia_mock_invoices', JSON.stringify(state.invoices));
   localStorage.setItem('cesar_ia_mock_connectors', JSON.stringify(state.connectorsData));
+  localStorage.setItem('cesar_ia_mock_cancelled_agents', JSON.stringify(state.cancelledAgents));
+  localStorage.setItem('cesar_ia_mock_cancelled_packs', JSON.stringify(state.cancelledPacks));
 }
 
 function loadMockState() {
@@ -755,10 +846,15 @@ function loadMockState() {
     const adopted = localStorage.getItem('cesar_ia_mock_adopted');
     const invoices = localStorage.getItem('cesar_ia_mock_invoices');
     const connectors = localStorage.getItem('cesar_ia_mock_connectors');
+    const cancelledAgents = localStorage.getItem('cesar_ia_mock_cancelled_agents');
+    const cancelledPacks = localStorage.getItem('cesar_ia_mock_cancelled_packs');
     
     if (adopted) state.adoptedAgents = JSON.parse(adopted);
     if (invoices) state.invoices = JSON.parse(invoices);
     if (connectors) state.connectorsData = JSON.parse(connectors);
+    if (cancelledAgents) state.cancelledAgents = JSON.parse(cancelledAgents);
+    if (cancelledPacks) state.cancelledPacks = JSON.parse(cancelledPacks);
+    state.activePack = getActivePack();
   } catch (e) {
     console.error("Error loading mock state", e);
   }
@@ -836,8 +932,14 @@ function renderCatalog() {
     ? AGENTS 
     : AGENTS.filter(a => a.category === state.activeCategory);
     
-  filtered.forEach(agent => {
-    const isAdopted = state.adoptedAgents.includes(agent.id);
+  const sorted = [...filtered].sort((a, b) => {
+    if (a.id === 'zeus') return 1;
+    if (b.id === 'zeus') return -1;
+    return a.price - b.price;
+  });
+    
+  sorted.forEach(agent => {
+    const isAdopted = isAgentAdopted(agent.id);
     const accentRgb = hexToRgb(agent.color) || "99, 102, 241";
     
     const card = document.createElement('div');
@@ -845,6 +947,11 @@ function renderCatalog() {
     card.style.setProperty('--card-accent', agent.color);
     card.style.setProperty('--card-accent-hover', lightenDarkenColor(agent.color, 20));
     card.style.setProperty('--card-accent-rgb', accentRgb);
+    
+    const isEnterprise = agent.id === 'zeus';
+    const priceText = isEnterprise ? 'Sur devis' : `${agent.price} €`;
+    const periodText = isEnterprise ? '' : '/ mois';
+    const btnText = isAdopted ? '✓ Adopté' : (isEnterprise ? 'Contacter' : 'Adopter');
     
     card.innerHTML = `
       <div class="agent-card-header">
@@ -872,11 +979,11 @@ function renderCatalog() {
       
       <div class="agent-card-footer">
         <div class="agent-price">
-          <span class="price-val">${agent.price} €</span>
-          <span class="price-period">/ mois</span>
+          <span class="price-val">${priceText}</span>
+          <span class="price-period">${periodText}</span>
         </div>
         <button class="btn btn-sm ${isAdopted ? 'btn-secondary' : 'btn-primary'} btn-adopt-trigger" data-agent-id="${agent.id}">
-          ${isAdopted ? '✓ Adopté' : 'Adopter'}
+          ${btnText}
         </button>
       </div>
     `;
@@ -890,7 +997,7 @@ function renderCatalog() {
       e.stopPropagation();
       const agentId = btn.getAttribute('data-agent-id');
       
-      if (state.adoptedAgents.includes(agentId)) {
+      if (isAgentAdopted(agentId)) {
         showToast("Vous avez déjà adopté cet agent !", "info");
         navigateTo('dashboard');
         return;
@@ -918,13 +1025,78 @@ function openAdoptModal(agentId) {
   document.getElementById('checkout-agent-avatar').innerText = agent.avatar;
   document.getElementById('checkout-agent-name').innerText = agent.name;
   document.getElementById('checkout-agent-title').innerText = agent.title;
-  document.getElementById('checkout-price-fees').innerText = `${agent.price}.00 € / mois`;
-  document.getElementById('checkout-price-total').innerText = `${agent.price}.00 €`;
+  
+  const setupFeeRow = document.getElementById('checkout-setup-fee-row');
+  const setupFeeVal = document.getElementById('checkout-setup-fee-value');
+  const priceFees = document.getElementById('checkout-price-fees');
+  const priceTotal = document.getElementById('checkout-price-total');
+  const initialTotalRow = document.getElementById('checkout-initial-total-row');
   
   const stripeUrl = state.stripeLinks[agentId] || agent.stripeLink;
   const btnConfirm = document.getElementById('btn-adopt-confirm');
   const typeNote = document.getElementById('checkout-payment-type-note');
   const cardFormContainer = document.getElementById('checkout-payment-form-container');
+  
+  // Custom case for Zeus (Enterprise)
+  if (agentId === 'zeus') {
+    priceFees.innerText = 'Sur devis';
+    if (setupFeeRow) setupFeeRow.style.display = 'none';
+    priceTotal.innerText = 'Sur devis';
+    if (initialTotalRow) {
+      const label = initialTotalRow.querySelector('span:first-child');
+      if (label) label.innerText = 'Total estimé';
+    }
+    
+    typeNote.innerHTML = `<span style="color: var(--accent-color); font-weight: 600;">👑 Zeus Enterprise.</span> Ce superviseur de flotte d'agents IA nécessite une étude sur-mesure de vos architectures. Notre service commercial va prendre contact avec vous sous 24h.`;
+    typeNote.style.backgroundColor = 'rgba(99, 102, 241, 0.08)';
+    typeNote.style.borderColor = 'var(--accent-color)';
+    cardFormContainer.style.display = 'none';
+    btnConfirm.innerHTML = `✉️ Envoyer ma demande de devis`;
+    
+    document.getElementById('adopt-modal').showModal();
+    return;
+  }
+  
+  // Normal agent calculations
+  priceFees.innerText = `${agent.price}.00 € / mois`;
+  
+  // Calculate setup fee with surclassement waiver
+  const adoptedIds = getAdoptedAgentIds();
+  const hasBusiness = adoptedIds.some(id => {
+    const a = AGENTS.find(x => x.id === id);
+    return a && a.tier === 'Business';
+  });
+  const hasPro = adoptedIds.some(id => {
+    const a = AGENTS.find(x => x.id === id);
+    return a && a.tier === 'Pro';
+  });
+  
+  let setupFee = agent.setupFee || 0;
+  let setupFeeWaived = false;
+  
+  if (agent.tier === 'Starter' && (hasPro || hasBusiness)) {
+    setupFee = 0;
+    setupFeeWaived = true;
+  } else if (agent.tier === 'Pro' && hasBusiness) {
+    setupFee = 0;
+    setupFeeWaived = true;
+  }
+  
+  if (setupFeeRow) {
+    setupFeeRow.style.display = 'flex';
+    if (setupFeeWaived) {
+      setupFeeVal.innerHTML = `<span style="text-decoration: line-through; color: var(--text-muted); margin-right: 6px;">${agent.setupFee} €</span> <span style="color: #10b981; font-weight: 600;">0.00 € (Offert !)</span>`;
+    } else {
+      setupFeeVal.innerText = `${setupFee}.00 €`;
+    }
+  }
+  
+  const initialTotal = agent.price + setupFee;
+  priceTotal.innerText = `${initialTotal}.00 €`;
+  if (initialTotalRow) {
+    const label = initialTotalRow.querySelector('span:first-child');
+    if (label) label.innerText = 'Total initial à payer';
+  }
   
   if (stripeUrl) {
     typeNote.innerHTML = `<span style="color: #10b981; font-weight: 500;">🔗 Lien Stripe réel configuré.</span> Vous allez être redirigé vers la page de paiement sécurisée de Stripe pour valider votre abonnement.`;
@@ -944,7 +1116,8 @@ function openAdoptModal(agentId) {
     document.getElementById('checkout-card-number').value = '';
     document.getElementById('checkout-card-expiry').value = '';
     document.getElementById('checkout-card-cvc').value = '';
-    document.getElementById('card-brand-icon').innerText = '💳';
+    const brandIcon = document.getElementById('card-brand-icon');
+    if (brandIcon) brandIcon.innerText = '💳';
   }
   
   document.getElementById('adopt-modal').showModal();
@@ -969,9 +1142,31 @@ function validateLuhn(cardNumber) {
 
 function setupModals() {
   const adoptModal = document.getElementById('adopt-modal');
+  const unsubModal = document.getElementById('unsub-modal');
   
   document.getElementById('btn-adopt-close').addEventListener('click', () => adoptModal.close());
   document.getElementById('btn-adopt-cancel').addEventListener('click', () => adoptModal.close());
+  
+  if (unsubModal) {
+    const unsubClose = document.getElementById('btn-unsub-close');
+    const unsubCancel = document.getElementById('btn-unsub-cancel');
+    if (unsubClose) unsubClose.addEventListener('click', () => unsubModal.close());
+    if (unsubCancel) unsubCancel.addEventListener('click', () => unsubModal.close());
+    
+    // Backdrop click fallback
+    if (!('closedBy' in HTMLDialogElement.prototype)) {
+      unsubModal.addEventListener('click', (e) => {
+        if (e.target === unsubModal) {
+          const rect = unsubModal.getBoundingClientRect();
+          const isInContent = (
+            rect.top <= e.clientY && e.clientY <= rect.top + rect.height &&
+            rect.left <= e.clientX && e.clientX <= rect.left + rect.width
+          );
+          if (!isInContent) unsubModal.close();
+        }
+      });
+    }
+  }
   
   // Card brand detection and formatting
   const cardInput = document.getElementById('checkout-card-number');
@@ -1027,25 +1222,34 @@ function setupModals() {
     const agent = AGENTS.find(a => a.id === agentId);
     if (!agent) return;
     
-    const stripeUrl = state.stripeLinks[agentId] || agent.stripeLink;
     const btnConfirm = document.getElementById('btn-adopt-confirm');
     
+    // Zeus Enterprise special flow
+    if (agentId === 'zeus') {
+      btnConfirm.disabled = true;
+      btnConfirm.innerHTML = `<span class="spinner"></span> Envoi de la demande...`;
+      
+      setTimeout(() => {
+        btnConfirm.disabled = false;
+        btnConfirm.innerHTML = `✉️ Envoyer ma demande de devis`;
+        document.getElementById('adopt-modal').close();
+        showToast("Votre demande de devis pour Zeus a bien été envoyée ! Un conseiller vous contactera.", "success");
+      }, 1500);
+      return;
+    }
+    
+    const stripeUrl = state.stripeLinks[agentId] || agent.stripeLink;
     if (stripeUrl) {
       btnConfirm.disabled = true;
       btnConfirm.innerHTML = `<span class="spinner"></span> Redirection Stripe...`;
       
-      // Sauvegarder l'agentId AVANT la redirection pour le récupérer au retour
-      // (Stripe Payment Links ne permet pas d'ajouter des paramètres dynamiques)
       localStorage.setItem('cesar_ia_pending_stripe_callback', JSON.stringify({
         agentId: agentId,
         sessionId: null,
         timestamp: Date.now()
       }));
       
-      // Attendre 300ms pour que le localStorage soit bien écrit
       await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Redirection vers Stripe
       window.location.href = stripeUrl;
       return;
     }
@@ -1091,7 +1295,25 @@ function setupModals() {
     btnConfirm.disabled = true;
     btnConfirm.innerHTML = `<span class="spinner"></span> Traitement Stripe...`;
     
-    await new Promise(resolve => setTimeout(resolve, 1500)); // Latence réseau Stripe simulée
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // Calculate setup fee with surclassement waiver
+    const adoptedIds = getAdoptedAgentIds();
+    const hasBusiness = adoptedIds.some(id => {
+      const a = AGENTS.find(x => x.id === id);
+      return a && a.tier === 'Business';
+    });
+    const hasPro = adoptedIds.some(id => {
+      const a = AGENTS.find(x => x.id === id);
+      return a && a.tier === 'Pro';
+    });
+    
+    let setupFee = agent.setupFee || 0;
+    if (agent.tier === 'Starter' && (hasPro || hasBusiness)) setupFee = 0;
+    else if (agent.tier === 'Pro' && hasBusiness) setupFee = 0;
+    
+    const finalInvoicePrice = agent.price + setupFee;
+    const invoiceNo = "INV-" + Math.floor(100000 + Math.random() * 900000);
     
     if (isMock) {
       if (!state.adoptedAgents.includes(agentId)) {
@@ -1100,12 +1322,11 @@ function setupModals() {
       if (state.currentUser) {
         state.currentUser.adopted = state.adoptedAgents;
       }
-      const invoiceNo = "INV-" + Math.floor(100000 + Math.random() * 900000);
-      state.invoices.push({
+      state.invoices.unshift({
         id: invoiceNo,
         date: new Date().toLocaleDateString('fr-FR'),
         agentName: agent.name,
-        price: agent.price,
+        price: finalInvoicePrice,
         status: 'Payée'
       });
       saveMockState();
@@ -1122,14 +1343,13 @@ function setupModals() {
           }
         }
         
-        const invoiceNo = "INV-" + Math.floor(100000 + Math.random() * 900000);
         await supabaseFetch('invoices', {
           method: 'POST',
           body: {
             user_id: state.currentUser.uid,
             invoice_number: invoiceNo,
             agent_name: agent.name,
-            price: agent.price,
+            price: finalInvoicePrice,
             status: 'Payée'
           }
         });
@@ -1222,7 +1442,9 @@ function renderDashboardSidebar() {
   const sidebarList = document.getElementById('sidebar-adopted-list');
   sidebarList.innerHTML = '';
   
-  if (state.adoptedAgents.length === 0) {
+  const adoptedIds = getAdoptedAgentIds();
+  
+  if (adoptedIds.length === 0) {
     sidebarList.innerHTML = `
       <div class="no-adopted">
         Vous n'avez pas encore d'agent.<br><br>
@@ -1232,7 +1454,7 @@ function renderDashboardSidebar() {
     return;
   }
   
-  state.adoptedAgents.forEach(agentId => {
+  adoptedIds.forEach(agentId => {
     const agent = AGENTS.find(a => a.id === agentId);
     if (!agent) return;
     
@@ -1325,6 +1547,99 @@ function renderDashboardTabContent() {
 }
 
 // STATS TAB RENDERING
+const AGENT_KPIS = {
+  sybil: [
+    { title: "Requêtes SQL exécutées", value: (getSeededRandom) => getSeededRandom(120, 480), desc: "Requêtes autonomes de BI" },
+    { title: "Rapports générés", value: (getSeededRandom) => getSeededRandom(15, 60), desc: "Rapports Excel/Airtable/Sheets" },
+    { title: "Précision prédictions", value: (getSeededRandom) => `${getSeededRandom(92, 99)}%`, desc: "Analyse prédictive des tendances" },
+    { title: "Temps d'exécution SQL", value: (getSeededRandom) => `${(getSeededRandom(200, 800) / 1000).toFixed(2)}s`, desc: "Temps de réponse moyen base" }
+  ],
+  atlas: [
+    { title: "Uptime Serveurs", value: (getSeededRandom, isConfig) => isConfig ? "99.98%" : "0.00%", desc: "Disponibilité de l'infrastructure" },
+    { title: "Incidents résolus", value: (getSeededRandom) => getSeededRandom(2, 14), desc: "Alertes traitées de manière autonome" },
+    { title: "CPU / RAM moyen", value: (getSeededRandom) => `${getSeededRandom(35, 68)}% / ${getSeededRandom(40, 72)}%`, desc: "Utilisation des ressources serveurs" },
+    { title: "Scripts SSH exécutés", value: (getSeededRandom) => getSeededRandom(45, 180), desc: "Tâches shell automatisées" }
+  ],
+  chronos: [
+    { title: "Publications planifiées", value: (getSeededRandom) => getSeededRandom(20, 80), desc: "Posts sur LinkedIn/X/Facebook" },
+    { title: "Taux d'engagement", value: (getSeededRandom) => `${(getSeededRandom(30, 85) / 10).toFixed(1)}%`, desc: "Engagement moyen des publications" },
+    { title: "Portée estimée", value: (getSeededRandom) => `${getSeededRandom(12, 45)}k`, desc: "Impressions des posts générés" },
+    { title: "Commentaires modérés", value: (getSeededRandom) => getSeededRandom(80, 320), desc: "Interactions filtrées/traitées" }
+  ],
+  hermes: [
+    { title: "Articles SEO rédigés", value: (getSeededRandom) => getSeededRandom(8, 32), desc: "Articles de blog de 2000+ mots" },
+    { title: "Mots-clés positionnés", value: (getSeededRandom) => getSeededRandom(150, 600), desc: "Mots-clés en top 10 Google" },
+    { title: "Score d'optimisation", value: (getSeededRandom) => `${getSeededRandom(85, 96)}/100`, desc: "Score SEO moyen Surfer/Semrush" },
+    { title: "Trafic organique estimé", value: (getSeededRandom) => `+${getSeededRandom(15, 60)}%`, desc: "Croissance mensuelle moyenne" }
+  ],
+  hestia: [
+    { title: "Tickets résolus", value: (getSeededRandom) => getSeededRandom(250, 950), desc: "Résolution autonome de niveau 1 & 2" },
+    { title: "Score CSAT moyen", value: (getSeededRandom) => `${(getSeededRandom(42, 49) / 10).toFixed(1)} / 5`, desc: "Satisfaction client après échange" },
+    { title: "Taux de déviation", value: (getSeededRandom) => `${getSeededRandom(74, 88)}%`, desc: "Tickets évités sans support humain" },
+    { title: "Temps de réponse initial", value: (getSeededRandom) => `${getSeededRandom(12, 45)}s`, desc: "Délai de première réponse chat/email" }
+  ],
+  vesta: [
+    { title: "Emails de prospection", value: (getSeededRandom) => getSeededRandom(500, 2500), desc: "Cold emailing ultra-personnalisé" },
+    { title: "Taux d'ouverture", value: (getSeededRandom) => `${getSeededRandom(55, 78)}%`, desc: "Taux moyen d'ouverture des emails" },
+    { title: "Taux de réponse", value: (getSeededRandom) => `${getSeededRandom(18, 35)}%`, desc: "Réponses positives reçues" },
+    { title: "Rendez-vous qualifiés", value: (getSeededRandom) => getSeededRandom(8, 36), desc: "Réunions planifiées dans le calendrier" }
+  ],
+  ares: [
+    { title: "Failles détectées", value: (getSeededRandom) => getSeededRandom(5, 25), desc: "Vulnérabilités critiques, moyennes & faibles" },
+    { title: "Scans exécutés", value: (getSeededRandom) => getSeededRandom(14, 56), desc: "Audits de ports et de dépôts" },
+    { title: "Niveau de conformité", value: (getSeededRandom) => `${getSeededRandom(91, 98)}%`, desc: "Alignement normes OWASP/ISO" },
+    { title: "Injections SQL bloquées", value: (getSeededRandom) => getSeededRandom(120, 680), desc: "Attaques stoppées sur les formulaires" }
+  ],
+  athena: [
+    { title: "User Stories rédigées", value: (getSeededRandom) => getSeededRandom(24, 96), desc: "Tickets complets dans Jira/Linear" },
+    { title: "Cahiers des charges (PRD)", value: (getSeededRandom) => getSeededRandom(3, 12), desc: "Spécifications de fonctionnalités" },
+    { title: "Vitesse de sprint estimée", value: (getSeededRandom) => `${getSeededRandom(35, 65)} SP`, desc: "Story points livrés en moyenne" },
+    { title: "Comptes-rendus générés", value: (getSeededRandom) => getSeededRandom(12, 48), desc: "Notes de meeting résumées" }
+  ],
+  hephaestus: [
+    { title: "Code autonome généré", value: (getSeededRandom) => `${(getSeededRandom(10, 45) / 10).toFixed(1)}k lignes`, desc: "Fichiers JS/Python/Go produits" },
+    { title: "Issues résolues (GitHub)", value: (getSeededRandom) => getSeededRandom(15, 65), desc: "Bugs corrigés et fusionnés" },
+    { title: "Tests unitaires écrits", value: (getSeededRandom) => getSeededRandom(40, 160), desc: "Couverture de tests Jest/Pytest" },
+    { title: "Couverture de code moyenne", value: (getSeededRandom) => `${getSeededRandom(78, 92)}%`, desc: "Couverture de test des modifs" }
+  ],
+  iris: [
+    { title: "Sites concurrents surveillés", value: (getSeededRandom) => getSeededRandom(3, 12), desc: "Veille e-commerce et actualités" },
+    { title: "Prix réajustés identifiés", value: (getSeededRandom) => getSeededRandom(80, 450), desc: "Ajustements tarifaires concurrents" },
+    { title: "Alertes produits envoyées", value: (getSeededRandom) => getSeededRandom(12, 58), desc: "Lancements concurrents signalés" },
+    { title: "Rapports de veille", value: (getSeededRandom) => getSeededRandom(4, 16), desc: "Synthèses hebdomadaires du marché" }
+  ],
+  apollo: [
+    { title: "Volume de mots traduits", value: (getSeededRandom) => `${getSeededRandom(150, 850)}k`, desc: "Texte adapté dans 12 langues" },
+    { title: "Fichiers i18n localisés", value: (getSeededRandom) => getSeededRandom(20, 95), desc: "Fichiers de traduction JSON/YAML" },
+    { title: "Précision sémantique", value: (getSeededRandom) => `${getSeededRandom(96, 99)}%`, desc: "Score de qualité de traduction" },
+    { title: "Pages CMS synchronisées", value: (getSeededRandom) => getSeededRandom(40, 180), desc: "Pages WordPress/Shopify adaptées" }
+  ],
+  demeter: [
+    { title: "Factures traitées", value: (getSeededRandom) => getSeededRandom(80, 360), desc: "Documents extraits via OCR" },
+    { title: "TVA vérifiée & récupérée", value: (getSeededRandom) => `${getSeededRandom(1200, 8500)} €`, desc: "Calculs automatiques de déclaration" },
+    { title: "Taux de précision OCR", value: (getSeededRandom) => `${(getSeededRandom(980, 999) / 10).toFixed(1)}%`, desc: "Extraction sans correction manuelle" },
+    { title: "Rapprochements Qonto/Stripe", value: (getSeededRandom) => getSeededRandom(60, 280), desc: "Rapprochements bancaires automatiques" }
+  ],
+  janus: [
+    { title: "Documents indexés (RAG)", value: (getSeededRandom) => getSeededRandom(120, 580), desc: "Fichiers Notion/Drive disponibles" },
+    { title: "Questions résolues", value: (getSeededRandom) => getSeededRandom(450, 1800), desc: "Requêtes de recherche interne" },
+    { title: "Pages obsolètes détectées", value: (getSeededRandom) => getSeededRandom(8, 42), desc: "Suggestions de mise à jour wiki" },
+    { title: "Temps de recherche sémantique", value: (getSeededRandom) => `${getSeededRandom(150, 450)}ms`, desc: "Délai moyen de réponse" }
+  ],
+  nemesis: [
+    { title: "Commentaires analysés", value: (getSeededRandom) => `${getSeededRandom(5, 25)}k`, desc: "Avis, forums & réseaux modérés" },
+    { title: "Spams & insultes bloqués", value: (getSeededRandom) => getSeededRandom(300, 1500), desc: "Contenus indésirables masqués d'office" },
+    { title: "Taux de faux positifs", value: (getSeededRandom) => `${(getSeededRandom(1, 15) / 10).toFixed(1)}%`, desc: "Erreurs de modération corrigées" },
+    { title: "Temps de réaction", value: (getSeededRandom) => `${getSeededRandom(40, 190)}ms`, desc: "Modération instantanée en millisecondes" }
+  ],
+  zeus: [
+    { title: "Projets complexes coordonnés", value: (getSeededRandom) => getSeededRandom(5, 22), desc: "Processus multi-agents supervisés" },
+    { title: "Tâches distribuées", value: (getSeededRandom) => getSeededRandom(120, 560), desc: "Distribution autonome aux sous-agents" },
+    { title: "Sous-agents actifs", value: (getSeededRandom) => getSeededRandom(3, 8), desc: "Nombre moyen d'agents mobilisés" },
+    { title: "Taux de réussite livrables", value: (getSeededRandom) => `${getSeededRandom(95, 100)}%`, desc: "Validation automatique de qualité" }
+  ]
+};
+
 function renderStatsTab() {
   const agentId = state.activeDashboardAgentId;
   const agent = AGENTS.find(a => a.id === agentId);
@@ -1343,13 +1658,7 @@ function renderStatsTab() {
     return Math.floor(r * (max - min + 1)) + min;
   };
 
-  // Génération de métriques réalistes
-  const queries = getSeededRandom(80, 350, 1);
-  const tokensVal = (getSeededRandom(150, 890, 2) / 10).toFixed(1);
-  const tasks = getSeededRandom(10, 45, 3);
   const isConfig = isAgentConfigured(agentId);
-  const uptime = isConfig ? "100%" : "0%";
-  const uptimeColor = isConfig ? "#10b981" : "#ef4444";
 
   // Mettre à jour l'état du checkbox e-mail
   const toggleEmailDigest = document.getElementById('toggle-email-digest');
@@ -1358,14 +1667,34 @@ function renderStatsTab() {
     toggleEmailDigest.checked = isEnabled;
   }
 
-  // Mettre à jour les indicateurs du DOM
-  document.getElementById('stats-total-queries').innerText = queries;
-  document.getElementById('stats-total-tokens').innerText = `${tokensVal}k`;
-  document.getElementById('stats-total-tasks').innerText = tasks;
-  
-  const uptimeEl = document.getElementById('stats-uptime');
-  uptimeEl.innerText = uptime;
-  uptimeEl.style.color = uptimeColor;
+  // Mettre à jour les indicateurs du DOM dynamiquement avec des KPI personnalisés
+  const kpis = AGENT_KPIS[agentId] || [
+    { title: "Requêtes IA", value: (rand) => rand(80, 350), desc: "Messages & commandes traités" },
+    { title: "Tokens Consommés", value: (rand) => `${(rand(150, 890) / 10).toFixed(1)}k`, desc: "Volume de texte traité" },
+    { title: "Tâches Automatisées", value: (rand) => rand(10, 45), desc: "Scripts & API déclenchés" },
+    { title: "Statut Connexions", value: (rand, isConfig) => isConfig ? "100%" : "0%", desc: "Disponibilité connecteurs" }
+  ];
+
+  const statsGrid = document.querySelector('.stats-grid');
+  if (statsGrid) {
+    statsGrid.innerHTML = kpis.map((kpi, idx) => {
+      let val = typeof kpi.value === 'function' ? kpi.value(getSeededRandom, isConfig) : kpi.value;
+      
+      // Mettre de la couleur si c'est un statut d'uptime ou conformité
+      let valStyle = '';
+      if (kpi.title.toLowerCase().includes('uptime') || kpi.title.toLowerCase().includes('statut') || kpi.title.toLowerCase().includes('réussite')) {
+        valStyle = `style="color: ${isConfig || val !== '0.00%' ? '#10b981' : '#ef4444'};"`;
+      }
+      
+      return `
+        <div class="stats-card">
+          <div class="stats-card-title">${kpi.title}</div>
+          <div class="stats-card-value" ${valStyle}>${val}</div>
+          <div class="stats-card-desc">${kpi.desc}</div>
+        </div>
+      `;
+    }).join('');
+  }
 
   // Générer le graphique SVG personnalisé
   renderStatsChart(getSeededRandom);
@@ -2929,7 +3258,267 @@ function setupBilling() {
   });
 }
 
+function getCycleEndDate() {
+  const d = new Date();
+  d.setMonth(d.getMonth() + 1);
+  const options = { day: 'numeric', month: 'long', year: 'numeric' };
+  return d.toLocaleDateString('fr-FR', options);
+}
+
+function openUnsubModal(type, targetId) {
+  const modal = document.getElementById('unsub-modal');
+  const targetPreview = document.getElementById('unsub-target-preview');
+  const impactList = document.getElementById('unsub-impact-list');
+  const confirmBtn = document.getElementById('btn-unsub-confirm');
+  
+  if (!modal || !targetPreview || !impactList || !confirmBtn) return;
+  
+  const cycleEndDate = getCycleEndDate();
+  
+  if (type === 'pack') {
+    const packInfo = PACKS[targetId];
+    if (!packInfo) return;
+    
+    targetPreview.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 10px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 1.8rem;">📦</span>
+          <div>
+            <strong style="font-size: 1rem; color: var(--text-primary);">${packInfo.name}</strong>
+            <div style="font-size: 0.75rem; color: var(--text-secondary);">Forfait global</div>
+          </div>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-weight: 700; color: #ef4444; font-size: 1.1rem;">${packInfo.price.toFixed(2)} €</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted);">par mois</div>
+        </div>
+      </div>
+    `;
+    
+    impactList.innerHTML = packInfo.agents.map(agentId => {
+      const agent = AGENTS.find(a => a.id === agentId);
+      return agent ? `
+        <li style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 1.2rem;">${agent.avatar}</span>
+          <strong style="color: var(--text-primary);">${agent.name}</strong>
+          <span style="font-size: 0.8rem; color: var(--text-secondary);">(${agent.title})</span>
+        </li>
+      ` : '';
+    }).join('');
+    
+    confirmBtn.onclick = () => {
+      executeCancellation('pack', targetId);
+    };
+    
+  } else if (type === 'agent') {
+    const agent = AGENTS.find(a => a.id === targetId);
+    if (!agent) return;
+    
+    targetPreview.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 10px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 1.8rem;">${agent.avatar}</span>
+          <div>
+            <strong style="font-size: 1rem; color: var(--text-primary);">${agent.name}</strong>
+            <div style="font-size: 0.75rem; color: var(--text-secondary);">${agent.title}</div>
+          </div>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-weight: 700; color: #ef4444; font-size: 1.1rem;">${agent.price.toFixed(2)} €</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted);">par mois</div>
+        </div>
+      </div>
+    `;
+    
+    impactList.innerHTML = `
+      <li style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 1.2rem;">${agent.avatar}</span>
+        <strong style="color: var(--text-primary);">${agent.name}</strong>
+        <span style="font-size: 0.8rem; color: var(--text-secondary);">(${agent.title})</span>
+      </li>
+    `;
+    
+    confirmBtn.onclick = () => {
+      executeCancellation('agent', targetId);
+    };
+  }
+  
+  modal.showModal();
+}
+
+async function executeCancellation(type, targetId) {
+  if (type === 'pack') {
+    if (!state.cancelledPacks.includes(targetId)) {
+      state.cancelledPacks.push(targetId);
+    }
+    if (state.currentUser) {
+      localStorage.setItem(`cesar_ia_cancelled_packs_${state.currentUser.uid}`, JSON.stringify(state.cancelledPacks));
+    }
+    saveMockState();
+    showToast("La résiliation de votre forfait a été planifiée pour le mois prochain.", "success");
+  } else if (type === 'agent') {
+    if (!state.cancelledAgents.includes(targetId)) {
+      state.cancelledAgents.push(targetId);
+    }
+    if (state.currentUser) {
+      localStorage.setItem(`cesar_ia_cancelled_agents_${state.currentUser.uid}`, JSON.stringify(state.cancelledAgents));
+    }
+    saveMockState();
+    showToast(`La résiliation de l'agent ${AGENTS.find(a => a.id === targetId)?.name || ''} a été planifiée pour le mois prochain.`, "success");
+  }
+  
+  const unsubModal = document.getElementById('unsub-modal');
+  if (unsubModal) unsubModal.close();
+  
+  renderBilling();
+  renderCatalog();
+  updateUI();
+}
+
+// ================================================================
+//  PRICING CALCULATOR — Simulateur de Tarifs (Étape 2.1)
+// ================================================================
+
+const PACK_DATA = {
+  starter: {
+    name: 'Starter Pack',
+    price: 447,
+    setup: '800 € (au lieu de 2 000 €)',
+    agents: ['chronos', 'apollo', 'nemesis', 'iris'],
+    grossTotal: 596
+  },
+  pro: {
+    name: 'Pro Pack',
+    price: 2016.75,
+    setup: '2 500 € (au lieu de 12 500 €)',
+    agents: ['chronos', 'apollo', 'nemesis', 'iris', 'sybil', 'hermes', 'hestia', 'vesta', 'athena', 'demeter', 'janus'],
+    grossTotal: 2689
+  },
+  business: {
+    name: 'Business All-Access',
+    price: 3364.50,
+    setup: '4 500 € (au lieu de 21 500 €)',
+    agents: ['chronos', 'apollo', 'nemesis', 'iris', 'sybil', 'hermes', 'hestia', 'vesta', 'athena', 'demeter', 'janus', 'atlas', 'ares', 'hephaestus'],
+    grossTotal: 4486
+  }
+};
+
+function initPricingCalculator() {
+  // Guard: only run if the DOM is present
+  if (!document.getElementById('calc-agents-starter')) return;
+
+  const tiers = ['Starter', 'Pro', 'Business'];
+  const tierMap = { Starter: 'starter', Pro: 'pro', Business: 'business' };
+  let selectedAgents = new Set();
+
+  // --- Populate agent chips ---
+  tiers.forEach(tier => {
+    const container = document.getElementById(`calc-agents-${tierMap[tier]}`);
+    if (!container) return;
+    container.innerHTML = '';
+
+    const agents = AGENTS.filter(a => a.tier === tier && a.id !== 'zeus');
+    agents.forEach(agent => {
+      const chip = document.createElement('label');
+      chip.className = 'calc-agent-chip';
+      chip.setAttribute('title', `${agent.name} — ${agent.price} €/mois`);
+      chip.innerHTML = `
+        <input type="checkbox" value="${agent.id}">
+        <span class="calc-agent-avatar">${agent.avatar}</span>
+        <span>${agent.name}</span>
+        <span class="calc-chip-check">✓</span>
+      `;
+
+      const checkbox = chip.querySelector('input');
+      checkbox.addEventListener('change', () => {
+        if (checkbox.checked) {
+          selectedAgents.add(agent.id);
+          chip.classList.add('selected');
+        } else {
+          selectedAgents.delete(agent.id);
+          chip.classList.remove('selected');
+        }
+        updateIndividualResult();
+      });
+
+      container.appendChild(chip);
+    });
+  });
+
+  // --- Live individual result ---
+  function updateIndividualResult() {
+    const ids = Array.from(selectedAgents);
+    const count = ids.filter(id => {
+      const a = AGENTS.find(x => x.id === id);
+      return a && a.tier !== 'Enterprise';
+    }).length;
+
+    let gross = 0;
+    ids.forEach(id => {
+      const a = AGENTS.find(x => x.id === id);
+      if (a && a.price) gross += a.price;
+    });
+
+    const hasDiscount = count >= 3;
+    const discount = hasDiscount ? gross * 0.15 : 0;
+    const final = gross - discount;
+
+    document.getElementById('calc-gross-total').textContent = `${gross.toFixed(2)} €`;
+    document.getElementById('calc-final-total').textContent = `${final.toFixed(2)} €`;
+
+    const discountRow = document.getElementById('calc-discount-row');
+    if (hasDiscount) {
+      discountRow.style.display = 'flex';
+      document.getElementById('calc-discount-amount').textContent = `−${discount.toFixed(2)} €`;
+    } else {
+      discountRow.style.display = 'none';
+    }
+
+    const countEl = document.getElementById('calc-agents-count');
+    if (count === 0) {
+      countEl.textContent = 'Sélectionnez au moins un agent pour voir votre estimation.';
+    } else if (count < 3) {
+      countEl.textContent = `${count} agent(s) sélectionné(s) — Ajoutez ${3 - count} de plus pour débloquer −15%.`;
+    } else {
+      countEl.textContent = `✅ ${count} agents sélectionnés — Remise −15% appliquée !`;
+    }
+  }
+
+  // --- Pack radio buttons ---
+  document.querySelectorAll('input[name="calc-pack"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      const pack = PACK_DATA[radio.value];
+      if (!pack) return;
+
+      const gross = pack.grossTotal;
+      const saving = gross - pack.price;
+
+      document.getElementById('calc-pack-gross').textContent = `${gross.toFixed(2)} €`;
+      document.getElementById('calc-pack-saving-amount').textContent = `−${saving.toFixed(2)} €`;
+      document.getElementById('calc-pack-final').textContent = `${pack.price.toFixed(2)} €`;
+      document.getElementById('calc-pack-setup').textContent = pack.setup;
+      document.getElementById('calc-result-pack').style.display = 'block';
+    });
+  });
+
+  // --- Tab switching ---
+  document.querySelectorAll('.calc-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.calc-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+
+      const mode = tab.dataset.mode;
+      document.getElementById('calc-panel-individual').style.display = mode === 'individual' ? '' : 'none';
+      document.getElementById('calc-panel-pack').style.display = mode === 'pack' ? '' : 'none';
+    });
+  });
+
+  // Initialize display
+  updateIndividualResult();
+}
+
 function renderBilling() {
+
   const activeList = document.getElementById('active-subscriptions-list');
   const invoicesBody = document.getElementById('invoices-list-body');
   const summaryItems = document.getElementById('billing-summary-items');
@@ -2941,18 +3530,113 @@ function renderBilling() {
   
   let totalCost = 0;
   
-  if (state.adoptedAgents.length === 0) {
+  // 1. Update the Packs UI
+  const packs = ['starter', 'pro', 'business'];
+  packs.forEach(packId => {
+    const card = document.getElementById(`pack-${packId}-card`);
+    const btn = card?.querySelector('.btn-pack-subscribe');
+    if (!card || !btn) return;
+    
+    const isPackCancelled = state.cancelledPacks.includes(packId);
+    
+    if (state.activePack === packId) {
+      if (isPackCancelled) {
+        card.style.borderColor = '#ef4444';
+        card.style.background = 'rgba(239, 68, 68, 0.05)';
+        btn.innerText = 'Résiliation planifiée';
+        btn.className = 'btn btn-secondary btn-block btn-pack-subscribe';
+        btn.disabled = true;
+      } else {
+        card.style.borderColor = 'var(--accent-color)';
+        card.style.background = 'rgba(99, 102, 241, 0.08)';
+        btn.innerText = 'Résilier le forfait';
+        btn.className = 'btn btn-danger btn-block btn-pack-subscribe';
+        btn.disabled = false;
+      }
+    } else {
+      card.style.borderColor = 'var(--border-color)';
+      card.style.background = 'rgba(255, 255, 255, 0.01)';
+      btn.innerText = state.activePack ? 'Changer pour ce Pack' : 'Activer le Pack';
+      btn.className = 'btn btn-primary btn-block btn-pack-subscribe';
+      btn.disabled = false;
+    }
+  });
+
+  // 2. Render Active Subscriptions
+  const adoptedIds = getAdoptedAgentIds();
+  const packAgents = state.activePack ? PACKS[state.activePack].agents : [];
+  
+  if (adoptedIds.length === 0 && !state.activePack) {
     activeList.innerHTML = `
       <div style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 20px 0;">
         Vous n'avez aucun agent actif souscrit. Rendez-vous dans le <a href="#" onclick="document.querySelector('[data-route=catalog]').click()" style="color: var(--accent-color); text-decoration: none; font-weight: 600;">Catalogue</a>.
       </div>
     `;
   } else {
-    state.adoptedAgents.forEach(agentId => {
+    // Render Active Pack if any
+    if (state.activePack) {
+      const packInfo = PACKS[state.activePack];
+      totalCost += packInfo.price;
+      
+      const isPackCancelled = state.cancelledPacks.includes(state.activePack);
+      const cycleEndDate = getCycleEndDate();
+      
+      const packItem = document.createElement('div');
+      packItem.style.display = 'flex';
+      packItem.style.justifyContent = 'space-between';
+      packItem.style.alignItems = 'center';
+      packItem.style.padding = '14px';
+      if (isPackCancelled) {
+        packItem.style.background = 'rgba(239, 68, 68, 0.03)';
+        packItem.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+      } else {
+        packItem.style.background = 'rgba(99, 102, 241, 0.05)';
+        packItem.style.border = '1px solid var(--accent-color)';
+      }
+      packItem.style.borderRadius = '8px';
+      packItem.style.marginBottom = '10px';
+      
+      const actionHtml = isPackCancelled
+        ? `<span style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2); padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; display: inline-block;">Résiliation planifiée (Fin de cycle : ${cycleEndDate})</span>`
+        : `<button class="btn btn-danger btn-sm btn-unsubscribe-pack">Résilier</button>`;
+      
+      packItem.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="font-size: 1.5rem;">📦</span>
+          <div>
+            <div style="font-weight: 700; font-size: 0.95rem; color: ${isPackCancelled ? '#ef4444' : 'var(--accent-color)'};">${packInfo.name}</div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary);">${isPackCancelled ? 'Forfait résilié - accès maintenu jusqu\'à la fin de la période' : 'Forfait global actif (-25% inclus)'}</div>
+          </div>
+        </div>
+        <div style="text-align: right; display: flex; align-items: center; gap: 14px;">
+          <div>
+            <div style="font-weight: 700;">${packInfo.price.toFixed(2)} €</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);">par mois</div>
+          </div>
+          ${actionHtml}
+        </div>
+      `;
+      activeList.appendChild(packItem);
+      
+      const sumItem = document.createElement('div');
+      sumItem.className = 'summary-row';
+      sumItem.innerHTML = `
+        <span>Forfait ${packInfo.name} ${isPackCancelled ? '(Résiliation planifiée)' : ''}</span>
+        <span>${packInfo.price.toFixed(2)} €</span>
+      `;
+      summaryItems.appendChild(sumItem);
+    }
+    
+    // Calculate individual billing items
+    let individualBillableCount = 0;
+    let individualBillableSum = 0;
+    
+    adoptedIds.forEach(agentId => {
       const agent = AGENTS.find(a => a.id === agentId);
       if (!agent) return;
       
-      totalCost += agent.price;
+      const isCoveredByPack = packAgents.includes(agentId);
+      const isZeus = agentId === 'zeus';
       
       const item = document.createElement('div');
       item.style.display = 'flex';
@@ -2964,34 +3648,102 @@ function renderBilling() {
       item.style.borderRadius = '8px';
       item.style.marginBottom = '10px';
       
-      item.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <span style="font-size: 1.5rem;">${agent.avatar}</span>
-          <div>
-            <div style="font-weight: 700; font-size: 0.95rem;">${agent.name}</div>
-            <div style="font-size: 0.8rem; color: var(--text-secondary);">${agent.title}</div>
+      if (isCoveredByPack) {
+        item.style.opacity = '0.8';
+        
+        const isPackCancelled = state.cancelledPacks.includes(state.activePack);
+        const subtextHtml = isPackCancelled
+          ? `
+            <div style="font-weight: 700; color: #ef4444;">Désactivation planifiée</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);">Fin de cycle forfait</div>
+          `
+          : `
+            <div style="font-weight: 700; color: #10b981;">Inclus</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);">dans le forfait</div>
+          `;
+          
+        item.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 1.5rem;">${agent.avatar}</span>
+            <div>
+              <div style="font-weight: 700; font-size: 0.95rem;">${agent.name}</div>
+              <div style="font-size: 0.8rem; color: var(--text-secondary);">${agent.title}</div>
+            </div>
           </div>
-        </div>
-        <div style="text-align: right; display: flex; align-items: center; gap: 14px;">
-          <div>
-            <div style="font-weight: 700;">${agent.price}.00 €</div>
-            <div style="font-size: 0.75rem; color: var(--text-muted);">par mois</div>
+          <div style="text-align: right; display: flex; align-items: center; gap: 14px;">
+            <div>
+              ${subtextHtml}
+            </div>
           </div>
-          <button class="btn btn-danger btn-sm btn-unsubscribe" data-agent-id="${agent.id}">Résilier</button>
-        </div>
-      `;
-      
-      activeList.appendChild(item);
-      
-      // Summary list item
-      const sumItem = document.createElement('div');
-      sumItem.className = 'summary-row';
-      sumItem.innerHTML = `
-        <span>Abonnement ${agent.name}</span>
-        <span>${agent.price}.00 €</span>
-      `;
-      summaryItems.appendChild(sumItem);
+        `;
+        activeList.appendChild(item);
+      } else {
+        const displayPrice = isZeus ? 'Sur devis' : `${agent.price}.00 €`;
+        const periodText = isZeus ? '' : 'par mois';
+        
+        const isAgentCancelled = state.cancelledAgents.includes(agent.id);
+        const cycleEndDate = getCycleEndDate();
+        
+        const agentActionHtml = isAgentCancelled
+          ? `<span style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2); padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; display: inline-block;">Résiliation planifiée (Fin de cycle : ${cycleEndDate})</span>`
+          : `<button class="btn btn-danger btn-sm btn-unsubscribe" data-agent-id="${agent.id}">Résilier</button>`;
+        
+        if (isAgentCancelled) {
+          item.style.background = 'rgba(239, 68, 68, 0.02)';
+          item.style.borderColor = 'rgba(239, 68, 68, 0.2)';
+        }
+        
+        item.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 1.5rem;">${agent.avatar}</span>
+            <div>
+              <div style="font-weight: 700; font-size: 0.95rem; color: ${isAgentCancelled ? '#ef4444' : 'var(--text-primary)'};">${agent.name}</div>
+              <div style="font-size: 0.8rem; color: var(--text-secondary);">${agent.title}</div>
+            </div>
+          </div>
+          <div style="text-align: right; display: flex; align-items: center; gap: 14px;">
+            <div>
+              <div style="font-weight: 700;">${displayPrice}</div>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">${periodText}</div>
+            </div>
+            ${agentActionHtml}
+          </div>
+        `;
+        activeList.appendChild(item);
+        
+        if (!isZeus) {
+          individualBillableCount++;
+          individualBillableSum += agent.price;
+          
+          const sumItem = document.createElement('div');
+          sumItem.className = 'summary-row';
+          sumItem.innerHTML = `
+            <span>Abonnement ${agent.name}</span>
+            <span>${agent.price}.00 €</span>
+          `;
+          summaryItems.appendChild(sumItem);
+        }
+      }
     });
+    
+    // Apply 15% discount for 3+ active individual agents
+    let discount = 0;
+    if (individualBillableCount >= 3) {
+      discount = individualBillableSum * 0.15;
+      totalCost += (individualBillableSum - discount);
+      
+      const discItem = document.createElement('div');
+      discItem.className = 'summary-row';
+      discItem.style.color = '#10b981';
+      discItem.style.fontWeight = '600';
+      discItem.innerHTML = `
+        <span>Remise quantitative (15% pour 3+ agents)</span>
+        <span>-${discount.toFixed(2)} €</span>
+      `;
+      summaryItems.appendChild(discItem);
+    } else {
+      totalCost += individualBillableSum;
+    }
   }
   
   // Render Invoices Table
@@ -3004,11 +3756,12 @@ function renderBilling() {
   } else {
     state.invoices.forEach(inv => {
       const tr = document.createElement('tr');
+      const formattedPrice = typeof inv.price === 'number' ? inv.price.toFixed(2) : parseFloat(inv.price).toFixed(2);
       tr.innerHTML = `
         <td>${inv.id}</td>
         <td>${inv.date}</td>
         <td>${inv.agentName}</td>
-        <td style="font-weight: 600;">${inv.price}.00 €</td>
+        <td style="font-weight: 600;">${formattedPrice} €</td>
         <td><span class="badge-paid">${inv.status}</span></td>
         <td style="text-align: center;">
           <button class="btn btn-sm btn-secondary btn-view-invoice" data-invoice-id="${inv.id}" style="padding: 4px 8px; font-size: 0.75rem; border-radius: 4px;">Voir 👁️</button>
@@ -3017,7 +3770,6 @@ function renderBilling() {
       invoicesBody.appendChild(tr);
     });
 
-    // Bind event listeners for view invoice buttons
     document.querySelectorAll('.btn-view-invoice').forEach(btn => {
       btn.addEventListener('click', () => {
         const invoiceId = btn.getAttribute('data-invoice-id');
@@ -3027,44 +3779,94 @@ function renderBilling() {
   }
   
   // Total summary
-  summaryTotal.innerText = `${totalCost}.00 €`;
+  summaryTotal.innerText = `${totalCost.toFixed(2)} €`;
   
-  // Re-bind unsubscribe triggers
+  // Bind pack subscribe / unsubscribe events
+  bindPackEvents();
+  
+  // Re-bind unsubscribe triggers for individual agents
   document.querySelectorAll('.btn-unsubscribe').forEach(btn => {
-    btn.addEventListener('click', async () => {
+    btn.addEventListener('click', () => {
       const agentId = btn.getAttribute('data-agent-id');
+      openUnsubModal('agent', agentId);
+    });
+  });
+}
+
+function bindPackEvents() {
+  const btnUnsubPack = document.querySelector('.btn-unsubscribe-pack');
+  if (btnUnsubPack) {
+    btnUnsubPack.addEventListener('click', () => {
+      openUnsubModal('pack', state.activePack);
+    });
+  }
+
+  document.querySelectorAll('.btn-pack-subscribe').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const packId = btn.getAttribute('data-pack');
       
-      if (isMock) {
-        state.adoptedAgents = state.adoptedAgents.filter(id => id !== agentId);
-        if (state.currentUser) {
-          state.currentUser.adopted = state.adoptedAgents;
-        }
-        saveMockState();
-      } else {
-        try {
-          btn.disabled = true;
-          await supabaseFetch('adopted_agents', {
-            method: 'DELETE',
-            queryParams: `?user_id=eq.${state.currentUser.uid}&agent_id=eq.${agentId}`
-          });
-          
-          await loadUserData();
-        } catch (error) {
-          console.error("Erreur lors de la désinscription :", error);
-          showToast("Erreur lors de la résiliation de l'agent.", "error");
-          btn.disabled = false;
-          return;
-        }
+      if (!state.currentUser) {
+        showToast("Veuillez vous connecter pour activer un forfait.", "warning");
+        openAuthModal('Créer un compte', 'Créez votre compte pour commencer.');
+        return;
       }
       
-      // Reset active agent in dashboard if it was deleted
-      if (state.activeDashboardAgentId === agentId) {
-        state.activeDashboardAgentId = null;
+      if (state.activePack === packId) {
+        const isPackCancelled = state.cancelledPacks.includes(packId);
+        if (isPackCancelled) return;
+        
+        openUnsubModal('pack', packId);
+        return;
       }
       
-      showToast(`Abonnement à l'agent résilié.`, "info");
-      renderBilling();
-      renderCatalog();
+      // Confirm Subscribe
+      btn.disabled = true;
+      btn.innerHTML = `<span class="spinner"></span> Activation...`;
+      
+      setTimeout(async () => {
+        setActivePack(packId);
+        
+        // Add invoice
+        const invoiceNo = `INV-${Date.now().toString().slice(-6)}`;
+        const packInfo = PACKS[packId];
+        const setupFee = packInfo.setupFee;
+        const price = packInfo.price;
+        const total = price + setupFee;
+        
+        const newInvoice = {
+          id: invoiceNo,
+          date: new Date().toLocaleDateString('fr-FR'),
+          agentName: `Forfait global : ${packInfo.name}`,
+          price: total,
+          status: 'Payée'
+        };
+        
+        state.invoices.unshift(newInvoice); // Add to beginning
+        
+        if (isMock) {
+          saveMockState();
+        } else {
+          try {
+            await supabaseFetch('invoices', {
+              method: 'POST',
+              body: {
+                user_id: state.currentUser.uid,
+                invoice_number: invoiceNo,
+                agent_name: `Forfait ${packInfo.name}`,
+                price: total,
+                status: 'Payée'
+              }
+            });
+          } catch (err) {
+            console.error("Erreur lors de la sauvegarde de la facture :", err);
+          }
+        }
+        
+        showToast(`Félicitations ! Vous avez activé le ${packInfo.name}.`, "success");
+        renderBilling();
+        renderCatalog();
+        updateUI();
+      }, 1200);
     });
   });
 }
@@ -3211,6 +4013,257 @@ async function renderAdminPanel() {
       usersListBody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 14px;">Erreur de connexion.</td></tr>';
       adoptionsListBody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 14px;">Erreur de connexion.</td></tr>';
     }
+  }
+}
+
+
+// ================================================================
+//  ONBOARDING TOUR — Visite Guidée (Étape 2.2)
+// ================================================================
+
+let currentTourStep = 0;
+const tourSteps = [
+  {
+    title: "Bienvenue sur César-IA ! 🚀",
+    text: "Prêt à automatiser vos opérations ? Suivez ce guide rapide pour apprendre à piloter vos agents autonomes en moins de 2 minutes.",
+    target: null,
+    action: () => {
+      navigateTo('home');
+    }
+  },
+  {
+    title: "Étape 1 : Le Catalogue d'Agents 📂",
+    text: "Découvrez nos 15 agents spécialisés (DevOps, Data, Marketing, Relation Client) prêts à être adoptés pour accomplir vos tâches les plus complexes.",
+    target: ".nav-links [data-route='catalog']",
+    action: () => {
+      navigateTo('catalog');
+    }
+  },
+  {
+    title: "Étape 2 : Vos Agents Adoptés 🤖",
+    text: "Une fois adoptés, vos agents actifs apparaissent ici dans le Tableau de Bord. Sélectionnez un agent dans la liste pour interagir avec lui.",
+    target: ".dashboard-sidebar",
+    action: () => {
+      state.tourActive = true;
+      navigateTo('dashboard');
+      selectDashboardAgent('sybil');
+    }
+  },
+  {
+    title: "Étape 3 : Discutez & Déléguez 💬",
+    text: "C'est votre canal direct de communication. Posez des questions en langage naturel, confiez des tâches système ou demandez des comptes-rendus.",
+    target: "#tab-chat",
+    action: () => {
+      state.tourActive = true;
+      navigateTo('dashboard');
+      selectDashboardAgent('sybil');
+      const chatTab = document.querySelector('.panel-tabs [data-tab="chat"]');
+      if (chatTab) chatTab.click();
+    }
+  },
+  {
+    title: "Étape 4 : Connexions & Sécurité 🔑",
+    text: "Sécurisez vos serveurs, bases SQL ou API en y associant vos accès chiffrés. L'agent utilisera ces identifiants pour exécuter ses missions en toute autonomie.",
+    target: "#tab-connectors",
+    action: () => {
+      state.tourActive = true;
+      navigateTo('dashboard');
+      selectDashboardAgent('sybil');
+      const connTab = document.querySelector('.panel-tabs [data-tab="connectors"]');
+      if (connTab) connTab.click();
+    }
+  },
+  {
+    title: "Étape 5 : Activité & Diagnostic 📊",
+    text: "Suivez le statut de l'agent, testez son ping et lisez le journal d'exécution (logs) en temps réel pour auditer chacune de ses actions système.",
+    target: "#tab-stats",
+    action: () => {
+      state.tourActive = true;
+      navigateTo('dashboard');
+      selectDashboardAgent('sybil');
+      const statsTab = document.querySelector('.panel-tabs [data-tab="stats"]');
+      if (statsTab) statsTab.click();
+    }
+  },
+  {
+    title: "Étape 6 : Facturation & Économies 💰",
+    text: "Simulez vos tarifs via notre calculette interactive et profitez des remises (15% dès 3 agents, 25% pour les packs globaux).",
+    target: "#pricing-calculator",
+    action: () => {
+      navigateTo('billing');
+    }
+  },
+  {
+    title: "Prêt à démarrer ! 🎉",
+    text: "Félicitations, vous connaissez maintenant tous les rouages de César-IA. Adoptez votre premier agent et passez au niveau supérieur !",
+    target: null,
+    action: () => {
+      navigateTo('home');
+    }
+  }
+];
+
+function initOnboardingTour() {
+  const startBtn = document.getElementById('btn-start-tour');
+  const container = document.getElementById('onboarding-tour-container');
+  const card = document.getElementById('tour-card');
+  const closeBtn = document.getElementById('tour-btn-close');
+  const nextBtn = document.getElementById('tour-btn-next');
+  const prevBtn = document.getElementById('tour-btn-prev');
+  const backdrop = document.getElementById('tour-backdrop');
+  
+  if (!startBtn) return;
+  
+  startBtn.addEventListener('click', () => {
+    startTour();
+  });
+  
+  closeBtn.addEventListener('click', () => {
+    endTour();
+  });
+  
+  backdrop.addEventListener('click', () => {
+    endTour();
+  });
+  
+  nextBtn.addEventListener('click', () => {
+    if (currentTourStep < tourSteps.length - 1) {
+      currentTourStep++;
+      renderTourStep();
+    } else {
+      endTour();
+    }
+  });
+  
+  prevBtn.addEventListener('click', () => {
+    if (currentTourStep > 0) {
+      currentTourStep--;
+      renderTourStep();
+    }
+  });
+  
+  function handleResize() {
+    positionTourCard();
+  }
+  
+  function startTour() {
+    currentTourStep = 0;
+    state.tourActive = true;
+    startBtn.style.display = 'none';
+    container.style.display = 'flex';
+    document.body.style.overflow = 'hidden'; // Lock scrolling
+    
+    // Bind resize event
+    window.addEventListener('resize', handleResize);
+    
+    renderTourStep();
+  }
+  
+  function endTour() {
+    state.tourActive = false;
+    container.style.display = 'none';
+    startBtn.style.display = 'flex';
+    document.body.style.overflow = ''; // Unlock scrolling
+    
+    // Unbind resize event
+    window.removeEventListener('resize', handleResize);
+    
+    // Remove highlights
+    document.querySelectorAll('.tour-highlight').forEach(el => {
+      el.classList.remove('tour-highlight');
+    });
+    
+    // Reset back to actual state
+    navigateTo('home');
+  }
+  
+  function renderTourStep() {
+    const step = tourSteps[currentTourStep];
+    
+    // Run action for step
+    if (step.action) step.action();
+    
+    // Reset previous highlights
+    document.querySelectorAll('.tour-highlight').forEach(el => {
+      el.classList.remove('tour-highlight');
+    });
+    
+    // Update badge & texts
+    document.getElementById('tour-step-badge').innerText = `Étape ${currentTourStep + 1}/${tourSteps.length}`;
+    document.getElementById('tour-title').innerText = step.title;
+    document.getElementById('tour-text').innerText = step.text;
+    
+    // Progress bar width
+    const pct = ((currentTourStep + 1) / tourSteps.length) * 100;
+    document.getElementById('tour-progress').style.width = `${pct}%`;
+    
+    // Prev / Next button states
+    prevBtn.style.visibility = currentTourStep === 0 ? 'hidden' : 'visible';
+    nextBtn.innerText = currentTourStep === tourSteps.length - 1 ? 'Terminer !' : (currentTourStep === 0 ? "C'est parti !" : 'Suivant');
+    
+    // Apply highlight and positioning
+    setTimeout(() => {
+      if (step.target) {
+        const targetEl = document.querySelector(step.target);
+        if (targetEl) {
+          targetEl.classList.add('tour-highlight');
+          targetEl.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+        }
+      }
+      positionTourCard();
+    }, 150);
+  }
+  
+  function positionTourCard() {
+    const step = tourSteps[currentTourStep];
+    if (step.target) {
+      const targetEl = document.querySelector(step.target);
+      if (targetEl) {
+        const rect = targetEl.getBoundingClientRect();
+        const cardWidth = card.offsetWidth || 380;
+        const cardHeight = card.offsetHeight || 250;
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        
+        card.className = 'tour-card'; // reset classes
+        
+        let top, left;
+        
+        // Decide placement based on space
+        if (rect.right + cardWidth + 24 < viewportWidth) {
+          // Place right of element
+          left = rect.right + 16;
+          top = Math.max(16, Math.min(viewportHeight - cardHeight - 16, rect.top + (rect.height / 2) - (cardHeight / 2)));
+          card.classList.add('arrow-left');
+        } else if (rect.left - cardWidth - 24 > 0) {
+          // Place left of element
+          left = rect.left - cardWidth - 16;
+          top = Math.max(16, Math.min(viewportHeight - cardHeight - 16, rect.top + (rect.height / 2) - (cardHeight / 2)));
+          card.classList.add('arrow-right');
+        } else if (rect.bottom + cardHeight + 24 < viewportHeight) {
+          // Place below element
+          left = Math.max(16, Math.min(viewportWidth - cardWidth - 16, rect.left + (rect.width / 2) - (cardWidth / 2)));
+          top = rect.bottom + 16;
+          card.classList.add('arrow-top');
+        } else {
+          // Place above element
+          left = Math.max(16, Math.min(viewportWidth - cardWidth - 16, rect.left + (rect.width / 2) - (cardWidth / 2)));
+          top = rect.top - cardHeight - 16;
+          card.classList.add('arrow-bottom');
+        }
+        
+        card.style.top = `${top}px`;
+        card.style.left = `${left}px`;
+        card.style.transform = 'none'; // clear transform centered
+        return;
+      }
+    }
+    
+    // Default fallback: center screen
+    card.className = 'tour-card';
+    card.style.top = '50%';
+    card.style.left = '50%';
+    card.style.transform = 'translate(-50%, -50%)';
   }
 }
 

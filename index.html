@@ -324,6 +324,64 @@
           <div class="billing-layout">
             <!-- Left: Current plans & Invoices -->
             <div>
+              <!-- Forfaits Globaux -->
+              <div class="billing-card">
+                <h3>Forfaits Globaux — Accès Illimité (-25% inclus)</h3>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 24px;">
+                  Bénéficiez d'une remise automatique de 25% par rapport au coût total cumulé des agents individuels.
+                </p>
+                <div class="plans-grid">
+                  <!-- Starter Pack -->
+                  <div class="plan-card" id="pack-starter-card">
+                    <div class="plan-name">Starter Pack</div>
+                    <div class="plan-price" id="pack-starter-price">447.00 € <span>/ mois</span></div>
+                    <div style="font-size: 0.8rem; color: #10b981; font-weight: 600; margin-bottom: 16px;">
+                      Frais de setup : 800 € (au lieu de 2 000 €)
+                    </div>
+                    <ul class="plan-features">
+                      <li>Accès illimité aux 4 agents Starter</li>
+                      <li>Chronos, Apollo, Nemesis, Iris</li>
+                      <li>Économie de 149.00 €/mois</li>
+                    </ul>
+                    <button class="btn btn-primary btn-block btn-pack-subscribe" data-pack="starter" style="width: 100%;">Activer le Pack</button>
+                  </div>
+
+                  <!-- Pro Pack -->
+                  <div class="plan-card popular" id="pack-pro-card">
+                    <span class="plan-popular-badge">Populaire</span>
+                    <div class="plan-name">Pro Pack</div>
+                    <div class="plan-price" id="pack-pro-price">2016.75 € <span>/ mois</span></div>
+                    <div style="font-size: 0.8rem; color: #10b981; font-weight: 600; margin-bottom: 16px;">
+                      Frais de setup : 2 500 € (au lieu de 12 500 €)
+                    </div>
+                    <ul class="plan-features">
+                      <li>Accès aux 4 Starter + 7 agents Pro</li>
+                      <li>Sybil, Hermes, Hestia, Vesta, Athena, Demeter, Janus</li>
+                      <li>Économie de 672.25 €/mois</li>
+                    </ul>
+                    <button class="btn btn-primary btn-block btn-pack-subscribe" data-pack="pro" style="width: 100%;">Activer le Pack</button>
+                  </div>
+
+                  <!-- Business All-Access -->
+                  <div class="plan-card" id="pack-business-card" style="grid-column: span 2;">
+                    <div class="plan-name" style="color: #f59e0b;">Business All-Access</div>
+                    <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap;">
+                      <div class="plan-price" id="pack-business-price" style="margin-bottom: 8px;">3364.50 € <span>/ mois</span></div>
+                      <div style="font-size: 0.85rem; color: #10b981; font-weight: 600; margin-bottom: 16px;">
+                        Frais de setup : 4 500 € (au lieu de 21 500 €)
+                      </div>
+                    </div>
+                    <ul class="plan-features" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px;">
+                      <li>Accès à l'ensemble des 14 agents IA (Starter, Pro, Business)</li>
+                      <li>Atlas, Ares, Hephaestus inclus</li>
+                      <li>Économie de 1 121.50 €/mois</li>
+                      <li>Support prioritaire & Uptime 99.9%</li>
+                    </ul>
+                    <button class="btn btn-primary btn-block btn-pack-subscribe" data-pack="business" style="width: 100%;">Activer le Pack</button>
+                  </div>
+                </div>
+              </div>
+
               <!-- Current Subscriptions -->
               <div class="billing-card">
                 <h3>Abonnements Agents Actifs</h3>
@@ -353,8 +411,133 @@
               </div>
             </div>
 
-            <!-- Right: Summary and Payment Methods -->
+            <!-- Right: Pricing Calculator + Summary -->
             <div>
+
+              <!-- ===== PRICING CALCULATOR ===== -->
+              <div class="calc-box" id="pricing-calculator">
+                <div class="calc-header">
+                  <span class="calc-icon">🧮</span>
+                  <div>
+                    <h3 class="calc-title">Simulateur de Tarifs</h3>
+                    <p class="calc-subtitle">Calculez votre coût mensuel avant de souscrire</p>
+                  </div>
+                </div>
+
+                <!-- Mode selector -->
+                <div class="calc-mode-tabs">
+                  <button class="calc-tab active" id="calc-tab-individual" data-mode="individual">
+                    À la carte
+                  </button>
+                  <button class="calc-tab" id="calc-tab-pack" data-mode="pack">
+                    Forfaits Globaux
+                  </button>
+                </div>
+
+                <!-- === INDIVIDUAL MODE === -->
+                <div id="calc-panel-individual">
+                  <p class="calc-hint">Sélectionnez les agents qui vous intéressent :</p>
+
+                  <!-- Starter agents -->
+                  <div class="calc-tier-group">
+                    <div class="calc-tier-label starter">⚡ Starter — 149 €/mois chacun</div>
+                    <div class="calc-agents-grid" id="calc-agents-starter"></div>
+                  </div>
+                  <!-- Pro agents -->
+                  <div class="calc-tier-group">
+                    <div class="calc-tier-label pro">🚀 Pro — 299 €/mois chacun</div>
+                    <div class="calc-agents-grid" id="calc-agents-pro"></div>
+                  </div>
+                  <!-- Business agents -->
+                  <div class="calc-tier-group">
+                    <div class="calc-tier-label business">💎 Business — 599 €/mois chacun</div>
+                    <div class="calc-agents-grid" id="calc-agents-business"></div>
+                  </div>
+
+                  <!-- Result -->
+                  <div class="calc-result" id="calc-result-individual">
+                    <div class="calc-result-row">
+                      <span>Sous-total brut</span>
+                      <span id="calc-gross-total">0.00 €</span>
+                    </div>
+                    <div class="calc-result-row discount" id="calc-discount-row" style="display:none;">
+                      <span>🎁 Remise quantitative (−15% pour 3+ agents)</span>
+                      <span id="calc-discount-amount">−0.00 €</span>
+                    </div>
+                    <div class="calc-result-row final">
+                      <span>Total mensuel estimé</span>
+                      <span id="calc-final-total">0.00 €</span>
+                    </div>
+                    <div class="calc-agents-count" id="calc-agents-count"></div>
+                  </div>
+                </div>
+
+                <!-- === PACK MODE === -->
+                <div id="calc-panel-pack" style="display:none;">
+                  <p class="calc-hint">Choisissez le forfait global qui vous convient :</p>
+                  <div class="calc-pack-options">
+
+                    <label class="calc-pack-card" id="calc-pack-starter">
+                      <input type="radio" name="calc-pack" value="starter" id="calc-radio-starter">
+                      <div class="calc-pack-info">
+                        <div class="calc-pack-name">📦 Starter Pack</div>
+                        <div class="calc-pack-agents">Chronos, Apollo, Nemesis, Iris</div>
+                      </div>
+                      <div class="calc-pack-price">
+                        <div class="calc-pack-amount">447 €<span>/mois</span></div>
+                        <div class="calc-pack-saving">Économie : 149 €/mois</div>
+                      </div>
+                    </label>
+
+                    <label class="calc-pack-card" id="calc-pack-pro">
+                      <input type="radio" name="calc-pack" value="pro" id="calc-radio-pro">
+                      <div class="calc-pack-info">
+                        <div class="calc-pack-name">🚀 Pro Pack</div>
+                        <div class="calc-pack-agents">4 Starter + Sybil, Hermes, Hestia, Vesta, Athena, Demeter, Janus</div>
+                      </div>
+                      <div class="calc-pack-price">
+                        <div class="calc-pack-amount">2 016.75 €<span>/mois</span></div>
+                        <div class="calc-pack-saving">Économie : 672 €/mois</div>
+                      </div>
+                    </label>
+
+                    <label class="calc-pack-card" id="calc-pack-business">
+                      <input type="radio" name="calc-pack" value="business" id="calc-radio-business">
+                      <div class="calc-pack-info">
+                        <div class="calc-pack-name">💎 Business All-Access</div>
+                        <div class="calc-pack-agents">14 agents : Starter + Pro + Atlas, Ares, Hephaestus</div>
+                      </div>
+                      <div class="calc-pack-price">
+                        <div class="calc-pack-amount">3 364.50 €<span>/mois</span></div>
+                        <div class="calc-pack-saving">Économie : 1 121 €/mois</div>
+                      </div>
+                    </label>
+
+                  </div>
+
+                  <!-- Pack result -->
+                  <div class="calc-result" id="calc-result-pack" style="display:none;">
+                    <div class="calc-result-row">
+                      <span>Coût total sans forfait</span>
+                      <span id="calc-pack-gross">0.00 €</span>
+                    </div>
+                    <div class="calc-result-row discount">
+                      <span>🎁 Remise forfait (−25%)</span>
+                      <span id="calc-pack-saving-amount">0.00 €</span>
+                    </div>
+                    <div class="calc-result-row final">
+                      <span>Prix forfait mensuel</span>
+                      <span id="calc-pack-final">0.00 €</span>
+                    </div>
+                    <div style="font-size:0.78rem; color: var(--text-muted); margin-top: 10px;">
+                      Frais de setup : <span id="calc-pack-setup" style="color: #10b981; font-weight: 600;"></span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+              <!-- ===== END PRICING CALCULATOR ===== -->
+
               <div class="summary-box">
                 <h3>Résumé Mensuel</h3>
                 <div id="billing-summary-items">
@@ -543,12 +726,16 @@
             <span>Frais d'abonnement</span>
             <span id="checkout-price-fees">49.00 € / mois</span>
           </div>
+          <div class="checkout-row" id="checkout-setup-fee-row">
+            <span>Frais d'installation (Setup)</span>
+            <span id="checkout-setup-fee-value">0.00 €</span>
+          </div>
           <div class="checkout-row">
             <span>Moyen de paiement sécurisé</span>
             <span id="checkout-payment-method-label">Stripe Connect</span>
           </div>
-          <div class="checkout-row total">
-            <span>Total à payer (par mois)</span>
+          <div class="checkout-row total" id="checkout-initial-total-row">
+            <span>Total initial à payer</span>
             <span id="checkout-price-total">49.00 €</span>
           </div>
         </div>
@@ -685,6 +872,38 @@
       </div>
     </dialog>
 
+    <!-- ================= UNSUBSCRIBE CONFIRMATION MODAL ================= -->
+    <dialog id="unsub-modal" class="adopt-dialog" closedby="any" aria-labelledby="unsub-dialog-title">
+      <button class="dialog-close-btn" id="btn-unsub-close">×</button>
+      <div class="dialog-header">
+        <h3 id="unsub-dialog-title" style="color: #ef4444;">Confirmer la résiliation</h3>
+        <p>Prenez connaissance du résumé de votre résiliation.</p>
+      </div>
+
+      <div class="dialog-body">
+        <div id="unsub-target-preview" style="background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.2); padding: 16px; border-radius: 8px; margin-bottom: 20px;">
+          <!-- Dynamique -->
+        </div>
+
+        <div style="margin-bottom: 20px; font-size: 0.85rem; line-height: 1.6; color: var(--text-secondary);">
+          <p>⚠️ <strong>Important :</strong> En confirmant cette action, <strong>votre abonnement sera annulé pour le mois prochain</strong>.</p>
+          <p>Vous conserverez un accès complet à l'agent (ou aux agents du forfait) jusqu'à la fin de la période de facturation en cours. Aucun autre prélèvement ne sera effectué.</p>
+        </div>
+
+        <div id="unsub-impact-summary" style="margin-bottom: 20px;">
+          <h4 style="font-size: 0.85rem; font-weight: 700; margin-bottom: 10px; color: var(--text-primary);">Résumé des agents désactivés à la fin du mois :</h4>
+          <ul id="unsub-impact-list" style="font-size: 0.85rem; padding-left: 20px; color: var(--text-muted); line-height: 1.6;">
+            <!-- Dynamique -->
+          </ul>
+        </div>
+      </div>
+
+      <div class="dialog-footer" style="display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end;">
+        <button class="btn btn-secondary" id="btn-unsub-cancel" style="padding: 10px 16px; font-size: 0.85rem;">Conserver mon abonnement</button>
+        <button class="btn btn-danger" id="btn-unsub-confirm" style="padding: 10px 16px; font-size: 0.85rem;">Confirmer la résiliation</button>
+      </div>
+    </dialog>
+
     <!-- Toast Notification -->
     <div class="toast" id="app-toast">
       <span class="toast-success-icon">✓</span>
@@ -698,6 +917,36 @@
         <button onclick="document.getElementById('floating-debug-panel').style.display='none'" style="background: none; border: none; color: #ff5252; cursor: pointer; font-weight: bold;">[Fermer]</button>
       </div>
       <div id="floating-debug-log" style="white-space: pre-wrap; word-break: break-all;">[Système] Prêt...</div>
+    </div>
+
+    <!-- ================= ONBOARDING TOUR ================= -->
+    <!-- Floating button to start tour -->
+    <button id="btn-start-tour" class="floating-tour-btn">
+      <span class="tour-btn-icon">🚀</span>
+      <span>Visite Guidée</span>
+    </button>
+
+    <!-- Onboarding Tour Container -->
+    <div id="onboarding-tour-container" class="tour-overlay-container" style="display: none;">
+      <div class="tour-backdrop" id="tour-backdrop"></div>
+      
+      <div class="tour-card" id="tour-card">
+        <div class="tour-card-header">
+          <span class="tour-badge" id="tour-step-badge">Étape 1/7</span>
+          <button class="tour-close-btn" id="tour-btn-close">×</button>
+        </div>
+        <div class="tour-card-body">
+          <h3 class="tour-card-title" id="tour-title">Bienvenue sur César-IA ! 🚀</h3>
+          <p class="tour-card-text" id="tour-text">Nous allons vous guider à travers les fonctionnalités clés du tableau de bord pour configurer et utiliser vos agents autonomes en 2 minutes.</p>
+        </div>
+        <div class="tour-progress-container">
+          <div class="tour-progress-bar" id="tour-progress" style="width: 14%;"></div>
+        </div>
+        <div class="tour-card-footer">
+          <button class="btn btn-secondary btn-sm" id="tour-btn-prev" style="visibility: hidden;">Précédent</button>
+          <button class="btn btn-primary btn-sm" id="tour-btn-next">C'est parti !</button>
+        </div>
+      </div>
     </div>
 
     <!-- Main Module Script -->

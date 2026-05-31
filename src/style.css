@@ -1201,7 +1201,315 @@ main.content-area {
   color: var(--text-primary);
 }
 
-/* --- AUTH DIALOG --- */
+/* ===================================================
+   PRICING CALCULATOR (Simulateur de Tarifs)
+   =================================================== */
+
+.calc-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  margin-bottom: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.calc-box::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6, #ec4899);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+.calc-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.calc-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+
+.calc-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+}
+
+.calc-subtitle {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* Mode tabs */
+.calc-mode-tabs {
+  display: flex;
+  gap: 8px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 20px;
+}
+
+.calc-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.83rem;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.calc-tab:hover {
+  color: var(--text-primary);
+  background: rgba(255,255,255,0.05);
+}
+
+.calc-tab.active {
+  background: var(--accent-color);
+  color: white;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+}
+
+/* Hint text */
+.calc-hint {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin: 0 0 14px 0;
+}
+
+/* Tier groups */
+.calc-tier-group {
+  margin-bottom: 16px;
+}
+
+.calc-tier-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  display: inline-block;
+  margin-bottom: 10px;
+}
+
+.calc-tier-label.starter {
+  background: rgba(250, 204, 21, 0.12);
+  color: #facc15;
+}
+
+.calc-tier-label.pro {
+  background: rgba(139, 92, 246, 0.12);
+  color: #a78bfa;
+}
+
+.calc-tier-label.business {
+  background: rgba(6, 182, 212, 0.12);
+  color: #22d3ee;
+}
+
+/* Agent checkbox grid */
+.calc-agents-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.calc-agent-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  user-select: none;
+}
+
+.calc-agent-chip:hover {
+  border-color: rgba(99, 102, 241, 0.5);
+  background: rgba(99, 102, 241, 0.05);
+  color: var(--text-primary);
+}
+
+.calc-agent-chip.selected {
+  border-color: var(--accent-color);
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.calc-agent-chip input[type="checkbox"] {
+  display: none;
+}
+
+.calc-agent-avatar {
+  font-size: 1rem;
+}
+
+.calc-chip-check {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1.5px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.55rem;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.calc-agent-chip.selected .calc-chip-check {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+  color: white;
+}
+
+/* Result box */
+.calc-result {
+  margin-top: 18px;
+  background: rgba(99, 102, 241, 0.04);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 10px;
+  padding: 14px 16px;
+  animation: calcFadeIn 0.25s ease;
+}
+
+@keyframes calcFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.calc-result-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+.calc-result-row:last-child {
+  border-bottom: none;
+}
+
+.calc-result-row.discount {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.calc-result-row.final {
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--text-primary);
+  padding-top: 10px;
+  margin-top: 4px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  border-bottom: none;
+}
+
+.calc-agents-count {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 10px;
+  text-align: center;
+}
+
+/* Pack option cards */
+.calc-pack-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.calc-pack-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: rgba(255,255,255,0.02);
+  border: 1.5px solid var(--border-color);
+  border-radius: 10px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.calc-pack-card:hover {
+  border-color: rgba(99, 102, 241, 0.4);
+  background: rgba(99, 102, 241, 0.04);
+}
+
+.calc-pack-card:has(input:checked) {
+  border-color: var(--accent-color);
+  background: rgba(99, 102, 241, 0.08);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+.calc-pack-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.calc-pack-name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin-bottom: 3px;
+  color: var(--text-primary);
+}
+
+.calc-pack-agents {
+  font-size: 0.73rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.calc-pack-price {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.calc-pack-amount {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.calc-pack-amount span {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.calc-pack-saving {
+  font-size: 0.72rem;
+  color: #10b981;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+
 dialog.auth-dialog {
   margin: auto;
   border: 1px solid var(--border-color);
@@ -1982,5 +2290,227 @@ dialog.invoice-dialog::backdrop {
 .switch-toggle input:checked + .switch-slider:before {
   transform: translateX(22px);
 }
+
+
+/* ===================================================
+   ONBOARDING TOUR STYLES (Étape 2.2)
+   =================================================== */
+
+.floating-tour-btn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  background: linear-gradient(135deg, var(--accent-color), #ec4899);
+  color: white;
+  border: none;
+  border-radius: 30px;
+  padding: 12px 22px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: inherit;
+}
+
+.floating-tour-btn:hover {
+  transform: translateY(-4px) scale(1.04);
+  box-shadow: 0 12px 30px rgba(99, 102, 241, 0.5);
+}
+
+.floating-tour-btn:active {
+  transform: translateY(0) scale(0.96);
+}
+
+.tour-btn-icon {
+  animation: tour-bounce 2s infinite;
+  display: inline-block;
+}
+
+@keyframes tour-bounce {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  50% { transform: translateY(-4px) rotate(15deg); }
+}
+
+/* Tour overlay & backdrop */
+.tour-overlay-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 10001;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tour-backdrop {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(1px);
+  -webkit-backdrop-filter: blur(1px);
+  transition: all 0.4s ease;
+  pointer-events: auto;
+}
+
+/* Onboarding Card */
+.tour-card {
+  position: absolute;
+  width: 380px;
+  background: rgba(15, 17, 23, 0.9);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  pointer-events: auto;
+  transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  z-index: 10003;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: tour-card-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes tour-card-pop {
+  from { transform: scale(0.9) translateY(15px); opacity: 0; }
+  to   { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.tour-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tour-badge {
+  background: rgba(99, 102, 241, 0.15);
+  color: #a5b4fc;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+}
+
+.tour-close-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.4rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  transition: color 0.2s;
+}
+
+.tour-close-btn:hover {
+  color: #ef4444;
+}
+
+.tour-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tour-card-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.tour-card-text {
+  font-size: 0.86rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Progress bar */
+.tour-progress-container {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.tour-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-color), #ec4899);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.tour-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+}
+
+/* Spotlight element highlighter */
+.tour-highlight {
+  position: relative !important;
+  z-index: 10002 !important;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.75), 0 0 15px 5px var(--accent-color) !important;
+  pointer-events: auto !important;
+  border-radius: 8px !important;
+  transition: all 0.3s ease !important;
+}
+
+/* Floating Tour Helper arrow */
+.tour-card::after {
+  content: '';
+  position: absolute;
+  width: 0; height: 0;
+  border: 8px solid transparent;
+  display: none;
+}
+
+.tour-card.arrow-left::after {
+  display: block;
+  border-right-color: rgba(15, 17, 23, 0.9);
+  top: 50%;
+  right: 100%;
+  transform: translateY(-50%);
+}
+
+.tour-card.arrow-right::after {
+  display: block;
+  border-left-color: rgba(15, 17, 23, 0.9);
+  top: 50%;
+  left: 100%;
+  transform: translateY(-50%);
+}
+
+.tour-card.arrow-top::after {
+  display: block;
+  border-bottom-color: rgba(15, 17, 23, 0.9);
+  left: 50%;
+  bottom: 100%;
+  transform: translateX(-50%);
+}
+
+.tour-card.arrow-bottom::after {
+  display: block;
+  border-top-color: rgba(15, 17, 23, 0.9);
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+}
+
 
 

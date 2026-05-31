@@ -1,0 +1,486 @@
+CÉSAR-IA
+Workforce AI Operating System
+
+Business Plan — Confidentiel
+Version 1.0 — 2026
+Plateforme SaaS Premium d'Agents IA Autonomes
+pour les PME, ETI & Agences
+
+Business Model Canvas — César-IA
+
+Le Business Model Canvas ci-dessous synthétise les 9 blocs fondamentaux de la proposition de valeur et du modèle économique de César-IA. Il constitue la feuille de route stratégique du lancement et du scale-up de la plateforme.
+
+PARTENAIRES CLÉS
+ACTIVITÉS CLÉS
+PROPOSITION DE VALEUR
+RELATION CLIENT
+SEGMENTS CLIENTS
+Fournisseurs API
+• Google Gemini (LLM)
+• Supabase (RLS/DB)
+• Vercel (hosting)
+Intégrateurs
+• Agences Make/n8n
+• Consultants Zapier
+• Freelances DevOps
+Canaux de Distrib.
+• Product Hunt
+• LinkedIn B2B
+Développement
+• Orchestration agents
+• Intégration connecteurs
+• Sandbox / Playground
+Opérations
+• Onboarding clients
+• Monitoring agents
+• Support technique
+Acquisition
+• Outbound Apollo
+• PLG / Démos live
+AI Workforce OS
+15 agents autonomes
+• Exécution réelle via
+  Tool Calling (Gemini)
+• Connecteurs natifs :
+  SQL, SSH, Slack,
+  Notion, WordPress...
+• Sécurité RLS totale
+• Marge brute >90%
+• Setup fee = CAC
+  autofinancé
+Self-Service
+• Playground interactif
+• Docs & tutorials
+High-Touch
+• Onboarding dédié
+• Slack channel client
+Fidélisation
+• Résiliation planif.
+  (accès fin de cycle)
+• Rapport usage/mois
+Segment 1
+PME & Startups
+Croissance sans
+embauche
+Segment 2
+Agences & Freelances
+Revente agents à
+leurs propres clients
+Segment 3
+ETI / Enterprise
+Zeus — flottes sur
+mesure, sur devis
+RESSOURCES CLÉS
+• Codebase agents IA
+• Catalogue 15 agents
+• Infra Supabase/Vercel
+• Réseau intégrateurs
+• Données d'usage clients
+CANAUX DE DISTRIBUTION
+• Outbound email via l'agent Apollo (Proof-of-concept live)
+• Partenariats intégrateurs (Make, n8n, Zapier, agences web)
+• PLG : playground interactif & démos sur la landing page
+• LinkedIn / Product Hunt / Communautés SaaS
+STRUCTURE DE REVENUS
+• Setup fees uniques (onboarding) — CAC autofinancé
+• Abonnements récurrents (MRR) — Starter 149€, Pro 299€, Business 599€
+• Forfaits packs (-25%) — Starter 447€, Pro 2 017€, Business 3 365€/mois
+• Zeus Enterprise — sur devis (deal sizes > 10 000€/mois estimé)
+STRUCTURE DE COÛTS
+• API LLM Gemini 2.5 Flash : ~5-10€/client/mois (ultra-faible)
+• Hébergement serverless Vercel + Supabase : <100€/mois pour 100 clients
+• CAC cible : 200€ - 350€/client (couvert par setup fee dès J+1)
+=> Marge brute estimée > 90% sur abonnements récurrents
+SOURCES DE REVENUS RÉCURRENTS (MRR/ARR)
+• Modèle à la carte avec remise 15% dès 3 agents actifs
+• Forfaits globaux à -25% pour la digitalisation par département
+• Règle de surclassement (setup fee waiver) pour upsell rapide
+=> ARR cible Année 1 : 150 000€ | Année 3 : 900 000€+
+
+Plan d'Affaires — César-IA
+
+2.1 Résumé Exécutif
+César-IA est une plateforme SaaS B2B de catégorie « Workforce AI OS » permettant à des PME, ETI et agences de déployer des agents d'intelligence artificielle autonomes, capables d'agir concrètement sur leurs outils métier. Grâce à l'architecture de Tool Calling de Google Gemini 2.5 Flash, les agents César-IA ne se contentent pas de générer du texte : ils exécutent des commandes SSH, interrogent des bases PostgreSQL, publient sur Slack, déclenchent des webhooks, rédigent et publient des articles WordPress, et bien plus encore.
+La plateforme est lancée en full bootstrapping, sans capital externe, en utilisant les revenus immédiats des frais de setup pour financer l'acquisition client. Le modèle de tarification à double entrée (à la carte + forfaits) maximise l'ARPU à chaque segment. La marge brute cible dépasse 90 % grâce à des coûts techniques marginaux extrêmement faibles (API Gemini + hébergement serverless).
+2.2 Modèle Économique & Pricing
+A. Tarification à la Carte
+Chaque agent est disponible individuellement avec un frais de setup unique (de 500 € à 3 000 € selon le tier) couvrant l'intégration et l'onboarding humain, puis un abonnement mensuel récurrent (149 €, 299 € ou 599 € selon le niveau Starter, Pro ou Business). Deux mécanismes d'optimisation commerciale amplifient l'ARPU :
+Setup Fee Waiver : dès qu'un client souscrit à un agent Business (599 €/mois), tous les frais de setup des agents Starter et Pro sont offerts, créant un puissant incitatif à l'upsell.
+Remise Quantitative : à partir de 3 agents actifs simultanément, une remise automatique de 15 % s'applique sur la facture mensuelle globale.
+B. Forfaits Globaux (–25 %)
+Pour les entreprises souhaitant digitaliser des départements entiers, César-IA propose trois forfaits clés en main :
+Forfait
+Prix mensuel
+Valeur cumulée
+Économie mensuelle
+Setup inclus
+Starter Pack (4 agents)
+447 €
+596 €
+149 €
+800 € (–1 200 €)
+Pro Pack (11 agents)
+2 017 €
+2 689 €
+672 €
+2 500 € (–10 000 €)
+Business All-Access (14 agents)
+3 365 €
+4 486 €
+1 122 €
+4 500 € (–17 000 €)
+C. Zeus Enterprise
+L'agent Zeus, superviseur de flotte multi-agents, est proposé sur devis pour les ETI et grandes entreprises nécessitant une intégration sur-mesure à leurs systèmes d'information internes. Deal size estimé : > 10 000 € / mois.
+2.3 Stratégie Go-To-Market (GTM)
+Axe 1 — Preuve par l'Exemple (Outbound Self-Fulfilling)
+La démonstration de valeur la plus puissante de César-IA est l'utilisation de ses propres agents pour se faire connaître. L'agent Apollo génère des listes de leads qualifiés depuis Hunter.io, enrichit les profils dans HubSpot, et déclenche des campagnes d'e-mailing B2B hyper-personnalisées via Gmail. Chaque séquence d'outbound devient ainsi un proof-of-concept live, montrant directement aux prospects ce que César-IA peut faire pour eux.
+Axe 2 — Partenariats Intégrateurs (Channel Sales)
+César-IA établit des accords de partenariat avec des consultants et agences spécialisés dans les outils d'automatisation (Make, n8n, Zapier) ainsi que des agences web full-stack. Ces intégrateurs déploient César-IA chez leurs propres clients en échange d'une commission récurrente ou d'un accès préférentiel, démultipliant la force de vente sans coût marketing direct. Ce canal constitue le levier de croissance principal en phase de lancement.
+Axe 3 — Product-Led Growth (PLG)
+La landing page de César-IA intègre un bac à sable interactif permettant à tout visiteur d'interagir en temps réel avec un ou deux agents en mode démo. L'objectif est de convertir la curiosité en intention d'achat en quelques minutes, sans intervention commerciale. Ce modèle PLG réduit structurellement le CAC et raccourcit le cycle de vente.
+Axe 4 — Communautés & Médias B2B
+Publication de cas d'usage concrets sur LinkedIn, Product Hunt, et dans des newsletters SaaS (Indie Hackers, SaaS Alliance France). La mise en avant de métriques réelles (ex. : « 40 heures de support client automatisées en 1 mois ») crée une preuve sociale crédible auprès des décideurs PME.
+2.4 Processus d'Onboarding Client
+Phase 1 — Contractualisation & Setup Fee
+Dès la signature, le frais de setup est encaissé. Ce flux de trésorerie immédiat couvre intégralement le CAC cible (200–350 €) et finance la prestation d'intégration humaine incluse dans l'offre.
+Phase 2 — Session d'Intégration (J+1 à J+7)
+Un responsable technique César-IA accompagne le client sur une session de configuration des connecteurs (clés API, accès SSH, tokens OAuth). Cette session est brève, structurée autour d'un guide pas-à-pas, et se termine par un test de validation de bout en bout de l'agent déployé.
+Phase 3 — Autonomisation & Suivi
+Les 30 premiers jours, le client dispose d'un canal de support dédié (Slack ou Crisp). Un rapport mensuel d'usage (nombre d'actions exécutées, tokens consommés, taux de succès des appels d'outils) est envoyé automatiquement. La satisfaction client à J+30 conditionne le premier renouvellement.
+UX de Résiliation Planifiée
+Si un client initie une résiliation, son accès est maintenu jusqu'à la fin du cycle de facturation en cours (30 jours). L'agent reste visible dans son espace, marqué « Résiliation planifiée ». La facturation cesse au prochain renouvellement. Cette approche respectueuse réduit les frictions et favorise les retours.
+2.5 Analyse du Taux de Désabonnement (Churn)
+Le churn est l'indicateur de santé le plus critique d'un SaaS B2B. La stratégie de César-IA repose sur un principe fondamental : plus les agents sont intégrés dans les processus quotidiens d'une PME, plus le coût de migration devient prohibitif. Cette « adhérence opérationnelle » est le premier rempart contre le churn.
+Année
+Churn annuel cible
+Churn mensuel implicite
+Clients perdus (base 100)
+Levier principal
+Année 1
+< 8,00 %
+~0,69 %
+~8 clients
+Onboarding & adoption
+Année 2
+< 7,40 %
+~0,64 %
+~7 clients
+Rapports usage + NPS
+Année 3
+< 6,80 %
+~0,58 %
+~7 clients
+Intégration profonde SI
+Les principaux moteurs de réduction du churn sont : (1) la multiplication des connecteurs actifs par client (chaque connecteur ajouté augmente la stickiness), (2) les rapports mensuels d'usage qui quantifient le ROI pour le décideur, et (3) la règle de Setup Fee Waiver qui incite à activer davantage d'agents plutôt qu'à résilier.
+2.6 Matrice des Risques
+Risque
+Probabilité
+Impact
+Mitigation
+Hausse tarifs API Google Gemini
+Faible
+Moyen
+Clauses de prix variables + test multi-LLM (OpenAI, Mistral)
+Concurrence big tech (MS Copilot, etc.)
+Moyen
+Élevé
+Spécialisation verticale + connecteurs niche PME
+Churn élevé en phase early
+Moyen
+Élevé
+Onboarding humain inclus + suivi J+30
+Réglementation IA (EU AI Act)
+Faible
+Moyen
+Conformité RGPD dès J+1, RLS Supabase, data residency EU
+Difficultés de recrutement tech
+Faible
+Faible
+Bootstrapping + agents internes pour les tâches répétitives
+
+Prévisionnel Financier — 3 Ans
+
+Les projections ci-dessous reposent sur les hypothèses suivantes : ARPU mensuel moyen pondéré de 702 € (mix 50 % Starter solo, 30 % Pro solo, 10 % Pack Pro, 10 % Pack Business All-Access), frais de setup moyen pondéré de 1 400 €/client, churn mensuel de 0,69 % en An1, 0,64 % en An2, 0,58 % en An3. Charges fixes bootstrapped : 3 000 €/mois en An1, 6 000 € en An2, 12 000 € en An3. COGS variable (API + hosting) : ~7 % du MRR.
+3.1 Synthèse des Indicateurs Clés par Année
+Indicateur
+Année 1
+Année 2
+Année 3
+Clients fin de période
+83
+253
+567
+MRR fin de période
+58 266 €
+177 606 €
+398 034 €
+ARR fin de période
+699 192 €
+2 131 272 €
+4 776 408 €
+Setup Fees collectés
+133 000 €
+261 800 €
+483 000 €
+Revenus récurrents cumulés
+353 808 €
+1 417 338 €
+3 460 920 €
+Revenus totaux (MRR + Setup)
+486 808 €
+1 679 138 €
+3 943 920 €
+Charges fixes annuelles
+36 000 €
+72 000 €
+144 000 €
+COGS estimé (7% MRR)
+24 767 €
+99 214 €
+242 264 €
+Marge nette estimée
+426 041 €
+1 507 924 €
+3 557 656 €
+3.2 Évolution Mensuelle du MRR — Année 1 (Détail)
+Tableau de ramp-up mensuel détaillé pour l'Année 1, illustrant l'acquisition progressive et l'effet boule de neige du modèle de revenus récurrents :
+Mois
+Nvx clients
+Clients total
+MRR (€)
+Setup fees (€)
+Rev. mensuel (€)
+Mois 1
+5
+5
+3 510
+7 000
+10 510
+Mois 2
+6
+11
+7 722
+8 400
+16 122
+Mois 3
+6
+17
+11 934
+8 400
+20 334
+Mois 4
+7
+24
+16 848
+9 800
+26 648
+Mois 5
+7
+30
+21 060
+9 800
+30 860
+Mois 6
+8
+37
+25 974
+11 200
+37 174
+Mois 7
+8
+44
+30 888
+11 200
+42 088
+Mois 8
+9
+52
+36 504
+12 600
+49 104
+Mois 9
+9
+59
+41 418
+12 600
+54 018
+Mois 10
+10
+67
+47 034
+14 000
+61 034
+Mois 11
+10
+75
+52 650
+14 000
+66 650
+Mois 12
+10
+83
+58 266
+14 000
+72 266
+3.3 Point Mort (Seuil de Rentabilité)
+Avec des charges fixes bootstrappées de 3 000 €/mois en An1 et un ARPU moyen de 702 € générant une marge de contribution de ~93 % (après COGS de 7 %), le seuil de rentabilité opérationnel est atteint dès le Mois 1, à partir de 5 clients actifs :
+Scénario
+Charges fixes/mois
+ARPU moyen
+Clients nécessaires
+Mois de break-even
+Bootstrapping An1 (solo)
+3 000 €
+702 €
+5 clients
+Mois 1
+Scale An2 (1 salarié partiel)
+6 000 €
+702 €
+10 clients
+Mois 13
+Growth An3 (équipe 2-3)
+12 000 €
+702 €
+19 clients
+Mois 26
+Note : les setup fees perçus dès la signature de chaque client (moyenne 1 400 €) permettent de couvrir le CAC cible de 200–350 € dès J+1, sans jamais puiser dans la trésorerie d'exploitation. Ce mécanisme est la clé du modèle bootstrapped de César-IA.
+3.4 Projections MRR & ARR — Courbe de Croissance (Mois 1 → 36)
+La projection sur 36 mois illustre une croissance régulière, sans hockey-stick artificiel, reposant uniquement sur des acquisitions organiques et des partenariats intégrateurs :
+Période
+Clients
+MRR fin (€)
+ARR fin (€)
+Rev. cumulé total (€)
+T1 An1 (M1-M3)
+17
+11 934
+143 208
+46 966
+T2 An1 (M4-M6)
+37
+25 974
+311 688
+94 682
+T3 An1 (M7-M9)
+59
+41 418
+497 016
+145 210
+T4 An1 (M10-M12)
+83
+58 266
+699 192
+199 950
+T4 An2 (M24)
+253
+177 606
+2 131 272
+1 679 138
+T4 An3 (M36)
+567
+398 034 €
+4 776 408 €
+3 943 920 €
+Toutes projections sont indicatives et basées sur les hypothèses décrites en section 3.1. Elles ne constituent pas une garantie de performance.
+
+Annexe — Catalogue des 15 Agents César-IA
+
+Tableau de référence complet du catalogue d'agents, de leurs rôles, niveaux tarifaires et connecteurs principaux :
+Agent
+Rôle
+Tier
+Mensualité
+Setup
+Connecteurs principaux
+Chronos
+CM & Réseaux Sociaux
+Starter
+149 €
+500 €
+LinkedIn, X/Twitter, Brevo, Buffer
+Apollo
+Prospection B2B & Mailing
+Starter
+149 €
+500 €
+Hunter.io, HubSpot, Gmail, Webhooks
+Nemesis
+Juridique & Conformité
+Starter
+149 €
+500 €
+Notion, Google Drive, DocuSign
+Iris
+Traducteur & Localisation
+Starter
+149 €
+500 €
+GitHub, WordPress, Crowdin
+Sybil
+Analyste de Données & BI
+Pro
+299 €
+1 500 €
+SQL Server, PostgreSQL, BigQuery, Excel
+Hermes
+Rédacteur Web & SEO
+Pro
+299 €
+1 500 €
+WordPress, Webflow, Semrush, Notion
+Hestia
+Support Client Autonome
+Pro
+299 €
+1 500 €
+Crisp, Zendesk, Intercom, Slack
+Vesta
+Secrétariat & RH
+Pro
+299 €
+1 500 €
+Google Calendar, Airtable, Notion
+Athena
+Recherche Académique
+Pro
+299 €
+1 500 €
+Google Scholar, arXiv, Zotero
+Demeter
+Contrôle de Gestion
+Pro
+299 €
+1 500 €
+Stripe, Qonto, Pennylane, QuickBooks
+Janus
+Modérateur & RP
+Pro
+299 €
+1 500 €
+Trustpilot, Google Reviews, Crisp
+Atlas
+DevOps & Admin Système
+Business
+599 €
+3 000 €
+SSH, AWS, Docker, Kubernetes, Sentry
+Ares
+Cybersécurité & Audit
+Business
+599 €
+3 000 €
+GitHub Actions, GitLab CI/CD, SonarQube
+Hephaestus
+Automatisation & Webhook
+Business
+599 €
+3 000 €
+n8n, Make, Zapier, Webhooks
+Zeus
+Superviseur de Flotte
+Enterprise
+Sur devis
+Sur devis
+Intégration sur-mesure SI interne
+— Fin du document César-IA Business Plan v1.0 —
