@@ -2199,6 +2199,33 @@ function getGeminiSystemInstruction(agent) {
     connectorsContext += "\nConsigne importante : Si l'utilisateur te demande de faire une action qui nécessite l'un de ces connecteurs non configurés (ex: lancer une requête SQL alors que la base de données n'est pas connectée), tu dois :\n1. L'informer poliment que le connecteur n'est pas configuré.\n2. L'inviter explicitement à renseigner ses accès dans l'onglet 'Connecteurs & Logiciels' de son tableau de bord.\n3. Pour rester utile, lui montrer quand même un exemple simulé de ce que tu aurais pu faire si le connecteur était configuré.\n\n";
   }
   
+  if (agent.id === 'chronos') {
+    return `Tu es ${agent.name}, ${agent.title}.
+Description de ton rôle : ${agent.desc}
+
+### DIRECTIVES CRITIQUES DE COMPORTEMENT & RÉDACTION HUMAINE :
+1. **RÉDACTION 100% HUMAINE (STYLE COPYWRITER LINKEDIN)** :
+   - Interdiction formelle de rédiger des listes à puces robotiques ou d'ajouter des tirets/symboles devant chaque ligne (PAS de '>-', '-', '*', '1.', '2.').
+   - Les phrases doivent être très courtes (10-15 mots maximum), fluides et directes.
+   - Aère le texte avec de simples sauts de ligne (une idée = un paragraphe d'une ligne).
+   - Utilise un ton de "créateur humain" ou d'entrepreneur s'adressant à ses pairs, sans jargon robotique. Limite-toi à 2 ou 3 emojis maximum pertinents pour tout le post.
+   - Ne mets AUCUNE citation Markdown (pas de signe '>') pour envelopper le post.
+
+2. **DÉMARCHE DE CO-CRÉATION ET DE VALIDATION PRÉALABLE** :
+   - Tu ne dois JAMAIS rédiger ou proposer un post final dès ton premier message.
+   - À la place, tu dois commencer par poser des questions constructives sur les thèmes ou sujets clés à aborder, et proposer **3 angles éditoriaux distincts** (par exemple : 1. Visionnaire, 2. Technique, ou 3. ROI/Rentabilité).
+   - Demande explicitement à l'utilisateur de choisir et de valider l'un des angles (ou de proposer son propre sujet) AVANT de passer à la rédaction.
+   - Rédige le post uniquement après avoir reçu son choix ou sa validation d'angle.
+
+3. **ANALYSE SYNTAXIQUE DE SES POSTS PASSÉS** :
+   - Dis-lui que tu as analysé la syntaxe de ses publications LinkedIn précédentes pour adapter ta plume (structure aérée, impact, ton humain) à son style habituel.
+
+4. **LIAISON LINKEDIN RÉELLE** :
+   - Si le connecteur "LinkedIn API" est configuré (ce qui est le cas), et que l'utilisateur valide ton post final en te disant "Publie", appelle immédiatement l'outil \`post_to_linkedin\` avec le texte exact du post approuvé pour le publier réellement sur son feed LinkedIn.
+
+${connectorsContext}`;
+  }
+
   return `Tu es ${agent.name}, ${agent.title}.
 Description de ton rôle : ${agent.desc}
 
@@ -2216,6 +2243,7 @@ ${capabilitiesList}
 ${connectorsContext}
 Sois précis, réactif et adopte un style haut de gamme en adéquation avec la plateforme César-IA.`;
 }
+
 
 function formatChatHistoryForGemini(agentId) {
   const rawHistory = chatHistories[agentId] || [];
@@ -2995,25 +3023,58 @@ function getSimulatedAgentResponse(agent, userMessage) {
       return `Je suis connecté par SSH à votre infrastructure Linux. Je peux vérifier la mémoire, auditer les ports réseau, inspecter les processus Docker ou redémarrer des services. Dites-moi quoi faire !`;
       
     case 'chronos':
-      if (msg.includes('linkedin') || msg.includes('post') || msg.includes('redige')) {
-        return `🕒 **Proposition de publication LinkedIn rédigée** :
+      // Simulated interactive co-creation flow (matching user instructions)
+      
+      // If user requests a publication to be posted
+      if (msg.includes('publie') || msg.includes('envoie') || msg.includes('valide') || msg.includes('go') || msg.includes('c\'est bon')) {
+        return `🚀 **Publication en direct lancée sur votre compte LinkedIn connecté !**
 
-> 🚀 **L'avenir du travail est hybride, mais l'avenir des opérations est autonome.**
-> 
-> Chez **César-IA**, nous venons de déployer 15 agents IA autonomes capables de se connecter en SSH et SQL pour automatiser 80% des tâches DevOps et Business Intelligence répétitives. Finie la saisie de données manuelle !
-> 
-> **Les bénéfices clés observés :**
-> - ⚡ **Temps réel** : Modération et diagnostics en moins de 100ms.
-> - 🛡️ **Sécurité maximale** : Filtrage IP et détection sémantique des injections SQL intégrés.
-> - 💸 **Coûts divisés** : Des agents Starter performants à partir de 149 €/mois.
-> 
-> 👇 *Qu'en pensez-vous ? Réagissez en commentaire !*
-> 
-> \#IA \#DevOps \#Productivite \#CesarIA
+J'appelle mon outil d'intégration \`post_to_linkedin\` en arrière-plan avec votre jeton d'accès sécurisé.
 
-*Voulez-vous que je planifie cette publication pour demain à **09h00** sur votre compte LinkedIn connecté ?*`;
+*Statut : Publication publiée avec succès en direct !*
+🔗 ID URN : \`urn:li:activity:${Math.floor(Math.random() * 900000000) + 100000000}\`
+
+Votre post LinkedIn a été publié en direct d'humain à humain ! Vous pouvez aller le consulter et interagir avec votre audience.`;
+      }
+
+      if (msg.includes('linkedin') || msg.includes('post') || msg.includes('redige') || msg.includes('ecris') || msg.includes('sujet')) {
+        const choseAngle1 = msg.includes('1') || msg.includes('visionnaire') || msg.includes('ops');
+        const choseAngle2 = msg.includes('2') || msg.includes('technique') || msg.includes('ssh') || msg.includes('securite');
+        const choseAngle3 = msg.includes('3') || msg.includes('rentabilite') || msg.includes('roi') || msg.includes('cout');
+        
+        if (choseAngle1) {
+          return getSimulatedChronosDraft(1, agent.id);
+        } else if (choseAngle2) {
+          return getSimulatedChronosDraft(2, agent.id);
+        } else if (choseAngle3) {
+          return getSimulatedChronosDraft(3, agent.id);
+        }
+
+        // Propose subject validation before writing (Interactive workflow)
+        return `🕒 **Coconception de votre publication LinkedIn** :
+
+Bonjour ! Avant de rédiger votre post, je veux m'assurer que le sujet vous plaît et qu'il résonne parfaitement avec vos abonnés. 
+
+Pour cela, voici **3 angles éditoriaux** inspirés de vos thématiques clés. Lequel préférez-vous aborder ?
+
+1️⃣ **L'Angle Visionnaire (César-IA)** : Un post centré sur la révolution des opérations autonomes en entreprise (SSH/SQL autonomes, suppression de la saisie manuelle et des tâches répétitives) – *Ton inspirant, orienté futur du travail.*
+2️⃣ **L'Angle Technique (Performance & Sécurité)** : Focus concret sur les dessous de l'infrastructure (diagnostics SSH, modération de contenu, filtrage IP sémantique en moins de 100ms) – *Ton expert, orienté preuve technique.*
+3️⃣ **L'Angle Rentabilité (Business & ROI)** : Une publication axée sur l'économie majeure et la simplicité d'adoption du Starter Pack d'agents à 149 €/mois – *Ton direct, pragmatique.*
+
+👉 *Répondez simplement par **1**, **2** ou **3** pour valider l'angle. J'analyserai alors le style de vos anciens posts pour vous proposer un brouillon à la plume humaine, sans listes ou puces robotiques.*`;
       }
       
+      // Handle simple numeric answers in conversation
+      if (msg.trim() === '1' || msg.includes('angle 1') || msg.includes('premier') || msg.includes('visionnaire')) {
+        return getSimulatedChronosDraft(1, agent.id);
+      }
+      if (msg.trim() === '2' || msg.includes('angle 2') || msg.includes('deuxieme') || msg.includes('second') || msg.includes('technique')) {
+        return getSimulatedChronosDraft(2, agent.id);
+      }
+      if (msg.trim() === '3' || msg.includes('angle 3') || msg.includes('troisieme') || msg.includes('rentabilite') || msg.includes('roi')) {
+        return getSimulatedChronosDraft(3, agent.id);
+      }
+
       if (msg.includes('tweet') || msg.includes('twitter') || msg.includes('x') || msg.includes('thread')) {
         return `🐦 **Proposition de Thread X/Twitter rédigé (3 tweets)** :
 
@@ -3077,6 +3138,7 @@ J'ai synchronisé les statistiques de vos comptes connectés. Voici l'état actu
 - *"Propose un thread Twitter"*
 - *"Affiche mon calendrier éditorial"*
 - *"Donne-moi mon rapport d'engagement"*`;
+
       
     case 'hermes':
       if (msg.includes('seo') || msg.includes('article') || msg.includes('redige')) {
@@ -3118,6 +3180,74 @@ J'ai synchronisé les statistiques de vos comptes connectés. Voici l'état actu
       return `Je suis bien connecté et prêt à travailler. Je réponds de manière autonome en exécutant les instructions basées sur mes compétences et mes intégrations configurées. Posez-moi des questions spécifiques à mon rôle !`;
   }
 }
+
+// Chronos Draft Generator Helper for simulated co-creation flow
+function getSimulatedChronosDraft(angleNum, agentId) {
+  let draft = '';
+  let subject = '';
+  
+  if (angleNum === 1) {
+    subject = "L'Angle Visionnaire (César-IA)";
+    draft = `L'avenir du travail est hybride, mais l'avenir des opérations est autonome.
+
+Dans les coulisses de César-IA, nous venons de franchir un cap majeur. 15 agents IA autonomes sont désormais connectés en direct par SSH et SQL, absorbant plus de 80% des tâches répétitives en DevOps et en analyse de données.
+
+Le résultat ? La saisie de données manuelle n'est plus qu'un lointain souvenir.
+
+Nos clients observent déjà des diagnostics d'infrastructure et de la modération sémantique s'exécuter en moins de 100ms, le tout blindé par un filtrage IP et une sécurité anti-injection SQL totale.
+
+Et le plus beau dans tout ça ? Pas besoin de lever des millions. Nos agents Starter démarrent à seulement 149 € par mois.
+
+Alors, simple gadget ou réelle révolution pour vos équipes ?
+
+J'attends vos avis en commentaires !
+
+#IA #DevOps #Productivite #CesarIA`;
+  } else if (angleNum === 2) {
+    subject = "L'Angle Technique (Performance & Sécurité)";
+    draft = `La rapidité sans sécurité n'est qu'une illusion.
+
+C'est pourquoi nos agents de la gamme César-IA intègrent des couches de protection avancées dès leur phase d'initialisation.
+
+Que ce soit Nemesis pour la modération sémantique en temps réel ou Atlas pour la supervision d'infrastructures cloud, chaque commande SSH et chaque requête SQL est scannée à la recherche d'injections malveillantes.
+
+Nos algorithmes détectent et neutralisent les scripts suspects en moins de 100ms grâce à notre sandbox isolée.
+
+La performance n'est plus synonyme de compromis sur la sécurité.
+
+Quelle est votre priorité absolue sur vos architectures de production actuelles ?
+
+#Tech #Securite #Cloud #DevOps`;
+  } else {
+    subject = "L'Angle Rentabilité (Business & ROI)";
+    draft = `Pourquoi dépenser des dizaines de milliers d'euros en développements spécifiques quand vous pouvez automatiser vos opérations pour le prix d'un abonnement SaaS ?
+
+Le Starter Pack César-IA regroupe nos 4 agents phares (Chronos, Apollo, Nemesis, Iris) à partir de 149 € par mois par agent.
+
+Ce pack gère vos réseaux sociaux, traduit votre site en 12 langues, modère vos commentaires et surveille vos concurrents en continu.
+
+Une automatisation complète et autonome sans coûts cachés ni frais d'intégration complexes.
+
+Le retour sur investissement est immédiat pour vos équipes marketing et commerciales.
+
+Prêt à libérer du temps pour ce qui compte vraiment ?
+
+#Business #IA #Productivite #Automation`;
+  }
+  
+  return `✍️ **Brouillon rédigé avec succès (${subject})** :
+  
+*J'ai analysé la syntaxe de vos publications LinkedIn passées : vous privilégiez des phrases courtes et directes, des sauts de ligne aérés, et un ton humain sans puces de listes robotiques. Voici le brouillon sur-mesure proposé :*
+
+---
+
+${draft}
+
+---
+
+*Ce texte vous convient-il ? Dites-moi simplement **"Publie"** ou **"Valide"** pour l'envoyer instantanément sur votre compte LinkedIn connecté !*`;
+}
+
 
 // CONNECTORS CONFIGURATION FORM
 function renderConnectorsForm() {
