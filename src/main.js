@@ -1422,6 +1422,12 @@ function setupDashboard() {
   // Test connection button
   document.getElementById('btn-test-connection').addEventListener('click', testConnection);
 
+  // Disconnect agent button
+  const disconnectBtn = document.getElementById('btn-disconnect-agent');
+  if (disconnectBtn) {
+    disconnectBtn.addEventListener('click', disconnectAgent);
+  }
+
   // Email digest toggle
   const toggleEmailDigest = document.getElementById('toggle-email-digest');
   if (toggleEmailDigest) {
@@ -3086,6 +3092,12 @@ function renderConnectorsForm() {
   
   // Clean connection status banner
   document.getElementById('test-connection-status').innerHTML = '';
+
+  // Show/hide disconnect button dynamically
+  const disconnectBtn = document.getElementById('btn-disconnect-agent');
+  if (disconnectBtn) {
+    disconnectBtn.style.display = isAgentConfigured(agentId) ? 'block' : 'none';
+  }
 }
 
 function getConnectorEmoji(conn) {
@@ -3157,6 +3169,42 @@ async function saveConnectors() {
   renderConnectorsForm();
   
   showToast("Paramètres de connexion enregistrés avec succès !");
+}
+
+async function disconnectAgent() {
+  const agentId = state.activeDashboardAgentId;
+  if (!agentId) return;
+  
+  const agent = AGENTS.find(a => a.id === agentId);
+  const agentName = agent ? agent.name : "cet agent";
+  
+  const ok = confirm(`Êtes-vous sûr de vouloir déconnecter l'agent ${agentName} et supprimer tous ses accès configurés ?`);
+  if (!ok) return;
+  
+  // Wipe credentials locally
+  delete state.connectorsData[agentId];
+  
+  if (isMock) {
+    saveMockState();
+  } else {
+    try {
+      // In real mode, delete all credentials for this user and agent from Supabase 'connectors' table
+      await supabaseFetch('connectors', {
+        method: 'DELETE',
+        queryParams: `?user_id=eq.${state.currentUser.uid}&agent_id=eq.${agentId}`
+      });
+    } catch (error) {
+      console.error("Erreur lors de la déconnexion de l'agent sur Supabase :", error);
+      showToast("Impossible de supprimer les connecteurs sur la base de données.", "error");
+      return;
+    }
+  }
+  
+  // Re-render components
+  renderDashboardSidebar();
+  renderConnectorsForm();
+  
+  showToast(`L'agent ${agentName} a été déconnecté avec succès et ses accès ont été révoqués !`);
 }
 
 async function testConnection() {

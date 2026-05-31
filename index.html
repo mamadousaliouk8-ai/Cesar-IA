@@ -229,9 +229,10 @@
                       <!-- Dynamically generated fields based on agent connectors -->
                     </div>
 
-                    <div style="display: flex; gap: 12px; align-items: center;">
+                    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
                       <button class="btn btn-primary" id="btn-save-connectors">Enregistrer les identifiants</button>
                       <button class="btn btn-secondary" id="btn-test-connection">Tester la connexion</button>
+                      <button class="btn btn-danger" id="btn-disconnect-agent" style="display: none;">Déconnecter l'agent</button>
                     </div>
                     
                     <div id="test-connection-status"></div>
