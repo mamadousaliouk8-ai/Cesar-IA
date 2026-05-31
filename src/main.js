@@ -1899,22 +1899,52 @@ function renderConsoleLogs(agent, getSeededRandom, isConfig) {
 
       case 'chronos':
         logs.push({
+          time: getLogTimeStr(42),
+          source: 'AUTHENTICATOR',
+          text: `Connexion sécurisée établie avec LinkedIn API v2 (OAuth2 token validé).`,
+          type: 'success'
+        });
+        logs.push({
+          time: getLogTimeStr(40),
+          source: 'AUTHENTICATOR',
+          text: `Connexion active sur l'API X/Twitter (v2 standard rate limits : 420/450).`,
+          type: 'success'
+        });
+        logs.push({
           time: getLogTimeStr(38),
           source: 'SCHEDULER',
-          text: `Vérification du calendrier éditorial pour LinkedIn et X/Twitter.`,
+          text: `Scan de la file d'attente. Prochaine publication planifiée à 17h30 pour LinkedIn.`,
           type: 'info'
         });
         logs.push({
           time: getLogTimeStr(35),
+          source: 'CONTENT_BOT',
+          text: `Optimisation sémantique et ajout automatique de hashtags sur le brouillon #12.`,
+          type: 'info'
+        });
+        logs.push({
+          time: getLogTimeStr(30),
           source: 'API_POST',
-          text: `Publication automatique effectuée sur LinkedIn : "L'automatisation IA..."`,
+          text: `Publication avec succès du post LinkedIn #12 ("Révolutionner le DevOps...") : ID_URN = urn:li:activity:784910238491.`,
+          type: 'success'
+        });
+        logs.push({
+          time: getLogTimeStr(25),
+          source: 'CANVA_SYNC',
+          text: `Récupération du visuel de couverture depuis Canva API. Compression WebP réussie (142KB).`,
           type: 'success'
         });
         logs.push({
           time: getLogTimeStr(12),
           source: 'METRICS',
-          text: `Collecte des taux d'engagement hebdomadaires (+4.2% d'interactions).`,
+          text: `Collecte des interactions hebdomadaires : +12.4% impressions (LinkedIn), +6.8% likes (X).`,
           type: 'success'
+        });
+        logs.push({
+          time: getLogTimeStr(5),
+          source: 'MONITORING',
+          text: `Analyse des mentions. 4 nouveaux commentaires détectés. Rédaction de réponses automatiques suggérées en attente de validation.`,
+          type: 'info'
         });
         break;
 
@@ -2966,9 +2996,87 @@ function getSimulatedAgentResponse(agent, userMessage) {
       
     case 'chronos':
       if (msg.includes('linkedin') || msg.includes('post') || msg.includes('redige')) {
-        return `🕒 **Proposition de post LinkedIn rédigée** :\n\n"🚀 *L'avenir du travail est hybride, mais l'avenir des opérations est autonome.*\nChez [MonAgence], nous venons de déployer 15 agents IA capables de se connecter en SSH et SQL pour automatiser 80% des tâches répétitives. Finie la saisie de données manuelle !\n\n👇 Qu'en pensez-vous ? Réagissez en commentaire !\n#IA #DevOps #Productivite"\n\n*Voulez-vous que je planifie cette publication pour demain 9h00 sur votre compte ?*`;
+        return `🕒 **Proposition de publication LinkedIn rédigée** :
+
+> 🚀 **L'avenir du travail est hybride, mais l'avenir des opérations est autonome.**
+> 
+> Chez **César-IA**, nous venons de déployer 15 agents IA autonomes capables de se connecter en SSH et SQL pour automatiser 80% des tâches DevOps et Business Intelligence répétitives. Finie la saisie de données manuelle !
+> 
+> **Les bénéfices clés observés :**
+> - ⚡ **Temps réel** : Modération et diagnostics en moins de 100ms.
+> - 🛡️ **Sécurité maximale** : Filtrage IP et détection sémantique des injections SQL intégrés.
+> - 💸 **Coûts divisés** : Des agents Starter performants à partir de 149 €/mois.
+> 
+> 👇 *Qu'en pensez-vous ? Réagissez en commentaire !*
+> 
+> \#IA \#DevOps \#Productivite \#CesarIA
+
+*Voulez-vous que je planifie cette publication pour demain à **09h00** sur votre compte LinkedIn connecté ?*`;
       }
-      return `Je suis connecté à vos comptes réseaux sociaux. Je peux rédiger des posts optimisés pour LinkedIn, planifier des tweets (X), ou collecter les statistiques de vos dernières publications.`;
+      
+      if (msg.includes('tweet') || msg.includes('twitter') || msg.includes('x') || msg.includes('thread')) {
+        return `🐦 **Proposition de Thread X/Twitter rédigé (3 tweets)** :
+
+**Tweet 1/3** 🧵
+Le travail répétitif tue la croissance de votre entreprise. 
+Pendant que vos équipes rédigent des rapports SQL à la main, vos concurrents automatisent tout avec des agents IA autonomes.
+Voici comment franchir le pas dès aujourd'hui 👇 #CesarIA #Productivite
+
+**Tweet 2/3** ⚙️
+1/ Nos agents Starter (Chronos, Apollo, Nemesis, Iris) s'intègrent en quelques secondes à vos CMS, APIs et réseaux sociaux. 
+2/ Ils analysent vos données, traduisent vos sites en 12 langues, filtrent les spams et surveillent les prix de vos concurrents en continu.
+
+**Tweet 3/3** 🚀
+Pas besoin de budget colossal. Le Starter Pack regroupe ces 4 agents d'élite pour seulement **447 € / mois** (avec une économie directe de -25%).
+Inscrivez-vous sur César-IA pour propulser votre entreprise dans l'ère de l'automation.
+🔗 [cesar-ia.com](https://plateforme-agents-ia.vercel.app)
+
+*Souhaitez-vous planifier la publication de ce thread pour aujourd'hui à **14h00** ?*`;
+      }
+
+      if (msg.includes('calendrier') || msg.includes('planning') || msg.includes('semaine')) {
+        return `📅 **Calendrier Éditorial Hebdomadaire Suggéré** :
+
+Voici le planning éditorial optimisé selon l'engagement de votre audience pour les 7 prochains jours :
+
+| Jour | Réseau | Thématique / Sujet | Objectif | Statut |
+| :--- | :--- | :--- | :--- | :--- |
+| **Lundi 09h00** | LinkedIn | Pitch César-IA & ROI de l'automatisation | Génération de leads | 📝 *Brouillon prêt* |
+| **Mardi 14h00** | X/Twitter | Thread sur la sécurité SSH & SQL des agents | Autorité technique | 📝 *Brouillon prêt* |
+| **Mercredi 11h30** | LinkedIn | Étude de cas client : 80% de tickets support résolus | Preuve sociale | ⏳ *En attente visuel* |
+| **Jeudi 17h00** | X/Twitter | Sondage interactif sur les outils d'automatisation | Engagement | ⏳ *À rédiger* |
+| **Vendredi 10h00** | LinkedIn | Coulisses de César-IA et la team de dev | Branding employeur | ⏳ *À rédiger* |
+
+*Je peux rédiger les brouillons restants en un seul clic. Quel sujet souhaitez-vous que j'aborde en premier ?*`;
+      }
+
+      if (msg.includes('metrics') || msg.includes('stats') || msg.includes('engagement')) {
+        return `📊 **Rapport Hebdomadaire d'Engagement Réseaux Sociaux** :
+
+J'ai synchronisé les statistiques de vos comptes connectés. Voici l'état actuel de votre portée :
+
+| Publication / Post | Canal | Impressions | Clics / Vues | Likes / Retweets | Taux d'engagement |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| *Révolutionner le DevOps* | LinkedIn | 12 450 | 845 | 182 | **6.8%** 📈 |
+| *L'avenir du travail est hybride* | LinkedIn | 8 920 | 512 | 124 | **5.7%** |
+| *Thread : Automatisation cloud* | X/Twitter | 15 800 | 1 120 | 340 | **7.1%** 🔥 |
+| *Sondage Outils IA* | X/Twitter | 4 200 | 450 | 92 | **3.2%** |
+
+**Résumé global de la semaine :**
+- **Portée Totale** : **41 370 impressions** (+14.2% par rapport à la semaine dernière)
+- **Taux d'Engagement Moyen** : **5.7%** (Objectif : 5.0%)
+- **Nouveaux Abonnés** : **+124 abonnés** qualifiés
+
+*Tout est au vert ! J'ai exporté ces statistiques dans votre tableau Google Sheets connecté.*`;
+      }
+
+      return `Je suis connecté à vos comptes réseaux sociaux. Je peux rédiger des posts optimisés pour LinkedIn, planifier des tweets (X), concevoir des threads ou collecter les statistiques de vos dernières publications.
+      
+👉 *Essayez de me demander :*
+- *"Rédige un post LinkedIn"*
+- *"Propose un thread Twitter"*
+- *"Affiche mon calendrier éditorial"*
+- *"Donne-moi mon rapport d'engagement"*`;
       
     case 'hermes':
       if (msg.includes('seo') || msg.includes('article') || msg.includes('redige')) {
