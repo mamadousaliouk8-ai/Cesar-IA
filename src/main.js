@@ -4518,6 +4518,67 @@ function displayAdminData(users, adoptions) {
 //  OAUTH EXPRESS CONNECTION & REDIRECT SIMULATION (UX PREMIUM)
 // =================================================================
 
+// Simulated SMS Notification Helper (Mimics Mobile Lock Screen SMS Toast)
+window.triggerSimulatedSMSNotification = function() {
+  const existing = document.querySelector('.simulated-sms-toast');
+  if (existing) existing.remove();
+  
+  const sms = document.createElement('div');
+  sms.className = 'simulated-sms-toast';
+  sms.style.cssText = `
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-150px);
+    width: 90%;
+    max-width: 380px;
+    background: rgba(15, 15, 20, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 15px 40px rgba(0,0,0,0.6);
+    border-radius: 14px;
+    padding: 14px 18px;
+    z-index: 20000;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    backdrop-filter: blur(25px);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    transition: transform 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s;
+    box-sizing: border-box;
+    opacity: 0;
+  `;
+  
+  sms.innerHTML = `
+    <div style="width: 38px; height: 38px; background: rgba(37, 211, 102, 0.15); border: 1px solid #25d366; color: #25d366; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0; box-shadow: 0 0 10px rgba(37, 211, 102, 0.2);">💬</div>
+    <div style="flex: 1; text-align: left;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+        <span style="font-size: 0.72rem; font-weight: 700; color: #fff; text-transform: uppercase; letter-spacing: 0.5px;">💬 Messages • SMS</span>
+        <span style="font-size: 0.65rem; color: var(--text-muted);">À l'instant</span>
+      </div>
+      <p style="font-size: 0.78rem; color: #f4f4f7; margin: 0; line-height: 1.4;">
+        <strong>César-IA</strong> : Votre code de vérification à usage unique est <strong style="color: #25d366; font-family: var(--font-mono); font-size: 0.82rem; letter-spacing: 0.5px; border-bottom: 1px dashed #25d366; padding-bottom: 1px;">842910</strong>.
+      </p>
+    </div>
+  `;
+  
+  document.body.appendChild(sms);
+  
+  // Animate Down
+  setTimeout(() => {
+    sms.style.transform = 'translateX(-50%) translateY(0)';
+    sms.style.opacity = '1';
+  }, 100);
+  
+  // Auto Dismiss
+  setTimeout(() => {
+    sms.style.transform = 'translateX(-50%) translateY(-150px)';
+    sms.style.opacity = '0';
+    setTimeout(() => sms.remove(), 450);
+  }, 7000);
+  
+  showToast("Simulé : Code OTP envoyé par SMS !", "success");
+};
+
 window.startOauthSimulation = function(agentId, connector) {
   // Create overlay
   const overlay = document.createElement('div');
@@ -4604,7 +4665,10 @@ window.startOauthSimulation = function(agentId, connector) {
           </div>
         </div>
         <div style="display: flex; flex-direction: column; gap: 4px;">
-          <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">CODE DE VALIDATION SMS (OTP)</label>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">CODE DE VALIDATION SMS (OTP)</label>
+            <button type="button" onclick="triggerSimulatedSMSNotification()" style="background: transparent; border: none; color: #a5b4fc; font-size: 0.7rem; text-decoration: underline; cursor: pointer; font-weight: 600; font-family: var(--font-sans);">Obtenir/Renvoyer le SMS</button>
+          </div>
           <input type="text" id="oauth-input-otp" style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; padding: 10px; color: #fff; font-size: 0.85rem; letter-spacing: 4px; font-weight: bold; text-align: center; font-family: var(--font-mono);" placeholder="CODE A 6 CHIFFRES" value="842910" />
         </div>
       </div>
@@ -4648,6 +4712,15 @@ window.startOauthSimulation = function(agentId, connector) {
   `;
   
   document.body.appendChild(overlay);
+  
+  // Auto Trigger SMS simulated notification after 1.5 seconds to WOW the user
+  if (isPhoneAuth) {
+    setTimeout(() => {
+      if (document.querySelector('.oauth-modal-overlay')) {
+        triggerSimulatedSMSNotification();
+      }
+    }, 1500);
+  }
 };
 
 window.closeOauthSimulation = function() {
