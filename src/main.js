@@ -360,7 +360,12 @@ function setupRoutes() {
   });
 
   document.getElementById('btn-hero-explain').addEventListener('click', () => {
-    showToast("Choisissez un agent, liez vos comptes de services, et laissez l'IA travailler !");
+    const tourBtn = document.getElementById('btn-start-tour');
+    if (tourBtn) {
+      tourBtn.click();
+    } else {
+      showToast("Choisissez un agent, liez vos comptes de services, et laissez l'IA travailler !");
+    }
   });
 }
 
