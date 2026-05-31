@@ -4538,6 +4538,7 @@ window.startOauthSimulation = function(agentId, connector) {
   `;
   
   const isServer = connector.includes('SSH') || connector.includes('PostgreSQL') || connector.includes('MySQL') || connector.includes('Database') || connector.includes('Server') || connector.includes('SQL');
+  const isPhoneAuth = connector.includes('WhatsApp') || connector.includes('Telegram') || connector.includes('Twilio') || connector.includes('SMS') || connector.includes('WeChat') || connector.includes('Viber') || connector.includes('Lydia') || connector.includes('Messenger API');
   
   let title = `Lier mon compte ${connector}`;
   let icon = getConnectorEmoji(connector);
@@ -4549,6 +4550,8 @@ window.startOauthSimulation = function(agentId, connector) {
   if (connector.includes('GitHub')) connectorColor = '#24292e';
   if (connector.includes('Shopify')) connectorColor = '#96bf48';
   if (connector.includes('WordPress')) connectorColor = '#21759b';
+  if (connector.includes('WhatsApp')) connectorColor = '#25d366';
+  if (connector.includes('Telegram')) connectorColor = '#0088cc';
   
   let headerHtml = `
     <div style="display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 16px; margin-bottom: 20px;">
@@ -4579,6 +4582,34 @@ window.startOauthSimulation = function(agentId, connector) {
       </div>
       <button onclick="runServerScanSimulation('${agentId}', '${connector.replace(/'/g, "\\'")}')" style="width: 100%; padding: 12px; background: var(--accent-color); border: none; border-radius: 8px; color: #fff; font-weight: 600; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: var(--transition);">
         ⚡ Lancer le Scan & L'appairage automatique
+      </button>
+    `;
+  } else if (isPhoneAuth) {
+    // Phone & OTP authentication form
+    formHtml = `
+      <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 20px; text-align: left;">
+        Pour lier votre compte de messagerie, authentifiez-vous à l'aide de votre numéro de téléphone et validez par code OTP à usage unique.
+      </p>
+      <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 16px; margin-bottom: 20px; display: flex; flex-direction: column; gap: 12px; text-align: left;">
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">NUMÉRO DE TÉLÉPHONE</label>
+          <div style="display: flex; gap: 8px;">
+            <select id="oauth-phone-prefix" style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; padding: 10px; color: #fff; font-size: 0.85rem; max-width: 95px; font-family: var(--font-sans);">
+              <option value="+33">+33 🇫🇷</option>
+              <option value="+1">+1 🇺🇸</option>
+              <option value="+44">+44 🇬🇧</option>
+              <option value="+32">+32 🇧🇪</option>
+            </select>
+            <input type="text" id="oauth-input-phone" style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; padding: 10px; color: #fff; font-size: 0.85rem; flex: 1; font-family: var(--font-mono);" value="6 12 34 56 78" />
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">CODE DE VALIDATION SMS (OTP)</label>
+          <input type="text" id="oauth-input-otp" style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; padding: 10px; color: #fff; font-size: 0.85rem; letter-spacing: 4px; font-weight: bold; text-align: center; font-family: var(--font-mono);" placeholder="CODE A 6 CHIFFRES" value="842910" />
+        </div>
+      </div>
+      <button onclick="runOauthRedirectSimulation('${agentId}', '${connector.replace(/'/g, "\\'")}')" style="width: 100%; padding: 12px; background: ${connectorColor}; border: none; border-radius: 8px; color: #fff; font-weight: 600; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: var(--transition); box-shadow: 0 4px 15px ${connectorColor}40;">
+        📲 Lier mon numéro & Valider l'OTP
       </button>
     `;
   } else {
@@ -4628,14 +4659,32 @@ window.runOauthRedirectSimulation = async function(agentId, connector) {
   const modalBody = document.getElementById('oauth-modal-body');
   if (!modalBody) return;
   
-  const steps = [
-    { text: "Contact des serveurs d'authentification...", type: "system" },
-    { text: "Handshake SSL & échange de clés Diffie-Hellman...", type: "info" },
-    { text: "Vérification des identifiants utilisateur...", type: "info" },
-    { text: "Validation des droits et accès César-IA...", type: "success" },
-    { text: "Création du jeton OAuth2 sécurisé...", type: "success" },
-    { text: "Génération de la redirection de retour (callback)...", type: "system" }
-  ];
+  const isPhoneAuth = connector.includes('WhatsApp') || connector.includes('Telegram') || connector.includes('Twilio') || connector.includes('SMS') || connector.includes('WeChat') || connector.includes('Viber') || connector.includes('Lydia') || connector.includes('Messenger API');
+  
+  let steps = [];
+  if (isPhoneAuth) {
+    const phonePrefix = document.getElementById('oauth-phone-prefix')?.value || "+33";
+    const phoneVal = document.getElementById('oauth-input-phone')?.value || "6 12 34 56 78";
+    const otpVal = document.getElementById('oauth-input-otp')?.value || "842910";
+    steps = [
+      { text: `Recherche du protocole de messagerie mobile pour ${connector}...`, type: "system" },
+      { text: `Envoi du SMS sécurisé contenant le code OTP au ${phonePrefix} ${phoneVal}...`, type: "info" },
+      { text: "SMS reçu et acquitté par la passerelle de routage GSM (Statut: Livré).", type: "success" },
+      { text: `Validation de la clé OTP OTP_KEY [${otpVal}] soumise...`, type: "info" },
+      { text: "Handshake et échange de clés cryptographiques réussis.", type: "success" },
+      { text: "Génération de l'identifiant persistant de canal vérifié...", type: "success" },
+      { text: `Redirection et synchronisation César-IA complétées.`, type: "system" }
+    ];
+  } else {
+    steps = [
+      { text: "Contact des serveurs d'authentification...", type: "system" },
+      { text: "Handshake SSL & échange de clés Diffie-Hellman...", type: "info" },
+      { text: "Vérification des identifiants utilisateur...", type: "info" },
+      { text: "Validation des droits et accès César-IA...", type: "success" },
+      { text: "Création du jeton OAuth2 sécurisé...", type: "success" },
+      { text: "Génération de la redirection de retour (callback)...", type: "system" }
+    ];
+  }
   
   modalBody.innerHTML = `
     <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 0; font-family: var(--font-mono);">
@@ -4672,7 +4721,13 @@ window.runOauthRedirectSimulation = async function(agentId, connector) {
     inputs.forEach(input => {
       const field = input.getAttribute('data-field');
       if (field === 'token' || field === 'secret') {
-        input.value = `oauth_tok_v2_live_${Math.random().toString(36).substring(2, 10)}${Math.random().toString(36).substring(2, 10)}`;
+        if (isPhoneAuth) {
+          const phonePrefix = document.getElementById('oauth-phone-prefix')?.value || "+33";
+          const phoneVal = document.getElementById('oauth-input-phone')?.value || "612345678";
+          input.value = `phone_auth_verified_${phonePrefix}_${phoneVal.replace(/\s+/g, '')}`;
+        } else {
+          input.value = `oauth_tok_v2_live_${Math.random().toString(36).substring(2, 10)}${Math.random().toString(36).substring(2, 10)}`;
+        }
       } else if (field === 'domain') {
         input.value = `https://api.${connector.toLowerCase().replace(/[^a-z]/g, '')}.com`;
       }
@@ -4688,7 +4743,7 @@ window.runOauthRedirectSimulation = async function(agentId, connector) {
       <div style="width: 54px; height: 54px; background: rgba(16, 185, 129, 0.1); border: 2px solid #10b981; color: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; margin-bottom: 20px; box-shadow: 0 0 15px rgba(16, 185, 129, 0.2); animation: pulse 2s infinite;">✓</div>
       <h4 style="font-size: 1.05rem; font-weight: bold; color: #fff; margin-bottom: 8px; font-family: var(--font-sans);">COMPTE LIÉ AVEC SUCCÈS !</h4>
       <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 24px; line-height: 1.4; font-family: var(--font-sans);">
-        Le jeton d'authentification a été validé et intégré par redirection. Votre agent est désormais opérationnel.
+        ${isPhoneAuth ? "Le numéro de téléphone a été associé et vérifié par OTP avec succès. Votre canal est maintenant ouvert." : "Le jeton d'authentification a été validé et intégré par redirection. Votre agent est désormais opérationnel."}
       </p>
       <button onclick="closeOauthSimulation()" style="padding: 10px 24px; background: #10b981; border: none; border-radius: 6px; color: #fff; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: var(--transition); font-family: var(--font-sans);">
         Continuer vers le Tableau de bord
