@@ -556,6 +556,81 @@ async function runAirtable(connectors, baseId, tableName, fieldsJson) {
   }
 }
 
+// LinkedIn API Post Publisher (Real Integration)
+async function runLinkedIn(connectors, text) {
+  const liInfo = connectors["LinkedIn API"] || Object.values(connectors).find((v, k) => k && typeof k === 'string' && k.includes("LinkedIn"));
+  if (!liInfo || !liInfo.token) {
+    return { error: "Erreur: Le connecteur LinkedIn API n'est pas configuré. Veuillez insérer votre jeton d'accès LinkedIn." };
+  }
+
+  const token = liInfo.token.trim();
+
+  try {
+    // 1. Fetch user's URN profile ID
+    const profileRes = await fetch("https://api.linkedin.com/v2/me", {
+      headers: {
+        "Authorization": `Bearer ${token}`
+      }
+    });
+
+    if (!profileRes.ok) {
+      const errText = await profileRes.text();
+      throw new Error(`Erreur lors de la récupération du profil LinkedIn (HTTP ${profileRes.status}): ${errText}`);
+    }
+
+    const profileData = await profileRes.json();
+    const personId = profileData.id;
+    if (!personId) {
+      throw new Error("Impossible de récupérer l'ID de profil LinkedIn.");
+    }
+
+    const authorUrn = `urn:li:person:${personId}`;
+
+    // 2. Publish UGC Post (Using LinkedIn UGC Posts API)
+    const postRes = await fetch("https://api.linkedin.com/v2/ugcPosts", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "X-Restli-Protocol-Version": "2.0.0"
+      },
+      body: JSON.stringify({
+        "author": authorUrn,
+        "lifecycleState": "PUBLISHED",
+        "specificContent": {
+          "com.linkedin.ugc.ShareContent": {
+            "shareCommentary": {
+              "text": text
+            },
+            "shareMediaCategory": "NONE"
+          }
+        },
+        "visibility": {
+          "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
+        }
+      })
+    });
+
+    if (!postRes.ok) {
+      const postErr = await postRes.json().catch(() => ({}));
+      throw new Error(`Erreur lors de la publication LinkedIn (HTTP ${postRes.status}): ${postErr.message || JSON.stringify(postErr)}`);
+    }
+
+    const postData = await postRes.json();
+
+    return { 
+      success: true, 
+      id: postData.id, 
+      urn: authorUrn, 
+      profileName: `${profileData.localizedFirstName || ''} ${profileData.localizedLastName || ''}`.trim(),
+      message: "Publication publiée avec succès en direct sur votre profil LinkedIn !" 
+    };
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
+
 export default async function handler(req, res) {
   // CORS Configuration
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -756,6 +831,20 @@ export default async function handler(req, res) {
               },
               required: ["tableName", "fieldsJson"]
             }
+          },
+          {
+            name: "post_to_linkedin",
+            description: "Publie un message ou un article directement sur le profil LinkedIn connecté de l'utilisateur.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                text: {
+                  type: "STRING",
+                  description: "Le contenu textuel de la publication à poster."
+                }
+              },
+              required: ["text"]
+            }
           }
         ]
       }
@@ -815,6 +904,8 @@ export default async function handler(req, res) {
             functionResult = await runGitHub(connectors, functionArgs.title, functionArgs.body);
           } else if (functionName === 'insert_airtable_record') {
             functionResult = await runAirtable(connectors, functionArgs.baseId, functionArgs.tableName, functionArgs.fieldsJson);
+          } else if (functionName === 'post_to_linkedin') {
+            functionResult = await runLinkedIn(connectors, functionArgs.text);
           } else {
             functionResult = { error: `Outil ${functionName} inconnu.` };
           }

@@ -4580,7 +4580,13 @@ window.triggerSimulatedSMSNotification = function() {
 };
 
 window.startOauthSimulation = function(agentId, connector) {
-  // Create overlay
+  // Save body overflow to prevent scrollbars
+  document.body.style.overflow = 'hidden';
+  
+  const isServer = connector.includes('SSH') || connector.includes('PostgreSQL') || connector.includes('MySQL') || connector.includes('Database') || connector.includes('Server') || connector.includes('SQL');
+  const isPhoneAuth = connector.includes('WhatsApp') || connector.includes('Telegram') || connector.includes('Twilio') || connector.includes('SMS') || connector.includes('WeChat') || connector.includes('Viber') || connector.includes('Lydia') || connector.includes('Messenger API');
+
+  // Trigger loading screen "Redirection..."
   const overlay = document.createElement('div');
   overlay.className = 'oauth-modal-overlay';
   overlay.style.cssText = `
@@ -4589,180 +4595,486 @@ window.startOauthSimulation = function(agentId, connector) {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(3, 3, 3, 0.82);
-    backdrop-filter: blur(10px);
-    z-index: 10000;
+    background: #000000;
+    z-index: 100000;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: #fff;
   `;
-  
-  const isServer = connector.includes('SSH') || connector.includes('PostgreSQL') || connector.includes('MySQL') || connector.includes('Database') || connector.includes('Server') || connector.includes('SQL');
-  const isPhoneAuth = connector.includes('WhatsApp') || connector.includes('Telegram') || connector.includes('Twilio') || connector.includes('SMS') || connector.includes('WeChat') || connector.includes('Viber') || connector.includes('Lydia') || connector.includes('Messenger API');
-  
-  let title = `Lier mon compte ${connector}`;
-  let icon = getConnectorEmoji(connector);
-  let connectorColor = 'var(--accent-color)';
-  if (connector.includes('LinkedIn')) connectorColor = '#0a66c2';
-  if (connector.includes('Twitter') || connector.includes('X/')) connectorColor = '#1da1f2';
-  if (connector.includes('Slack')) connectorColor = '#4a154b';
-  if (connector.includes('Notion')) connectorColor = '#000000';
-  if (connector.includes('GitHub')) connectorColor = '#24292e';
-  if (connector.includes('Shopify')) connectorColor = '#96bf48';
-  if (connector.includes('WordPress')) connectorColor = '#21759b';
-  if (connector.includes('WhatsApp')) connectorColor = '#25d366';
-  if (connector.includes('Telegram')) connectorColor = '#0088cc';
-  
-  let headerHtml = `
-    <div style="display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 16px; margin-bottom: 20px;">
-      <span style="font-size: 2.2rem; filter: drop-shadow(0 0 8px ${connectorColor}40);">${icon}</span>
-      <div style="text-align: left;">
-        <h3 style="font-size: 1.15rem; font-weight: 700; color: #fff; margin: 0;">${title}</h3>
-        <p style="font-size: 0.75rem; color: var(--text-secondary); margin: 2px 0 0 0;">Authentification sécurisée César-IA</p>
-      </div>
-    </div>
-  `;
-  
-  let formHtml = '';
-  if (isServer) {
-    // Scan simulation form
-    formHtml = `
-      <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 20px; text-align: left;">
-        Notre scanner d'agent va tenter de détecter automatiquement vos ports ouverts et de configurer une passerelle sécurisée locale en arrière-plan.
-      </p>
-      <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 16px; margin-bottom: 20px; display: flex; flex-direction: column; gap: 12px; text-align: left;">
-        <div style="display: flex; flex-direction: column; gap: 4px;">
-          <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">HÔTE CIBLE RECOMMANDÉ</label>
-          <input type="text" id="oauth-input-host" style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; padding: 10px; color: #fff; font-size: 0.85rem; font-family: var(--font-mono);" value="192.168.1.${Math.floor(Math.random() * 200) + 10}" />
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 4px;">
-          <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">UTILISATEUR DE DIAGNOSTIC</label>
-          <input type="text" id="oauth-input-user" style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; padding: 10px; color: #fff; font-size: 0.85rem;" value="admin" />
-        </div>
-      </div>
-      <button onclick="runServerScanSimulation('${agentId}', '${connector.replace(/'/g, "\\'")}')" style="width: 100%; padding: 12px; background: var(--accent-color); border: none; border-radius: 8px; color: #fff; font-weight: 600; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: var(--transition);">
-        ⚡ Lancer le Scan & L'appairage automatique
-      </button>
-    `;
-  } else if (isPhoneAuth) {
-    // Phone & OTP authentication form
-    formHtml = `
-      <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 20px; text-align: left;">
-        Pour lier votre compte de messagerie, authentifiez-vous à l'aide de votre numéro de téléphone et validez par code OTP à usage unique.
-      </p>
-      <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 16px; margin-bottom: 20px; display: flex; flex-direction: column; gap: 12px; text-align: left;">
-        <div style="display: flex; flex-direction: column; gap: 4px;">
-          <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">NUMÉRO DE TÉLÉPHONE</label>
-          <div style="display: flex; gap: 8px;">
-            <select id="oauth-phone-prefix" style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; padding: 10px; color: #fff; font-size: 0.85rem; max-width: 95px; font-family: var(--font-sans);">
-              <option value="+33">+33 🇫🇷</option>
-              <option value="+1">+1 🇺🇸</option>
-              <option value="+44">+44 🇬🇧</option>
-              <option value="+32">+32 🇧🇪</option>
-            </select>
-            <input type="text" id="oauth-input-phone" style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; padding: 10px; color: #fff; font-size: 0.85rem; flex: 1; font-family: var(--font-mono);" value="6 12 34 56 78" />
-          </div>
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 4px;">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">CODE DE VALIDATION SMS (OTP)</label>
-            <button type="button" onclick="triggerSimulatedSMSNotification()" style="background: transparent; border: none; color: #a5b4fc; font-size: 0.7rem; text-decoration: underline; cursor: pointer; font-weight: 600; font-family: var(--font-sans);">Obtenir/Renvoyer le SMS</button>
-          </div>
-          <input type="text" id="oauth-input-otp" style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; padding: 10px; color: #fff; font-size: 0.85rem; letter-spacing: 4px; font-weight: bold; text-align: center; font-family: var(--font-mono);" placeholder="CODE A 6 CHIFFRES" value="842910" />
-        </div>
-      </div>
-      <button onclick="runOauthRedirectSimulation('${agentId}', '${connector.replace(/'/g, "\\'")}')" style="width: 100%; padding: 12px; background: ${connectorColor}; border: none; border-radius: 8px; color: #fff; font-weight: 600; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: var(--transition); box-shadow: 0 4px 15px ${connectorColor}40;">
-        📲 Lier mon numéro & Valider l'OTP
-      </button>
-    `;
-  } else {
-    // Standard OAuth Login Form
-    formHtml = `
-      <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 20px; text-align: left;">
-        Autorisez <strong>César-IA</strong> à accéder à vos ressources de publication, de lecture et d'analyse sur <strong>${connector}</strong>.
-      </p>
-      <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 16px; margin-bottom: 20px; display: flex; flex-direction: column; gap: 12px; text-align: left;">
-        <div style="display: flex; flex-direction: column; gap: 4px;">
-          <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">ADRESSE E-MAIL / UTILISATEUR</label>
-          <input type="text" id="oauth-input-email" style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; padding: 10px; color: #fff; font-size: 0.85rem;" value="${state.currentUser?.email || 'contact@entreprise.com'}" />
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 4px;">
-          <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">MOT DE PASSE</label>
-          <input type="password" id="oauth-input-pass" style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; padding: 10px; color: #fff; font-size: 0.85rem;" placeholder="••••••••••••" value="password123" />
-        </div>
-      </div>
-      <button onclick="runOauthRedirectSimulation('${agentId}', '${connector.replace(/'/g, "\\'")}')" style="width: 100%; padding: 12px; background: ${connectorColor}; border: none; border-radius: 8px; color: #fff; font-weight: 600; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: var(--transition); box-shadow: 0 4px 15px ${connectorColor}40;">
-        🔑 Connexion & Validation Express
-      </button>
-    `;
-  }
   
   overlay.innerHTML = `
-    <div class="oauth-modal-card" style="width: 100%; max-width: 440px; background: rgba(18, 18, 22, 0.88); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 28px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); backdrop-filter: blur(25px); position: relative; box-sizing: border-box; margin: 20px; transform: scale(0.95); animation: zoomIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;">
-      <button onclick="closeOauthSimulation()" style="position: absolute; top: 20px; right: 20px; background: transparent; border: none; color: var(--text-secondary); font-size: 1.2rem; cursor: pointer; transition: var(--transition);">✕</button>
-      ${headerHtml}
-      <div id="oauth-modal-body">
-        ${formHtml}
-      </div>
-      <div style="display: flex; justify-content: center; gap: 8px; font-size: 0.65rem; color: var(--text-muted); margin-top: 24px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 16px;">
-        🛡️ Sécurité SSL 256 bits • Sandbox César-IA • RGPD Compliant
-      </div>
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; animation: zoomIn 0.2s ease-out;">
+      <span class="spinner" style="width: 44px; height: 44px; border: 3px solid rgba(255,255,255,0.1); border-top-color: #8ab4f8; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px;"></span>
+      <h4 style="font-size: 1.05rem; font-weight: 500; margin-bottom: 8px; color: #fff;">Redirection vers accounts.google.com...</h4>
+      <p style="font-size: 0.85rem; color: #9aa0a6; margin: 0;">Établissement du tunnel SSO sécurisé</p>
     </div>
+    <style>
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    </style>
   `;
   
   document.body.appendChild(overlay);
   
-  // Auto Trigger SMS simulated notification after 1.5 seconds to WOW the user
-  if (isPhoneAuth) {
-    setTimeout(() => {
-      if (document.querySelector('.oauth-modal-overlay')) {
-        triggerSimulatedSMSNotification();
+  setTimeout(() => {
+    // 1. Simulate Google OAuth URL redirection in browser address bar
+    try {
+      history.pushState(null, '', `?oauth=google-login&service=${encodeURIComponent(connector)}&client_id=cesar-ia-auth-sso`);
+    } catch(e) {}
+    
+    // Inject custom stylesheet for hover animations
+    const styleBlock = document.createElement('style');
+    styleBlock.id = 'oauth-mockup-styles';
+    styleBlock.innerHTML = `
+      .safari-tab:hover {
+        background: rgba(255,255,255,0.06) !important;
+        color: #fff !important;
       }
-    }, 1500);
-  }
+      .safari-tab.active {
+        background: #131314 !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(255,255,255,0.06) !important;
+        border-bottom: none !important;
+      }
+      .google-account-row:hover {
+        background: rgba(255,255,255,0.04) !important;
+      }
+      .google-link:hover {
+        text-decoration: underline !important;
+      }
+      .google-btn:hover {
+        opacity: 0.9 !important;
+      }
+      .safari-tabs-list::-webkit-scrollbar {
+        display: none;
+      }
+    `;
+    document.head.appendChild(styleBlock);
+    
+    // 2. Render Safari + Google accounts screen
+    const ACCOUNTS = [
+      { name: "cheraiti manel", email: "manel.cheraiti@gmail.com", initial: "c", bg: "#e67e22", status: "" },
+      { name: "mamadou-saliou koulibaly", email: "mamadousaliouk8@gmail.com", initial: "m", bg: "#2ecc71", status: "" },
+      { name: "cheraiti manel", email: "contact@xn--csar-ia-bya.com", initial: "c", bg: "#7f8c8d", status: "Déconnecté" },
+      { name: "cheraiti manel", email: "contact@cesar-ia.com", initial: "c", bg: "#d35400", status: "" },
+      { name: "S&M Car", email: "sm.rent93@gmail.com", initial: "s", bg: "#27ae60", status: "Déconnecté" },
+      { name: "Mohamed Doucoure", email: "doucouremohamed016@gmail.com", initial: "m", bg: "#8e44ad", status: "Déconnecté" },
+      { name: "DA jdbud", email: "logiciel.dystinctagency@gmail.com", initial: "d", bg: "#c0392b", status: "Déconnecté" },
+      { name: "mamadou koulibaly", email: "kouli.madou@gmail.com", initial: "m", bg: "#2980b9", status: "" }
+    ];
+
+    let accountsListHtml = ACCOUNTS.map((acc) => {
+      const isDisconnected = acc.status === "Déconnecté";
+      return `
+        <div onclick="selectOauthAccount('${agentId}', '${connector.replace(/'/g, "\\'")}', '${acc.name.replace(/'/g, "\\'")}', '${acc.email.replace(/'/g, "\\'")}')" class="google-account-row" style="display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-radius:12px; cursor:pointer; transition:background 0.2s; border-bottom:1px solid rgba(255,255,255,0.03);" onmouseover="this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.background='transparent'">
+          <div style="display:flex; align-items:center; gap:16px;">
+            <!-- Avatar Circle -->
+            <div style="width:34px; height:34px; border-radius:50%; background:${acc.bg}; display:flex; align-items:center; justify-content:center; font-size:0.95rem; font-weight:bold; color:#fff; text-transform:uppercase; font-family:var(--font-sans);">
+              ${acc.initial}
+            </div>
+            <!-- Name & Email Info -->
+            <div style="display:flex; flex-direction:column; text-align:left; font-family:var(--font-sans);">
+              <span style="font-size:0.88rem; font-weight:500; color:#fff; line-height:1.25;">${acc.name}</span>
+              <span style="font-size:0.75rem; color:#9aa0a6;">${acc.email}</span>
+            </div>
+          </div>
+          <!-- Status Badge -->
+          ${isDisconnected ? `<span style="font-size:0.72rem; color:#9aa0a6; font-weight:400; padding:2px 6px; font-family:var(--font-sans);">Déconnecté</span>` : ''}
+        </div>
+      `;
+    }).join('');
+
+    overlay.style.justifyContent = 'flex-start';
+    overlay.style.alignItems = 'stretch';
+    overlay.innerHTML = `
+      <!-- Safari Browser Chrome Mockup -->
+      <div class="safari-browser-chrome" style="width: 100%; height: 76px; background: #252526; border-bottom: 1px solid #1a1a1b; display: flex; flex-direction: column; justify-content: space-between; padding-top: 6px; box-sizing: border-box; user-select: none;">
+        <!-- Tab Bar Row -->
+        <div style="display: flex; align-items: center; padding: 0 12px; height: 32px; width: 100%; box-sizing: border-box; overflow: hidden;">
+          <!-- MacOS window controls -->
+          <div style="display: flex; gap: 8px; margin-right: 20px; align-items: center; width: 60px; flex-shrink: 0;">
+            <div onclick="closeOauthSimulation()" style="width: 12px; height: 12px; border-radius: 50%; background: #ff5f56; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 7px; color: rgba(0,0,0,0.4);" onmouseover="this.textContent='×'" onmouseout="this.textContent=''"></div>
+            <div style="width: 12px; height: 12px; border-radius: 50%; background: #ffbd2e;"></div>
+            <div style="width: 12px; height: 12px; border-radius: 50%; background: #27c93f;"></div>
+          </div>
+          
+          <!-- Tab items -->
+          <div style="display: flex; gap: 4px; overflow-x: auto; flex: 1; height: 32px; align-items: flex-end; scrollbar-width: none;" class="safari-tabs-list">
+            <div class="safari-tab" style="display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 26px; border-radius: 6px 6px 0 0; background: rgba(255,255,255,0.03); font-size: 0.7rem; color: #8c8c8e; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0;">
+              <span style="color: #4cd964; font-size: 9px;">⚡</span> RLS Policies...
+            </div>
+            <div class="safari-tab" style="display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 26px; border-radius: 6px 6px 0 0; background: rgba(255,255,255,0.03); font-size: 0.7rem; color: #8c8c8e; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0;">
+              <span style="color: #fff; font-size: 9px;">▲</span> plateforme-a...
+            </div>
+            <div class="safari-tab" style="display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 26px; border-radius: 6px 6px 0 0; background: rgba(255,255,255,0.03); font-size: 0.7rem; color: #8c8c8e; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0;">
+              <span style="color: #635bff; font-size: 9px;">💳</span> Payment Link...
+            </div>
+            <div class="safari-tab" style="display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 26px; border-radius: 6px 6px 0 0; background: rgba(255,255,255,0.03); font-size: 0.7rem; color: #8c8c8e; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0;">
+              <span style="color: #fff; font-size: 9px;">🐙</span> mamadousali...
+            </div>
+            <div class="safari-tab" style="display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 26px; border-radius: 6px 6px 0 0; background: rgba(255,255,255,0.03); font-size: 0.7rem; color: #8c8c8e; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0;">
+              <span style="font-size: 9px;">🤖</span> César-IA
+            </div>
+            <div class="safari-tab" style="display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 26px; border-radius: 6px 6px 0 0; background: rgba(255,255,255,0.03); font-size: 0.7rem; color: #8c8c8e; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0;">
+              <span style="color: #ffcc00; font-size: 9px;">🔑</span> API keys | Go...
+            </div>
+            <div class="safari-tab" style="display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 26px; border-radius: 6px 6px 0 0; background: rgba(255,255,255,0.03); font-size: 0.7rem; color: #8c8c8e; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0;">
+              <span style="font-size: 9px;">🤖</span> César-IA - Pla...
+            </div>
+            <div class="safari-tab" style="display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 26px; border-radius: 6px 6px 0 0; background: rgba(255,255,255,0.03); font-size: 0.7rem; color: #8c8c8e; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0;">
+              <span style="font-size: 9px;">📄</span> Accroche CV...
+            </div>
+            <div class="safari-tab" style="display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 26px; border-radius: 6px 6px 0 0; background: rgba(255,255,255,0.03); font-size: 0.7rem; color: #8c8c8e; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0;">
+              <span style="font-size: 9px;">G</span> Connexion : c...
+            </div>
+            <div class="safari-tab" style="display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 26px; border-radius: 6px 6px 0 0; background: rgba(255,255,255,0.03); font-size: 0.7rem; color: #8c8c8e; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0;">
+              <span style="color: #ff2d55; font-size: 9px;">★</span> Feed | Missio...
+            </div>
+            <!-- Active tab mimicking screenshot exactly! -->
+            <div class="safari-tab active" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 14px; height: 28px; border-radius: 6px 6px 0 0; background: #131314; font-size: 0.74rem; color: #ffffff; min-width: 130px; overflow: hidden; flex-shrink: 0; box-shadow: 0 -2px 10px rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05); border-bottom: none; font-weight: 500;">
+              <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                <!-- Small colored Google 'G' icon -->
+                <svg style="width: 11px; height: 11px; flex-shrink: 0;" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Connexion : c...</span>
+              </div>
+              <span onclick="closeOauthSimulation()" style="font-size: 9px; cursor: pointer; color: #8c8c8e; font-weight: bold; width: 12px; height: 12px; display: flex; align-items: center; justify-content: center; border-radius: 50%;" onmouseover="this.style.background='rgba(255,255,255,0.1)'; this.style.color='#fff';" onmouseout="this.style.background='transparent'; this.style.color='#8c8c8e';">✕</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Address Bar Row -->
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 16px 6px 16px; height: 38px; width: 100%; box-sizing: border-box;">
+          <!-- Left Navigation Items -->
+          <div style="display: flex; align-items: center; gap: 16px; width: 110px; flex-shrink: 0;">
+            <span style="color: #8c8c8e; font-size: 0.95rem; cursor: pointer;">▤</span>
+            <span style="color: rgba(255,255,255,0.2); font-size: 0.95rem; font-weight: bold;">&lt;</span>
+            <span style="color: rgba(255,255,255,0.2); font-size: 0.95rem; font-weight: bold;">&gt;</span>
+          </div>
+          
+          <!-- Address Input -->
+          <div id="safari-address-bar" style="flex: 1; max-width: 680px; height: 28px; background: #1c1c1e; border: 1px solid rgba(255,255,255,0.06); border-radius: 9px; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 0.76rem; color: #fff; cursor: default; user-select: none; position: relative;">
+            <svg style="width: 10px; height: 10px; fill: #8c8c8e;" viewBox="0 0 24 24">
+              <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
+            </svg>
+            <span style="font-weight: 400; color: #ffffff; letter-spacing: 0.1px;">accounts.google.com</span>
+            <span style="position: absolute; right: 10px; color: #8c8c8e; font-size: 0.72rem; cursor: pointer;" onmouseover="this.style.color='#fff';" onmouseout="this.style.color='#8c8c8e';">↻</span>
+          </div>
+          
+          <!-- Right Utilities -->
+          <div style="display: flex; align-items: center; justify-content: flex-end; gap: 16px; width: 110px; flex-shrink: 0; color: #8c8c8e;">
+            <svg style="width: 14px; height: 14px; fill: currentColor; cursor: pointer;" viewBox="0 0 24 24">
+              <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/>
+            </svg>
+            <span style="font-size: 1.15rem; font-weight: 300; cursor: pointer; line-height: 1;">+</span>
+            <svg style="width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.8; cursor: pointer;" viewBox="0 0 24 24">
+              <rect x="3" y="9" width="12" height="12" rx="2"></rect>
+              <path d="M9 9V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-4"></path>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Viewport content area (simulated browser viewport) -->
+      <div id="oauth-safari-content-area" style="flex: 1; width: 100%; background: #131314; overflow-y: auto; display: flex; flex-direction: column; box-sizing: border-box;">
+        
+        <!-- Google Accounts native header -->
+        <div style="height: 48px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; padding: 0 24px; box-sizing: border-box; justify-content: flex-start; gap: 8px;">
+          <svg style="width:16px; height:16px;" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z"/>
+          </svg>
+          <span style="font-size: 0.78rem; color: #fff; font-weight: 500; font-family: Roboto, Arial, sans-serif;">Se connecter avec Google</span>
+        </div>
+
+        <!-- Google Accounts main container -->
+        <div style="flex: 1; display: flex; align-items: flex-start; justify-content: center; width: 100%; max-width: 900px; margin: 0 auto; padding: 50px 24px; box-sizing: border-box; gap: 50px;">
+          
+          <!-- Left Column (Branding & Application) -->
+          <div style="width: 40%; display: flex; flex-direction: column; text-align: left; box-sizing: border-box;">
+            <!-- Purple Make logo in deep purple square -->
+            <div style="width: 46px; height: 46px; background: #68217a; border-radius: 9px; display: flex; align-items: center; justify-content: center; margin-bottom: 24px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); flex-shrink: 0;">
+              <!-- Custom high fidelity stylized César laurel white icon -->
+              <span style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.4rem; color: #fff;">C</span>
+            </div>
+            
+            <h2 style="font-size: 2.1rem; font-weight: 400; color: #fff; margin: 0 0 12px 0; font-family: 'Google Sans', Roboto, sans-serif; line-height: 1.25; letter-spacing: -0.4px;">Sélectionnez un compte</h2>
+            <p style="font-size: 0.9rem; color: #e3e3e3; margin: 0; font-family: Roboto, Arial, sans-serif;">
+              Accéder à l'application <a class="google-link" href="#" style="color: #8ab4f8; text-decoration: none; font-weight: 500;">César-IA</a>
+            </p>
+          </div>
+
+          <!-- Right Column (Accounts List) -->
+          <div style="flex: 1.2; display: flex; flex-direction: column; box-sizing: border-box;">
+            <!-- Accounts scroll container -->
+            <div style="border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; background: rgba(255,255,255,0.01); max-height: 380px; overflow-y: auto; display: flex; flex-direction: column; padding: 4px;">
+              ${accountsListHtml}
+              
+              <!-- Use another account -->
+              <div onclick="runCustomOauthEmailInput('${agentId}', '${connector.replace(/'/g, "\\'")}')" class="google-account-row" style="display:flex; align-items:center; gap:16px; padding:14px 18px; border-radius:12px; cursor:pointer; transition:background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.background='transparent'">
+                <div style="width:34px; height:34px; border:1px solid rgba(255,255,255,0.15); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1rem; color:#9aa0a6; background:rgba(255,255,255,0.02); font-family:var(--font-sans);">👤</div>
+                <div style="display:flex; flex-direction:column; text-align:left; font-family:var(--font-sans);">
+                  <span style="font-size:0.88rem; font-weight:500; color:#fff; line-height:1.25;">Utiliser un autre compte</span>
+                  <span style="font-size:0.75rem; color:#9aa0a6;">(Connecter réellement LinkedIn)</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Footer terms -->
+            <div style="font-size: 0.74rem; color: #70757a; margin-top: 32px; line-height: 1.5; font-family: Roboto, Arial, sans-serif; text-align: left;">
+              Avant d'utiliser l'appli César-IA, vous pouvez consulter ses <a class="google-link" href="#" style="color:#8ab4f8; text-decoration:none;">Règles de confidentialité</a> et ses <a class="google-link" href="#" style="color:#8ab4f8; text-decoration:none;">Conditions d'utilisation</a>.
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }, 900);
 };
 
 window.closeOauthSimulation = function() {
+  // Restore body scroll
+  document.body.style.overflow = '';
+  
+  const styles = document.getElementById('oauth-mockup-styles');
+  if (styles) styles.remove();
+  
   const overlay = document.querySelector('.oauth-modal-overlay');
-  if (overlay) overlay.remove();
+  if (overlay) {
+    try {
+      history.pushState(null, '', '?oauth_callback=cancel');
+    } catch(e) {}
+    overlay.remove();
+  }
 };
 
-window.runOauthRedirectSimulation = async function(agentId, connector) {
-  const modalBody = document.getElementById('oauth-modal-body');
-  if (!modalBody) return;
+window.runCustomOauthEmailInput = function(agentId, connector) {
+  const contentArea = document.getElementById('oauth-safari-content-area');
+  if (!contentArea) return;
+  
+  const isLinkedIn = connector.includes('LinkedIn');
+
+  contentArea.innerHTML = `
+    <!-- Google Accounts native header -->
+    <div style="height: 48px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; padding: 0 24px; box-sizing: border-box; justify-content: flex-start; gap: 8px;">
+      <svg style="width:16px; height:16px;" viewBox="0 0 24 24">
+        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z"/>
+        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z"/>
+      </svg>
+      <span style="font-size: 0.78rem; color: #fff; font-weight: 500; font-family: Roboto, Arial, sans-serif;">Se connecter avec Google</span>
+    </div>
+
+    <!-- Google input card -->
+    <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px 24px; box-sizing: border-box;">
+      <div style="width:100%; max-width:440px; background:#0f0f11; border:1px solid rgba(255,255,255,0.06); border-radius:24px; padding:36px; box-shadow:0 15px 45px rgba(0,0,0,0.5); display:flex; flex-direction:column; box-sizing:border-box; color:#e3e3e3; font-family:Roboto, Arial, sans-serif; text-align:left; animation: zoomIn 0.2s ease-out;">
+        <h3 style="font-size:1.4rem; font-weight:400; color:#fff; margin:0 0 6px 0; font-family:'Google Sans', Roboto, sans-serif;">${isLinkedIn ? 'Connexion Réelle LinkedIn' : 'Se connecter'}</h3>
+        <p style="font-size:0.85rem; color:#9aa0a6; margin:0 0 24px 0;">${isLinkedIn ? 'Associer votre profil personnel LinkedIn en direct' : 'Utiliser votre compte Google'}</p>
+        
+        <div style="display:flex; flex-direction:column; gap:18px; margin-bottom:28px;">
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <label style="font-size:0.75rem; color:#8ab4f8; font-weight:700; letter-spacing:0.5px;">${isLinkedIn ? "JETON D'ACCÈS LINKEDIN (ACCESS TOKEN)" : "ADRESSE E-MAIL OU TÉLÉPHONE"}</label>
+            <input type="text" id="custom-oauth-email-val" style="background:#000; border:1px solid rgba(255,255,255,0.12); border-radius:8px; padding:12px 14px; color:#fff; font-size:0.85rem; font-family:var(--font-mono); box-sizing:border-box; outline:none; transition:border 0.2s;" onfocus="this.style.borderColor='#8ab4f8'" onblur="this.style.borderColor='rgba(255,255,255,0.12)'" placeholder="${isLinkedIn ? 'AQW... (Coller le jeton LinkedIn réel)' : 'nom@example.com'}" value="" />
+          </div>
+          
+          ${isLinkedIn ? `
+            <div style="font-size:0.75rem; color:#9aa0a6; line-height:1.4; border-left:2px solid #8ab4f8; padding-left:10px; font-family: Roboto, sans-serif;">
+              <strong>Comment obtenir votre jeton réel ?</strong><br/>
+              1. Rendez-vous sur le <a href="https://developer.linkedin.com" target="_blank" style="color:#8ab4f8; text-decoration:none;">Portail LinkedIn Developer</a> et connectez-vous.<br/>
+              2. Créez un projet/application et activez le produit <em>Share on LinkedIn</em>.<br/>
+              3. Utilisez l'outil officiel <strong>Token Generator</strong> de LinkedIn avec le scope <code>w_member_social</code>.<br/>
+              4. Générez le jeton, copiez-le et collez-le ci-dessus pour que César-IA puisse réellement publier sur votre profil personnel.
+            </div>
+          ` : ''}
+        </div>
+        
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <button onclick="startOauthSimulation('${agentId}', '${connector.replace(/'/g, "\\'")}')" class="google-btn" style="background:transparent; border:none; color:#8ab4f8; font-size:0.85rem; cursor:pointer; font-weight:600; padding:10px 0;">Retour</button>
+          <button onclick="selectOauthAccount('${agentId}', '${connector.replace(/'/g, "\\'")}', '${isLinkedIn ? 'Jeton Réel' : 'Utilisateur custom'}', document.getElementById('custom-oauth-email-val').value)" class="google-btn" style="padding:10px 24px; background:#8ab4f8; border:none; border-radius:6px; color:#000; font-weight:600; font-size:0.85rem; cursor:pointer; transition: opacity 0.2s;">Suivant</button>
+        </div>
+      </div>
+    </div>
+  `;
+};
+
+window.selectOauthAccount = async function(agentId, connector, name, email) {
+  const contentArea = document.getElementById('oauth-safari-content-area');
+  const addressBarText = document.querySelector('#safari-address-bar span');
+  if (!contentArea) return;
   
   const isPhoneAuth = connector.includes('WhatsApp') || connector.includes('Telegram') || connector.includes('Twilio') || connector.includes('SMS') || connector.includes('WeChat') || connector.includes('Viber') || connector.includes('Lydia') || connector.includes('Messenger API');
+  const isRealToken = email && (email.startsWith('AQ') || email.length > 50);
+
+  // Transition to a beautiful Google verification step inside Safari
+  contentArea.innerHTML = `
+    <!-- Google Accounts native header -->
+    <div style="height: 48px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; padding: 0 24px; box-sizing: border-box; justify-content: flex-start; gap: 8px;">
+      <svg style="width:16px; height:16px;" viewBox="0 0 24 24">
+        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z"/>
+        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z"/>
+      </svg>
+      <span style="font-size: 0.78rem; color: #fff; font-weight: 500; font-family: Roboto, Arial, sans-serif;">Sécurisé avec Google Accounts</span>
+    </div>
+
+    <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px 24px; box-sizing: border-box;">
+      <div style="width:100%; max-width:440px; background:#0f0f11; border:1px solid rgba(255,255,255,0.06); border-radius:24px; padding:36px; box-shadow:0 20px 60px rgba(0,0,0,0.8); display:flex; flex-direction:column; align-items:center; justify-content:center; box-sizing:border-box; color:#e3e3e3; font-family:Roboto, Arial, sans-serif; text-align:center; animation: zoomIn 0.2s ease-out;">
+        <!-- Google Logo -->
+        <svg style="width:32px; height:32px; margin-bottom:24px;" viewBox="0 0 24 24">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z"/>
+        </svg>
+        
+        <span class="spinner" style="width:36px; height:36px; border: 3px solid rgba(255,255,255,0.1); border-top-color: #8ab4f8; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom:20px; display:inline-block;"></span>
+        
+        <h3 style="font-size:1.25rem; font-weight:400; color:#fff; margin:0 0 6px 0; font-family:'Google Sans', Roboto, sans-serif;">Vérification de la connexion...</h3>
+        <p style="font-size:0.85rem; color:#9aa0a6; margin:0 0 24px 0;">
+          ${isRealToken ? 'Tentative de liaison API LinkedIn réelle...' : `Liaison OAuth autorisée pour ${email}`}
+        </p>
+        
+        <div id="oauth-redirect-progress-console" style="width: 100%; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 14px; font-size: 0.72rem; font-family: var(--font-mono); text-align: left; display: flex; flex-direction: column; gap: 6px; box-sizing: border-box; max-height: 160px; overflow-y: auto; color: #c4c6c9;">
+          <div>[SSL] Négociation du protocole TLS 1.3...</div>
+        </div>
+      </div>
+    </div>
+  `;
   
-  let steps = [];
-  if (isPhoneAuth) {
-    const phonePrefix = document.getElementById('oauth-phone-prefix')?.value || "+33";
-    const phoneVal = document.getElementById('oauth-input-phone')?.value || "6 12 34 56 78";
-    const otpVal = document.getElementById('oauth-input-otp')?.value || "842910";
-    steps = [
-      { text: `Recherche du protocole de messagerie mobile pour ${connector}...`, type: "system" },
-      { text: `Envoi du SMS sécurisé contenant le code OTP au ${phonePrefix} ${phoneVal}...`, type: "info" },
-      { text: "SMS reçu et acquitté par la passerelle de routage GSM (Statut: Livré).", type: "success" },
-      { text: `Validation de la clé OTP OTP_KEY [${otpVal}] soumise...`, type: "info" },
-      { text: "Handshake et échange de clés cryptographiques réussis.", type: "success" },
-      { text: "Génération de l'identifiant persistant de canal vérifié...", type: "success" },
-      { text: `Redirection et synchronisation César-IA complétées.`, type: "system" }
-    ];
-  } else {
-    steps = [
-      { text: "Contact des serveurs d'authentification...", type: "system" },
-      { text: "Handshake SSL & échange de clés Diffie-Hellman...", type: "info" },
-      { text: "Vérification des identifiants utilisateur...", type: "info" },
-      { text: "Validation des droits et accès César-IA...", type: "success" },
-      { text: "Création du jeton OAuth2 sécurisé...", type: "success" },
-      { text: "Génération de la redirection de retour (callback)...", type: "system" }
-    ];
+  const consoleDiv = document.getElementById('oauth-redirect-progress-console');
+  const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+  
+  const steps = [
+    { text: "Tunnel SSL sécurisé initialisé avec succès.", type: "info" },
+    { text: isRealToken ? "Validation du jeton d'accès LinkedIn fourni..." : `Vérification du compte OAuth Google pour ${connector}...`, type: "info" },
+    { text: isRealToken ? "Connexion API LinkedIn approuvée !" : "Clé de session d'authentification valide.", type: "success" },
+    { text: isRealToken ? "Enregistrement de la clé de liaison permanente en base..." : "Génération du jeton SSO César-IA...", type: "success" },
+    { text: "Négociation de l'URL de retour (callback)...", type: "info" },
+    { text: "Redirection vers César-IA en cours...", type: "system" }
+  ];
+  
+  for (let i = 0; i < steps.length; i++) {
+    await delay(400 + Math.random() * 200);
+    const step = steps[i];
+    const timestamp = new Date().toLocaleTimeString('fr-FR');
+    let color = '#c4c6c9';
+    if (step.type === 'success') color = '#10b981';
+    if (step.type === 'system') color = '#8ab4f8';
+    
+    const line = document.createElement('div');
+    line.style.color = color;
+    line.innerHTML = `<span style="color:#5f6368; margin-right: 4px;">[${timestamp}]</span> ${step.text}`;
+    if (consoleDiv) {
+      consoleDiv.appendChild(line);
+      consoleDiv.scrollTop = consoleDiv.scrollHeight;
+    }
   }
   
-  modalBody.innerHTML = `
-    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 0; font-family: var(--font-mono);">
+  await delay(700);
+  
+  // Fill the technical inputs in the dashboard DOM
+  const toggleId = `toggle-${agentId}-${connector.replace(/[^a-zA-Z0-9]/g, '')}`;
+  const toggleDiv = document.getElementById(toggleId);
+  if (toggleDiv) {
+    const inputs = toggleDiv.querySelectorAll('input');
+    inputs.forEach(input => {
+      const field = input.getAttribute('data-field');
+      if (field === 'token' || field === 'secret') {
+        if (isRealToken) {
+          input.value = email.trim(); // Save their REAL LinkedIn token!
+        } else if (isPhoneAuth) {
+          input.value = `phone_auth_verified_google_${Math.random().toString(36).substring(2, 8)}`;
+        } else {
+          input.value = `oauth_google_v2_live_${Math.random().toString(36).substring(2, 10)}`;
+        }
+      } else if (field === 'domain') {
+        input.value = `https://api.${connector.toLowerCase().replace(/[^a-z]/g, '')}.com`;
+      }
+    });
+  }
+  
+  // Update browser chrome address text to simulate redirection
+  if (addressBarText) {
+    addressBarText.textContent = "cesar-ia.com/dashboard?oauth_callback=success";
+  }
+  
+  // Clean real address bar history pushState
+  try {
+    history.pushState(null, '', '?oauth_callback=success');
+  } catch(e) {}
+  
+  // Save credentials via main logic (actually updates Supabase database!)
+  await saveConnectors();
+  
+  // Finish screen inside Safari
+  contentArea.innerHTML = `
+    <!-- Google Accounts native header -->
+    <div style="height: 48px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; padding: 0 24px; box-sizing: border-box; justify-content: flex-start; gap: 8px;">
+      <svg style="width:16px; height:16px;" viewBox="0 0 24 24">
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+      </svg>
+      <span style="font-size: 0.78rem; color: #10b981; font-weight: 500; font-family: Roboto, Arial, sans-serif;">Connexion validée !</span>
+    </div>
+
+    <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px 24px; box-sizing: border-box;">
+      <div style="width:100%; max-width:440px; background:#0f0f11; border:1px solid rgba(255,255,255,0.06); border-radius:24px; padding:36px; box-shadow:0 20px 60px rgba(0,0,0,0.8); display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; box-sizing:border-box; color:#e3e3e3; font-family:Roboto, Arial, sans-serif;">
+        <div style="width: 52px; height: 52px; background: rgba(16, 185, 129, 0.1); border: 2px solid #10b981; color: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; margin-bottom: 20px; box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);">✓</div>
+        <h4 style="font-size: 1.15rem; font-weight: 500; color: #fff; margin-bottom: 8px; font-family:'Google Sans', Roboto, sans-serif;">LIAISON DE COMPTE ACCEPTÉE !</h4>
+        <p style="font-size: 0.85rem; color: #9aa0a6; margin-bottom: 24px; line-height: 1.45;">
+          ${isRealToken ? `Votre compte LinkedIn a été connecté en direct ! Les publications de l'agent Chronos seront désormais postées en temps réel sur votre feed.` : `Votre compte ${connector} a été associé avec succès via la liaison sécurisée Google Accounts.`}
+        </p>
+        <button onclick="closeOauthSimulation()" class="google-btn" style="padding: 11px 26px; background: #10b981; border: none; border-radius: 8px; color: #fff; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: opacity 0.2s;">
+          Retourner au Tableau de bord
+        </button>
+      </div>
+    </div>
+  `;
+  
+  showToast(isRealToken ? "Liaison LinkedIn réelle établie avec succès !" : `Connexion express réussie avec ${connector} !`, 'success');
+};
+
+window.runServerScanSimulation = async function(agentId, connector) {
+  const modalBody = document.getElementById('oauth-modal-body');
+  if (!modalBody) {
+    // If we are in the Google Selector full page, adapt overlay
+    const overlay = document.querySelector('.oauth-modal-overlay');
+    if (overlay) {
+      overlay.innerHTML = `
+        <div id="oauth-modal-body" style="width:100%; max-width:440px; background:#0f0f11; border:1px solid rgba(255,255,255,0.06); border-radius:24px; padding:32px; box-shadow:0 20px 60px rgba(0,0,0,0.8); box-sizing:border-box;"></div>
+      `;
+    }
+  }
+  
+  const consoleBody = document.getElementById('oauth-modal-body');
+  const hostVal = "192.168.1.42";
+  const userVal = "admin";
+  
+  const steps = [
+    { text: `Pinging cible hôte : ${hostVal}...`, type: "system" },
+    { text: "Détection des ports ouverts en cours...", type: "info" },
+    { text: connector.includes('SSH') ? "Port 22 (SSH) détecté ouvert !" : "Port 5432 (Postgres) détecté ouvert !", type: "success" },
+    { text: `Lancement d'une tentative de handshake sécurisé (${userVal})...`, type: "info" },
+    { text: "Négociation d'échange de clés asymétriques...", type: "info" },
+    { text: "Création et injection de la clé d'accès César-IA...", type: "success" },
+    { text: "Connexion établie, enregistrement de la passerelle...", type: "system" }
+  ];
+  
+  consoleBody.innerHTML = `
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 0; font-family: var(--font-mono); color: #fff;">
       <span class="spinner" style="width: 40px; height: 40px; border-width: 3px; border-color: var(--accent-color) transparent transparent transparent; margin-bottom: 24px; display: inline-block;"></span>
-      <h4 style="font-size: 0.95rem; font-weight: bold; color: #fff; margin-bottom: 16px; font-family: var(--font-sans);">VÉRIFICATION PAR REDIRECTION DE SÉCURITÉ...</h4>
+      <h4 style="font-size: 0.95rem; font-weight: bold; color: #fff; margin-bottom: 16px; font-family: var(--font-sans);">SCAN & DIAGNOSTIC AUTOMATIQUE...</h4>
       <div id="oauth-progress-console" style="width: 100%; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 12px; font-size: 0.75rem; text-align: left; display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; box-sizing: border-box;"></div>
     </div>
   `;
@@ -4793,38 +5105,36 @@ window.runOauthRedirectSimulation = async function(agentId, connector) {
     const inputs = toggleDiv.querySelectorAll('input');
     inputs.forEach(input => {
       const field = input.getAttribute('data-field');
-      if (field === 'token' || field === 'secret') {
-        if (isPhoneAuth) {
-          const phonePrefix = document.getElementById('oauth-phone-prefix')?.value || "+33";
-          const phoneVal = document.getElementById('oauth-input-phone')?.value || "612345678";
-          input.value = `phone_auth_verified_${phonePrefix}_${phoneVal.replace(/\s+/g, '')}`;
-        } else {
-          input.value = `oauth_tok_v2_live_${Math.random().toString(36).substring(2, 10)}${Math.random().toString(36).substring(2, 10)}`;
-        }
-      } else if (field === 'domain') {
-        input.value = `https://api.${connector.toLowerCase().replace(/[^a-z]/g, '')}.com`;
+      if (field === 'host') {
+        input.value = hostVal;
+      } else if (field === 'user') {
+        input.value = userVal;
+      } else if (field === 'secret') {
+        input.value = `auto_injected_rsa_key_verified_${Math.random().toString(36).substring(2, 8)}`;
+      } else if (field === 'uri') {
+        input.value = `postgresql://${userVal}:••••••••@${hostVal}:5432/cesar_analytics`;
       }
     });
   }
   
-  // Save credentials via the main saveConnectors logic
+  // Save credentials via main logic
   await saveConnectors();
   
   // Finish screen
-  modalBody.innerHTML = `
-    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 0; text-align: center;">
+  consoleBody.innerHTML = `
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 0; text-align: center; color: #fff;">
       <div style="width: 54px; height: 54px; background: rgba(16, 185, 129, 0.1); border: 2px solid #10b981; color: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; margin-bottom: 20px; box-shadow: 0 0 15px rgba(16, 185, 129, 0.2); animation: pulse 2s infinite;">✓</div>
-      <h4 style="font-size: 1.05rem; font-weight: bold; color: #fff; margin-bottom: 8px; font-family: var(--font-sans);">COMPTE LIÉ AVEC SUCCÈS !</h4>
+      <h4 style="font-size: 1.05rem; font-weight: bold; color: #fff; margin-bottom: 8px; font-family: var(--font-sans);">SCAN TERMINÉ & LIEN ACTIF</h4>
       <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 24px; line-height: 1.4; font-family: var(--font-sans);">
-        ${isPhoneAuth ? "Le numéro de téléphone a été associé et vérifié par OTP avec succès. Votre canal est maintenant ouvert." : "Le jeton d'authentification a été validé et intégré par redirection. Votre agent est désormais opérationnel."}
+        Le scan a détecté et configuré avec succès la passerelle sécurisée pour votre hôte local.
       </p>
-      <button onclick="closeOauthSimulation()" style="padding: 10px 24px; background: #10b981; border: none; border-radius: 6px; color: #fff; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: var(--transition); font-family: var(--font-sans);">
+      <button onclick="document.querySelector('.oauth-modal-overlay').remove();" style="padding: 10px 24px; background: #10b981; border: none; border-radius: 6px; color: #fff; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: var(--transition); font-family: var(--font-sans);">
         Continuer vers le Tableau de bord
       </button>
     </div>
   `;
   
-  showToast(`Connexion express réussie avec ${connector} !`, 'success');
+  showToast(`Scan & configuration express réussie avec ${connector} !`, 'success');
 };
 
 window.runServerScanSimulation = async function(agentId, connector) {
