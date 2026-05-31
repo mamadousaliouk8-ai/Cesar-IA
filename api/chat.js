@@ -14,11 +14,180 @@ try {
   console.error("Failed to load pg:", e);
 }
 
+
+// =================================================================
+//  CYBERSECURITY SHIELD & SSRF PROTECTION HELPERS (Étape 3.1)
+// =================================================================
+
+function isPrivateIP(ip) {
+  if (!ip) return false;
+  
+  const cleanIp = ip.replace(/[\[\]]/g, '').trim().toLowerCase();
+  
+  // Localhost & loopbacks
+  if (['127.0.0.1', 'localhost', '0.0.0.0', '::1', '::'].includes(cleanIp)) return true;
+  
+  const parts = cleanIp.split('.');
+  if (parts.length === 4) {
+    const p1 = parseInt(parts[0]);
+    const p2 = parseInt(parts[1]);
+    
+    // RFC 1918 Private Ranges:
+    // 10.0.0.0/8
+    if (p1 === 10) return true;
+    // 172.16.0.0/12
+    if (p1 === 172 && p2 >= 16 && p2 <= 31) return true;
+    // 192.168.0.0/16
+    if (p1 === 192 && p2 === 168) return true;
+    
+    // RFC 3927 Link-Local (AWS/Metadata service: 169.254.169.254)
+    if (p1 === 169 && p2 === 254) return true;
+    
+    // Loopback, Shared, etc.
+    if (p1 === 127 || p1 === 100) return true;
+  }
+  
+  // IPv6 local unicast/link-local ranges
+  if (cleanIp.startsWith('fe80:') || cleanIp.startsWith('fc00:') || cleanIp.startsWith('fd00:')) {
+    return true;
+  }
+  
+  return false;
+}
+
+function isValidExternalUrl(urlStr) {
+  try {
+    if (!urlStr) return false;
+    const url = new URL(urlStr);
+    
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+    
+    const hostname = url.hostname;
+    if (isPrivateIP(hostname)) return false;
+    
+    // IPv4 address check
+    const ipv4Pattern = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/;
+    if (ipv4Pattern.test(hostname)) {
+      return !isPrivateIP(hostname);
+    }
+    
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function sanitizeSSHCommand(command) {
+  if (!command) return "";
+  const cleanCmd = command.trim();
+  
+  // Block fork bombs
+  if (cleanCmd.includes(':(){') || cleanCmd.includes(':|:')) {
+    throw new Error("Action bloquée : Détection d'une tentative de fork bomb (déni de service).");
+  }
+  
+  // Block malicious downloading and piping directly into shell interpreters (e.g. curl ... | sh)
+  const pipeToShellRegex = /\|\s*(bash|sh|zsh|ksh|tcsh|dash)\b/i;
+  if (pipeToShellRegex.test(cleanCmd)) {
+    throw new Error("Action bloquée : Téléchargement et exécution directe de scripts système interdite.");
+  }
+  
+  if (/\b(curl|wget)\b.*\|\s*(bash|sh|zsh)/i.test(cleanCmd)) {
+    throw new Error("Action bloquée : Exécution directe de scripts distants bloquée.");
+  }
+
+  // Block dangerous binaries/commands that modify filesystem, kernel, firewall, or restart server
+  const dangerousCommands = [
+    /\brm\s+-[rf]*/i,      // rm -rf or rm -f
+    /\bmkfs\b/i,           // filesystem creation
+    /\bdd\b/i,             // direct disk writing
+    /\buserdel\b/i,        // user deletion
+    /\bgroupdel\b/i,       // group deletion
+    /\biptables\s+-[FDP]/i, // flushing firewall rules
+    /\bufw\s+disable/i,    // disabling firewall
+    /\breboot\b/i,         // system restart
+    /\bshutdown\b/i,       // system shutdown
+    /\bpoweroff\b/i,       // system poweroff
+    /\bhypothetical\b/i    // dummy check
+  ];
+  
+  for (const regex of dangerousCommands) {
+    if (regex.test(cleanCmd)) {
+      throw new Error("Action bloquée pour des raisons de cybersécurité : Exécution d'une commande système jugée trop risquée.");
+    }
+  }
+  
+  // Block access to extremely sensitive files
+  const sensitiveFiles = [
+    /\/etc\/shadow\b/,
+    /\/etc\/sudoers\b/,
+    /\/etc\/passwd\b/,
+    /\/\.ssh\/id_rsa\b/,
+    /\/\.ssh\/id_dsa\b/,
+    /\/\.ssh\/id_ed25519\b/,
+    /\/\.ssh\/authorized_keys\b/
+  ];
+  
+  for (const regex of sensitiveFiles) {
+    if (regex.test(cleanCmd)) {
+      throw new Error("Action bloquée : Accès non autorisé à des fichiers système sensibles.");
+    }
+  }
+  
+  return cleanCmd;
+}
+
+function sanitizeSQLQuery(query) {
+  if (!query) return "";
+  const cleanQuery = query.trim();
+  
+  // 1. Strict Semicolon Check to prevent stacked/multi-statement SQL injections
+  const semiIndex = cleanQuery.indexOf(';');
+  if (semiIndex !== -1 && semiIndex < cleanQuery.length - 1) {
+    const remainder = cleanQuery.substring(semiIndex + 1).trim();
+    if (remainder.length > 0) {
+      throw new Error("Action bloquée : Exécution de requêtes SQL multiples (stacked queries) interdite.");
+    }
+  }
+  
+  // 2. Strict read-only statement verification (Must start with read-only commands)
+  if (!/^(select|show|explain|describe)\s/i.test(cleanQuery)) {
+    throw new Error("Action bloquée : Seules les requêtes de lecture (SELECT, SHOW, EXPLAIN, DESCRIBE) sont autorisées.");
+  }
+  
+  // 3. Blocklist dangerous SQL keywords and utility functions inside the query (subqueries, inline comments, CTEs, etc.)
+  const dangerousSqlKeywords = [
+    /\b(insert|update|delete|drop|truncate|alter|create|grant|revoke)\b/i,
+    /\b(pg_sleep|dblink|dblink_exec|copy|pg_read_file|pg_write_file)\b/i
+  ];
+  
+  for (const regex of dangerousSqlKeywords) {
+    if (regex.test(cleanQuery)) {
+      throw new Error("Action bloquée : Utilisation d'une commande ou fonction SQL non autorisée.");
+    }
+  }
+  
+  return cleanQuery;
+}
+
 // Helper executors for tools
 async function runSSH(connectors, command) {
   const connInfo = connectors["Serveur SSH"] || Object.values(connectors).find((v, k) => k && typeof k === 'string' && k.includes("SSH"));
   if (!connInfo || !connInfo.host || !connInfo.user) {
     return { error: "Erreur: Le connecteur SSH n'est pas configuré. Veuillez renseigner l'hôte et l'utilisateur dans l'onglet Connecteurs." };
+  }
+  
+  // 1. SSRF Protection: Ensure target SSH host is not a private or loopback IP
+  if (isPrivateIP(connInfo.host)) {
+    return { error: "Erreur de sécurité : L'hôte SSH cible est une adresse IP privée ou locale (SSRF bloqué)." };
+  }
+
+  // 2. Command Sanitization: Block dangerous system calls or fork bombs
+  let cleanCmd;
+  try {
+    cleanCmd = sanitizeSSHCommand(command);
+  } catch (err) {
+    return { error: err.message };
   }
   
   if (!ClientSSH) {
@@ -36,7 +205,7 @@ async function runSSH(connectors, command) {
     }, 10000);
     
     conn.on('ready', () => {
-      conn.exec(command, (err, stream) => {
+      conn.exec(cleanCmd, (err, stream) => {
         if (err) {
           clearTimeout(timeoutId);
           conn.end();
@@ -76,10 +245,26 @@ async function runPostgres(connectors, query) {
   if (!pgClient) {
     return { error: "Erreur: Le module pg (PostgreSQL) n'est pas disponible sur le serveur." };
   }
+
+  // 1. SSRF Protection: Parse Database URI to ensure host is not a private IP address
+  try {
+    const parsed = new URL(dbInfo.uri);
+    if (isPrivateIP(parsed.hostname)) {
+      return { error: "Erreur de sécurité : La base de données cible est située sur une adresse IP privée ou locale (SSRF bloqué)." };
+    }
+  } catch (e) {
+    // Fallback simple search check on URI string
+    if (isPrivateIP(dbInfo.uri) || dbInfo.uri.includes('localhost') || dbInfo.uri.includes('127.0.0.1')) {
+      return { error: "Erreur de sécurité : La base de données cible est située sur une adresse IP privée ou locale (SSRF bloqué)." };
+    }
+  }
   
-  const cleanQuery = query.trim();
-  if (!/^(select|show|explain|describe)\s/i.test(cleanQuery)) {
-    return { error: "Action refusée pour des raisons de sécurité : Seules les requêtes de lecture (SELECT, SHOW, EXPLAIN, DESCRIBE) sont autorisées sur la base de données." };
+  // 2. Query Sanitization: Check for stacked queries and restricted SQL keywords
+  let cleanQuery;
+  try {
+    cleanQuery = sanitizeSQLQuery(query);
+  } catch (err) {
+    return { error: err.message };
   }
   
   const client = new pgClient.Client({
@@ -102,6 +287,11 @@ async function runSlack(connectors, message) {
   const slackInfo = connectors["Slack"] || Object.values(connectors).find((v, k) => k && typeof k === 'string' && k.includes("Slack"));
   if (!slackInfo || !slackInfo.token) {
     return { error: "Erreur: Le connecteur Slack n'est pas configuré. Veuillez renseigner l'URL de Webhook." };
+  }
+  
+  // SSRF Protection: Ensure target webhook URL is not loopback or private range
+  if (!isValidExternalUrl(slackInfo.token)) {
+    return { error: "Erreur de sécurité : L'URL de destination Slack est invalide ou pointe vers un hôte privé/local (SSRF bloqué)." };
   }
   
   try {
@@ -159,6 +349,11 @@ async function runN8N(connectors, action, details, payload, agentName) {
   const n8nInfo = connectors["n8n Webhook"] || Object.values(connectors).find((v, k) => k && typeof k === 'string' && k.includes("n8n"));
   if (!n8nInfo || !n8nInfo.token) {
     return { error: "Erreur: Le connecteur n8n Webhook n'est pas configuré. Veuillez insérer l'URL de votre Webhook n8n." };
+  }
+  
+  // SSRF Protection: Ensure target webhook URL is not loopback or private range
+  if (!isValidExternalUrl(n8nInfo.token)) {
+    return { error: "Erreur de sécurité : L'URL de destination n8n est invalide ou pointe vers un hôte privé/local (SSRF bloqué)." };
   }
   
   try {
@@ -240,6 +435,11 @@ async function runWordPress(connectors, title, contentHtml) {
   const wpInfo = connectors["WordPress"] || Object.values(connectors).find((v, k) => k && typeof k === 'string' && k.includes("WordPress"));
   if (!wpInfo || !wpInfo.token || !wpInfo.domain) {
     return { error: "Erreur: Le connecteur WordPress n'est pas configuré (token ou domaine manquant)." };
+  }
+
+  // SSRF Protection: Ensure WordPress domain is a valid external URL
+  if (!isValidExternalUrl(wpInfo.domain)) {
+    return { error: "Erreur de sécurité : L'URL WordPress est invalide ou pointe vers un hôte privé/local (SSRF bloqué)." };
   }
 
   let username = 'admin';
