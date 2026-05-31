@@ -2158,6 +2158,37 @@ function parseMarkdown(text) {
 function getGeminiSystemInstruction(agent) {
   const capabilitiesList = agent.capabilities.map(c => `- ${c}`).join('\n');
   
+  // Try to find if the user has defined a Brand Profile for their business (shared across agents)
+  let brandProfile = {};
+  for (const aid of Object.keys(state.connectorsData)) {
+    if (state.connectorsData[aid] && state.connectorsData[aid]["Profil de l'Entreprise"]) {
+      const p = state.connectorsData[aid]["Profil de l'Entreprise"];
+      if (p.companyName && p.companyName.trim().length > 0) {
+        brandProfile = p;
+        break;
+      }
+    }
+  }
+  
+  let brandContext = "";
+  if (brandProfile.companyName) {
+    brandContext = `
+### IDENTITÉ ET CONTEXTE DE L'ENTREPRISE DU CLIENT :
+Tu agis en tant qu'agent dédié pour l'entreprise du client. Tu dois absolument utiliser ces informations et oublier toute référence par défaut à César-IA, sauf si l'utilisateur te demande explicitement le contraire.
+- **Nom de son entreprise / marque** : ${brandProfile.companyName}
+- **Son activité, services et produits** : ${brandProfile.description || 'Non spécifié'}
+- **Le style de rédaction souhaité (Ton)** : ${brandProfile.tone || 'humain'}
+- **Thématiques clés ou sujets d'intérêt** : ${brandProfile.topics || 'Non spécifié'}
+
+Directives spéciales pour la rédaction : Rédige tous les articles, e-mails, posts ou réponses avec ce contexte de marque en tête. Sois cohérent avec cette identité de marque ! Si le ton est "human", écris avec un style ultra-fluide, des phrases courtes et des sauts de lignes fréquents (copywriting LinkedIn). Oublie le Starter Pack de César-IA et parle du business de cette entreprise.
+`;
+  } else {
+    brandContext = `
+### CONTEXTE D'ENTREPRISE CIBLE (PAR DÉFAUT) :
+Le client n'a pas encore configuré son "Profil de l'Entreprise" dans l'onglet des Connecteurs. Par défaut, tu peux orienter tes exemples ou suggestions vers les thématiques de la plateforme César-IA (Automatisation des opérations d'entreprise via 15 agents IA autonomes). Cependant, s'il te donne d'autres sujets dans la discussion, ou s'il s'agit d'un sujet personnalisé, adapte-toi instantanément à 100% à son domaine !
+`;
+  }
+  
   // Check connectors
   const agentConnectors = state.connectorsData[agent.id] || {};
   const configured = [];
@@ -2203,6 +2234,8 @@ function getGeminiSystemInstruction(agent) {
     return `Tu es ${agent.name}, ${agent.title}.
 Description de ton rôle : ${agent.desc}
 
+${brandContext}
+
 ### DIRECTIVES CRITIQUES DE COMPORTEMENT & RÉDACTION HUMAINE :
 1. **RÉDACTION 100% HUMAINE (STYLE COPYWRITER LINKEDIN)** :
    - Interdiction formelle de rédiger des listes à puces robotiques ou d'ajouter des tirets/symboles devant chaque ligne (PAS de '>-', '-', '*', '1.', '2.').
@@ -2228,6 +2261,8 @@ ${connectorsContext}`;
 
   return `Tu es ${agent.name}, ${agent.title}.
 Description de ton rôle : ${agent.desc}
+
+${brandContext}
 
 ### DIRECTIVES DE COMPORTEMENT :
 1. Adopte strictement l'identité de ${agent.name}. Réponds en français. Utilise le vouvoiement professionnel et poli.
@@ -3038,9 +3073,26 @@ Votre post LinkedIn a été publié en direct d'humain à humain ! Vous pouvez a
       }
 
       if (msg.includes('linkedin') || msg.includes('post') || msg.includes('redige') || msg.includes('ecris') || msg.includes('sujet')) {
+        // Est-ce que l'utilisateur demande d'écrire sur un sujet spécifique ?
+        // (Exemple : "post sur le recrutement", "parle de l'immobilier", "redige sur la cuisine")
+        let customTopic = '';
+        const matchSur = msg.match(/(?:sur\s+|de\s+la\s+|de\s+|d\s*['’]\s*)([a-zA-ZÀ-ÿ\s\-]+)/i);
+        if (matchSur && matchSur[1]) {
+          const possibleTopic = matchSur[1].trim();
+          // Exclure les termes génériques de commande
+          const blacklist = ['linkedin', 'post', 'redige', 'ecris', 'sujet', 'publie', 'compte', 'mon', 'ton', 'un', 'une', 'autre'];
+          if (!blacklist.some(term => possibleTopic.toLowerCase().includes(term)) && possibleTopic.length > 2) {
+            customTopic = possibleTopic;
+          }
+        }
+
+        if (customTopic) {
+          return getSimulatedChronosDraft(0, agent.id, customTopic);
+        }
+
         const choseAngle1 = msg.includes('1') || msg.includes('visionnaire') || msg.includes('ops');
-        const choseAngle2 = msg.includes('2') || msg.includes('technique') || msg.includes('ssh') || msg.includes('securite');
-        const choseAngle3 = msg.includes('3') || msg.includes('rentabilite') || msg.includes('roi') || msg.includes('cout');
+        const choseAngle2 = msg.includes('2') || msg.includes('technique') || msg.includes('ssh') || msg.includes('securite') || msg.includes('excellence');
+        const choseAngle3 = msg.includes('3') || msg.includes('rentabilite') || msg.includes('roi') || msg.includes('cout') || msg.includes('benefice');
         
         if (choseAngle1) {
           return getSimulatedChronosDraft(1, agent.id);
@@ -3050,7 +3102,34 @@ Votre post LinkedIn a été publié en direct d'humain à humain ! Vous pouvez a
           return getSimulatedChronosDraft(3, agent.id);
         }
 
-        // Propose subject validation before writing (Interactive workflow)
+        let brandProfile = {};
+        for (const aid of Object.keys(state.connectorsData)) {
+          if (state.connectorsData[aid] && state.connectorsData[aid]["Profil de l'Entreprise"]) {
+            const p = state.connectorsData[aid]["Profil de l'Entreprise"];
+            if (p.companyName && p.companyName.trim().length > 0) {
+              brandProfile = p;
+              break;
+            }
+          }
+        }
+
+        if (brandProfile.companyName) {
+          const companyName = brandProfile.companyName;
+          const companyDesc = brandProfile.description || "vos innovations";
+          const companyTopics = brandProfile.topics || "vos solutions";
+          return `🕒 **Coconception de votre publication LinkedIn** :
+
+Bonjour ! Ravi de rédiger pour **${companyName}**. Avant de me lancer dans la plume, je veux m'assurer que le sujet résonne parfaitement avec vos abonnés. 
+
+Voici **3 angles éditoriaux** sur-mesure inspirés de vos thématiques clés (${companyTopics}). Lequel préférez-vous aborder ?
+
+1️⃣ **L'Angle Visionnaire (${companyName})** : Un post inspirant sur le futur de votre secteur et la vision innovante portée par ${companyName} pour transformer le quotidien de vos clients.
+2️⃣ **L'Angle Technique (Expertise & Excellence)** : Zoom concret et didactique sur votre savoir-faire : comment vous résolvez les défis majeurs de votre domaine (${companyDesc.length > 90 ? companyDesc.substring(0, 90) + '...' : companyDesc}).
+3️⃣ **L'Angle Bénéfice (Business & ROI)** : Une publication pragmatique axée sur la valeur concrète, le gain de temps et les retours sur investissement réels pour vos clients.
+
+👉 *Répondez simplement par **1**, **2** ou **3** pour valider l'angle. J'analyserai alors le style de vos anciens posts pour vous proposer un brouillon à la plume humaine, sans listes ou puces robotiques.*`;
+        }
+
         return `🕒 **Coconception de votre publication LinkedIn** :
 
 Bonjour ! Avant de rédiger votre post, je veux m'assurer que le sujet vous plaît et qu'il résonne parfaitement avec vos abonnés. 
@@ -3182,13 +3261,69 @@ J'ai synchronisé les statistiques de vos comptes connectés. Voici l'état actu
 }
 
 // Chronos Draft Generator Helper for simulated co-creation flow
-function getSimulatedChronosDraft(angleNum, agentId) {
+function getSimulatedChronosDraft(angleNum, agentId, customTopic = '') {
   let draft = '';
   let subject = '';
   
-  if (angleNum === 1) {
-    subject = "L'Angle Visionnaire (César-IA)";
-    draft = `L'avenir du travail est hybride, mais l'avenir des opérations est autonome.
+  // Try to find if the user has defined a Brand Profile for their business (shared across agents)
+  let brandProfile = {};
+  for (const aid of Object.keys(state.connectorsData)) {
+    if (state.connectorsData[aid] && state.connectorsData[aid]["Profil de l'Entreprise"]) {
+      const p = state.connectorsData[aid]["Profil de l'Entreprise"];
+      if (p.companyName && p.companyName.trim().length > 0) {
+        brandProfile = p;
+        break;
+      }
+    }
+  }
+
+  const companyName = brandProfile.companyName || "César-IA";
+  const companyDesc = brandProfile.description || "notre plateforme d'automatisation intelligente";
+  const companyTopics = brandProfile.topics ? brandProfile.topics.split(',')[0].trim() : "la productivité opérationnelle";
+
+  if (customTopic) {
+    subject = `Sujet personnalisé : "${customTopic}"`;
+    // Generate a beautiful, human-like dynamic copywriting draft for their custom topic!
+    const cleanTopic = customTopic.charAt(0).toUpperCase() + customTopic.slice(1).toLowerCase();
+    const hashtagTopic = customTopic.replace(/[^a-zA-ZÀ-ÿ0-9]/g, '').trim();
+    const hashtag = hashtagTopic ? `#${hashtagTopic}` : '#Productivite';
+
+    draft = `Le monde change vite, mais la manière dont nous abordons ${customTopic.toLowerCase()} change encore plus vite.
+
+Dans les coulisses de nos opérations quotidiennes, c'est ce sujet précis qui redéfinit aujourd'hui les règles du jeu.
+
+Le vrai problème ? Beaucoup continuent d'utiliser des méthodes dépassées face à des défis modernes.
+
+En adoptant une approche plus fluide, plus ciblée et plus directe, on libère du temps et on démultiplie l'impact de nos actions.
+
+C'est simple, c'est direct, et c'est ce qui fait la différence entre stagner ou franchir un nouveau cap de croissance.
+
+Qu'en pensez-vous de votre côté ?
+
+Comment gérez-vous cette transition au quotidien ?
+
+Discutons-en dans les commentaires !
+
+${hashtag} #Innovation #Futur`;
+  } else if (angleNum === 1) {
+    if (brandProfile.companyName) {
+      subject = `L'Angle Visionnaire (${companyName})`;
+      draft = `Le futur se construit aujourd'hui, et chez ${companyName}, nous en sommes convaincus.
+
+Nous voyons trop d'équipes stagner parce qu'elles passent des heures sur des tâches répétitives qui n'apportent aucune valeur ajoutée.
+
+Notre vision ? Redéfinir la manière dont notre secteur opère en apportant une fluidité et une automatisation sans précédent.
+
+C'est en libérant le potentiel créatif de nos collaborateurs que nous créons le monde de demain.
+
+Et vous, quelle est votre vision sur l'avenir de notre métier cette année ?
+
+Partagez vos réflexions en commentaires !
+
+#Vision #Futur #${companyName.replace(/[^a-zA-Z0-9]/g, '')}`;
+    } else {
+      subject = "L'Angle Visionnaire (César-IA)";
+      draft = `L'avenir du travail est hybride, mais l'avenir des opérations est autonome.
 
 Dans les coulisses de César-IA, nous venons de franchir un cap majeur. 15 agents IA autonomes sont désormais connectés en direct par SSH et SQL, absorbant plus de 80% des tâches répétitives en DevOps et en analyse de données.
 
@@ -3203,9 +3338,26 @@ Alors, simple gadget ou réelle révolution pour vos équipes ?
 J'attends vos avis en commentaires !
 
 #IA #DevOps #Productivite #CesarIA`;
+    }
   } else if (angleNum === 2) {
-    subject = "L'Angle Technique (Performance & Sécurité)";
-    draft = `La rapidité sans sécurité n'est qu'une illusion.
+    if (brandProfile.companyName) {
+      subject = `L'Angle Technique (Expertise & Excellence)`;
+      draft = `L'excellence technique ne s'improvise pas. Elle se planifie et s'exécute avec rigueur.
+
+Chez ${companyName}, chaque détail de notre approche est conçu pour garantir une performance optimale et une sécurité absolue.
+
+Que ce soit pour ${companyDesc.toLowerCase()}, nous ne faisons aucun compromis sur la qualité de nos processus.
+
+C'est cette exigence au quotidien qui nous permet de délivrer des solutions de confiance à nos partenaires.
+
+Quelles sont vos exigences majeures en termes de qualité sur vos projets actuels ?
+
+Échangeons dans les commentaires !
+
+#Expertise #Performance #Qualite #${companyName.replace(/[^a-zA-Z0-9]/g, '')}`;
+    } else {
+      subject = "L'Angle Technique (Performance & Sécurité)";
+      draft = `La rapidité sans sécurité n'est qu'une illusion.
 
 C'est pourquoi nos agents de la gamme César-IA intègrent des couches de protection avancées dès leur phase d'initialisation.
 
@@ -3218,9 +3370,26 @@ La performance n'est plus synonyme de compromis sur la sécurité.
 Quelle est votre priorité absolue sur vos architectures de production actuelles ?
 
 #Tech #Securite #Cloud #DevOps`;
+    }
   } else {
-    subject = "L'Angle Rentabilité (Business & ROI)";
-    draft = `Pourquoi dépenser des dizaines de milliers d'euros en développements spécifiques quand vous pouvez automatiser vos opérations pour le prix d'un abonnement SaaS ?
+    if (brandProfile.companyName) {
+      subject = `L'Angle Rentabilité (Business & ROI)`;
+      draft = `Pourquoi continuer à allouer des budgets colossaux à des inefficacités opérationnelles ?
+
+Avec les solutions de ${companyName}, l'impact sur votre rentabilité est immédiat.
+
+Nous aidons nos clients à simplifier leurs processus liés à ${companyTopics.toLowerCase()} pour économiser des dizaines d'heures chaque semaine.
+
+Moins de frictions, plus de résultats opérationnels : c'est notre promesse concrète.
+
+Prêt à maximiser le retour sur investissement de vos projets ?
+
+Discutons-en dès aujourd'hui !
+
+#Business #Productivite #ROI #${companyName.replace(/[^a-zA-Z0-9]/g, '')}`;
+    } else {
+      subject = "L'Angle Rentabilité (Business & ROI)";
+      draft = `Pourquoi dépenser des dizaines de milliers d'euros en développements spécifiques quand vous pouvez automatiser vos opérations pour le prix d'un abonnement SaaS ?
 
 Le Starter Pack César-IA regroupe nos 4 agents phares (Chronos, Apollo, Nemesis, Iris) à partir de 149 € par mois par agent.
 
@@ -3233,6 +3402,7 @@ Le retour sur investissement est immédiat pour vos équipes marketing et commer
 Prêt à libérer du temps pour ce qui compte vraiment ?
 
 #Business #IA #Productivite #Automation`;
+    }
   }
   
   return `✍️ **Brouillon rédigé avec succès (${subject})** :
@@ -3259,6 +3429,66 @@ function renderConnectorsForm() {
   if (!agent) return;
   
   const savedData = state.connectorsData[agentId] || {};
+  
+  // 1. Render Company Profile / Brand Profile Card at the very top of the grid
+  const profileCard = document.createElement('div');
+  profileCard.className = 'connector-card brand-profile-card';
+  profileCard.style.gridColumn = '1 / -1'; // Span across all columns
+  profileCard.style.background = 'linear-gradient(135deg, rgba(99, 102, 241, 0.06) 0%, rgba(168, 85, 247, 0.06) 100%)';
+  profileCard.style.border = '1px solid rgba(168, 85, 247, 0.15)';
+  profileCard.style.padding = '20px';
+  profileCard.style.borderRadius = '12px';
+  profileCard.style.marginBottom = '8px';
+  profileCard.style.display = 'flex';
+  profileCard.style.flexDirection = 'column';
+  profileCard.style.gap = '12px';
+  
+  const companyProfile = savedData["Profil de l'Entreprise"] || {};
+  
+  profileCard.innerHTML = `
+    <div class="connector-card-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 12px; margin-bottom: 4px;">
+      <div class="connector-name-block" style="display: flex; align-items: center; gap: 10px;">
+        <div class="connector-icon" style="font-size: 1.5rem;">🏢</div>
+        <div style="display: flex; flex-direction: column;">
+          <span class="connector-title" style="color: #c084fc; font-weight: 700; font-size: 1.05rem;">Profil & Thématiques de votre Entreprise</span>
+          <span style="font-size: 0.72rem; color: var(--text-muted);">Paramètres généraux d'identité de marque</span>
+        </div>
+      </div>
+      <span class="badge-connected" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); font-size: 0.7rem; font-weight: 600; padding: 4px 8px; border-radius: 20px;">
+        Personnalisation Active
+      </span>
+    </div>
+    <p style="color: var(--text-secondary); font-size: 0.78rem; line-height: 1.45; margin: 0 0 4px 0;">
+      Renseignez les détails de votre marque ou de votre projet. Nos agents (comme <strong>Chronos</strong> pour vos posts ou <strong>Hermes</strong> pour le SEO) adapteront instantanément leur plume à votre activité réelle, et non aux thématiques César-IA par défaut.
+    </p>
+    
+    <div class="brand-profile-fields" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 6px;">
+      <div class="form-group" style="grid-column: span 1; display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Nom de votre Entreprise / Projet</label>
+        <input type="text" data-conn="Profil de l'Entreprise" data-field="companyName" value="${companyProfile.companyName || ''}" placeholder="ex: César Tech, Cabinet Martin, BioFood..." style="width: 100%; padding: 10px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: #fff; font-size: 0.85rem;" />
+      </div>
+      <div class="form-group" style="grid-column: span 1; display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Ton & Style de Rédaction</label>
+        <select data-conn="Profil de l'Entreprise" data-field="tone" style="width: 100%; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); color: #fff; padding: 10px; border-radius: 6px; font-size: 0.85rem; height: 38px; cursor: pointer; outline: none;">
+          <option value="human" ${companyProfile.tone === 'human' || !companyProfile.tone ? 'selected' : ''}>✍️ Copywriting Humain & Aéré (LinkedIn)</option>
+          <option value="professional" ${companyProfile.tone === 'professional' ? 'selected' : ''}>👔 Professionnel & Institutionnel</option>
+          <option value="expert" ${companyProfile.tone === 'expert' ? 'selected' : ''}>🔬 Scientifique / Expert Technique</option>
+          <option value="casual" ${companyProfile.tone === 'casual' ? 'selected' : ''}>🤝 Amical, Proche & Complice</option>
+          <option value="bold" ${companyProfile.tone === 'bold' ? 'selected' : ''}>🔥 Visionnaire, Disruptif & Impactant</option>
+        </select>
+      </div>
+      <div class="form-group" style="grid-column: span 2; display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Description de votre Activité & Services</label>
+        <textarea data-conn="Profil de l'Entreprise" data-field="description" placeholder="Décrivez brièvement votre métier, vos produits phares, ou la proposition de valeur que vous offrez à vos clients..." style="width: 100%; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); color: #fff; padding: 10px; border-radius: 6px; font-size: 0.82rem; height: 60px; resize: none; font-family: inherit; line-height: 1.4; outline: none;">${companyProfile.description || ''}</textarea>
+      </div>
+      <div class="form-group" style="grid-column: span 2; display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Thématiques, Mots-clés ou Sujets d'Intérêt</label>
+        <input type="text" data-conn="Profil de l'Entreprise" data-field="topics" value="${companyProfile.topics || ''}" placeholder="ex: Recrutement hybride, investissement immobilier, bien-être au travail..." style="width: 100%; padding: 10px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: #fff; font-size: 0.85rem;" />
+      </div>
+    </div>
+  `;
+  
+  formGrid.appendChild(profileCard);
   
   agent.connectors.forEach(connector => {
     const card = document.createElement('div');
@@ -3391,7 +3621,7 @@ async function saveConnectors() {
   const agentId = state.activeDashboardAgentId;
   if (!agentId) return;
   
-  const inputs = document.querySelectorAll('#connectors-form-grid input');
+  const inputs = document.querySelectorAll('#connectors-form-grid input, #connectors-form-grid textarea, #connectors-form-grid select');
   if (!state.connectorsData[agentId]) {
     state.connectorsData[agentId] = {};
   }
