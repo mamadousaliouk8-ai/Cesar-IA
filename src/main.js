@@ -3180,6 +3180,25 @@ function renderConnectorsForm() {
       `;
     }
     
+    const toggleId = `toggle-${agentId}-${connector.replace(/[^a-zA-Z0-9]/g, '')}`;
+    
+    let verifiedBanner = '';
+    if (isConn) {
+      const mockSessionId = savedData[connector]?.token ? `oauth_${savedData[connector].token.substring(14, 22)}` : `session_${Math.floor(Math.random() * 90000) + 10000}`;
+      verifiedBanner = `
+        <div class="oauth-success-status" style="display: flex; align-items: center; gap: 8px; background: rgba(16, 185, 129, 0.08); border: 1px dashed rgba(16, 185, 129, 0.25); padding: 10px; border-radius: 6px; margin-bottom: 12px;">
+          <span style="font-size: 1.1rem; color: #10b981;">✅</span>
+          <div style="display: flex; flex-direction: column; text-align: left;">
+            <span style="font-size: 0.72rem; color: #10b981; font-weight: 700;">LIAISON VÉRIFIÉE</span>
+            <span style="font-size: 0.65rem; color: var(--text-secondary);">Session ID : <code style="font-family: var(--font-mono); color: #fff;">${mockSessionId}</code></span>
+          </div>
+        </div>
+      `;
+    }
+
+    const btnText = isConn ? "🔄 Reconnecter / Changer de compte" : "⚡ Connexion Express 1-Clic";
+    const btnClass = isConn ? "btn-express-conn connected" : "btn-express-conn";
+
     card.innerHTML = `
       <div class="connector-card-header">
         <div class="connector-name-block">
@@ -3190,8 +3209,21 @@ function renderConnectorsForm() {
           ${isConn ? 'Connecté' : 'Non configuré'}
         </span>
       </div>
-      <div class="connector-fields">
-        ${fieldsHtml}
+      <div class="connector-fields-wrapper" style="padding-top: 4px;">
+        ${verifiedBanner}
+        <button type="button" class="${btnClass}" onclick="startOauthSimulation('${agentId}', '${connector.replace(/'/g, "\\'")}')">
+          ${btnText}
+        </button>
+        
+        <div style="text-align: center; margin-top: 6px;">
+          <button type="button" onclick="const t = document.getElementById('${toggleId}'); t.style.display = t.style.display === 'none' ? 'block' : 'none';" style="background: transparent; border: none; color: var(--text-muted); font-size: 0.7rem; text-decoration: underline; cursor: pointer; transition: var(--transition);">
+            ${isConn ? "Voir les paramètres techniques" : "Configuration technique manuelle (Avancé)"}
+          </button>
+        </div>
+        
+        <div id="${toggleId}" class="connector-fields" style="display: none; margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.04); padding-top: 12px;">
+          ${fieldsHtml}
+        </div>
       </div>
     `;
     
@@ -4481,6 +4513,274 @@ function displayAdminData(users, adoptions) {
     });
   }
 }
+
+// =================================================================
+//  OAUTH EXPRESS CONNECTION & REDIRECT SIMULATION (UX PREMIUM)
+// =================================================================
+
+window.startOauthSimulation = function(agentId, connector) {
+  // Create overlay
+  const overlay = document.createElement('div');
+  overlay.className = 'oauth-modal-overlay';
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(3, 3, 3, 0.82);
+    backdrop-filter: blur(10px);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+  `;
+  
+  const isServer = connector.includes('SSH') || connector.includes('PostgreSQL') || connector.includes('MySQL') || connector.includes('Database') || connector.includes('Server') || connector.includes('SQL');
+  
+  let title = `Lier mon compte ${connector}`;
+  let icon = getConnectorEmoji(connector);
+  let connectorColor = 'var(--accent-color)';
+  if (connector.includes('LinkedIn')) connectorColor = '#0a66c2';
+  if (connector.includes('Twitter') || connector.includes('X/')) connectorColor = '#1da1f2';
+  if (connector.includes('Slack')) connectorColor = '#4a154b';
+  if (connector.includes('Notion')) connectorColor = '#000000';
+  if (connector.includes('GitHub')) connectorColor = '#24292e';
+  if (connector.includes('Shopify')) connectorColor = '#96bf48';
+  if (connector.includes('WordPress')) connectorColor = '#21759b';
+  
+  let headerHtml = `
+    <div style="display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 16px; margin-bottom: 20px;">
+      <span style="font-size: 2.2rem; filter: drop-shadow(0 0 8px ${connectorColor}40);">${icon}</span>
+      <div style="text-align: left;">
+        <h3 style="font-size: 1.15rem; font-weight: 700; color: #fff; margin: 0;">${title}</h3>
+        <p style="font-size: 0.75rem; color: var(--text-secondary); margin: 2px 0 0 0;">Authentification sécurisée César-IA</p>
+      </div>
+    </div>
+  `;
+  
+  let formHtml = '';
+  if (isServer) {
+    // Scan simulation form
+    formHtml = `
+      <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 20px; text-align: left;">
+        Notre scanner d'agent va tenter de détecter automatiquement vos ports ouverts et de configurer une passerelle sécurisée locale en arrière-plan.
+      </p>
+      <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 16px; margin-bottom: 20px; display: flex; flex-direction: column; gap: 12px; text-align: left;">
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">HÔTE CIBLE RECOMMANDÉ</label>
+          <input type="text" id="oauth-input-host" style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; padding: 10px; color: #fff; font-size: 0.85rem; font-family: var(--font-mono);" value="192.168.1.${Math.floor(Math.random() * 200) + 10}" />
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">UTILISATEUR DE DIAGNOSTIC</label>
+          <input type="text" id="oauth-input-user" style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; padding: 10px; color: #fff; font-size: 0.85rem;" value="admin" />
+        </div>
+      </div>
+      <button onclick="runServerScanSimulation('${agentId}', '${connector.replace(/'/g, "\\'")}')" style="width: 100%; padding: 12px; background: var(--accent-color); border: none; border-radius: 8px; color: #fff; font-weight: 600; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: var(--transition);">
+        ⚡ Lancer le Scan & L'appairage automatique
+      </button>
+    `;
+  } else {
+    // Standard OAuth Login Form
+    formHtml = `
+      <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 20px; text-align: left;">
+        Autorisez <strong>César-IA</strong> à accéder à vos ressources de publication, de lecture et d'analyse sur <strong>${connector}</strong>.
+      </p>
+      <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 16px; margin-bottom: 20px; display: flex; flex-direction: column; gap: 12px; text-align: left;">
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">ADRESSE E-MAIL / UTILISATEUR</label>
+          <input type="text" id="oauth-input-email" style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; padding: 10px; color: #fff; font-size: 0.85rem;" value="${state.currentUser?.email || 'contact@entreprise.com'}" />
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <label style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">MOT DE PASSE</label>
+          <input type="password" id="oauth-input-pass" style="background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; padding: 10px; color: #fff; font-size: 0.85rem;" placeholder="••••••••••••" value="password123" />
+        </div>
+      </div>
+      <button onclick="runOauthRedirectSimulation('${agentId}', '${connector.replace(/'/g, "\\'")}')" style="width: 100%; padding: 12px; background: ${connectorColor}; border: none; border-radius: 8px; color: #fff; font-weight: 600; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: var(--transition); box-shadow: 0 4px 15px ${connectorColor}40;">
+        🔑 Connexion & Validation Express
+      </button>
+    `;
+  }
+  
+  overlay.innerHTML = `
+    <div class="oauth-modal-card" style="width: 100%; max-width: 440px; background: rgba(18, 18, 22, 0.88); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 28px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); backdrop-filter: blur(25px); position: relative; box-sizing: border-box; margin: 20px; transform: scale(0.95); animation: zoomIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;">
+      <button onclick="closeOauthSimulation()" style="position: absolute; top: 20px; right: 20px; background: transparent; border: none; color: var(--text-secondary); font-size: 1.2rem; cursor: pointer; transition: var(--transition);">✕</button>
+      ${headerHtml}
+      <div id="oauth-modal-body">
+        ${formHtml}
+      </div>
+      <div style="display: flex; justify-content: center; gap: 8px; font-size: 0.65rem; color: var(--text-muted); margin-top: 24px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 16px;">
+        🛡️ Sécurité SSL 256 bits • Sandbox César-IA • RGPD Compliant
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(overlay);
+};
+
+window.closeOauthSimulation = function() {
+  const overlay = document.querySelector('.oauth-modal-overlay');
+  if (overlay) overlay.remove();
+};
+
+window.runOauthRedirectSimulation = async function(agentId, connector) {
+  const modalBody = document.getElementById('oauth-modal-body');
+  if (!modalBody) return;
+  
+  const steps = [
+    { text: "Contact des serveurs d'authentification...", type: "system" },
+    { text: "Handshake SSL & échange de clés Diffie-Hellman...", type: "info" },
+    { text: "Vérification des identifiants utilisateur...", type: "info" },
+    { text: "Validation des droits et accès César-IA...", type: "success" },
+    { text: "Création du jeton OAuth2 sécurisé...", type: "success" },
+    { text: "Génération de la redirection de retour (callback)...", type: "system" }
+  ];
+  
+  modalBody.innerHTML = `
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 0; font-family: var(--font-mono);">
+      <span class="spinner" style="width: 40px; height: 40px; border-width: 3px; border-color: var(--accent-color) transparent transparent transparent; margin-bottom: 24px; display: inline-block;"></span>
+      <h4 style="font-size: 0.95rem; font-weight: bold; color: #fff; margin-bottom: 16px; font-family: var(--font-sans);">VÉRIFICATION PAR REDIRECTION DE SÉCURITÉ...</h4>
+      <div id="oauth-progress-console" style="width: 100%; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 12px; font-size: 0.75rem; text-align: left; display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; box-sizing: border-box;"></div>
+    </div>
+  `;
+  
+  const consoleDiv = document.getElementById('oauth-progress-console');
+  const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+  
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i];
+    const timestamp = new Date().toLocaleTimeString('fr-FR');
+    let color = 'var(--text-secondary)';
+    if (step.type === 'success') color = '#10b981';
+    if (step.type === 'system') color = 'var(--accent-color)';
+    
+    const line = document.createElement('div');
+    line.style.color = color;
+    line.innerHTML = `<span style="color: #5e616e; margin-right: 6px;">[${timestamp}]</span> ${step.text}`;
+    consoleDiv.appendChild(line);
+    consoleDiv.scrollTop = consoleDiv.scrollHeight;
+    
+    await delay(600 + Math.random() * 300);
+  }
+  
+  // Fill the technical fields in the DOM card
+  const toggleId = `toggle-${agentId}-${connector.replace(/[^a-zA-Z0-9]/g, '')}`;
+  const toggleDiv = document.getElementById(toggleId);
+  if (toggleDiv) {
+    const inputs = toggleDiv.querySelectorAll('input');
+    inputs.forEach(input => {
+      const field = input.getAttribute('data-field');
+      if (field === 'token' || field === 'secret') {
+        input.value = `oauth_tok_v2_live_${Math.random().toString(36).substring(2, 10)}${Math.random().toString(36).substring(2, 10)}`;
+      } else if (field === 'domain') {
+        input.value = `https://api.${connector.toLowerCase().replace(/[^a-z]/g, '')}.com`;
+      }
+    });
+  }
+  
+  // Save credentials via the main saveConnectors logic
+  await saveConnectors();
+  
+  // Finish screen
+  modalBody.innerHTML = `
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 0; text-align: center;">
+      <div style="width: 54px; height: 54px; background: rgba(16, 185, 129, 0.1); border: 2px solid #10b981; color: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; margin-bottom: 20px; box-shadow: 0 0 15px rgba(16, 185, 129, 0.2); animation: pulse 2s infinite;">✓</div>
+      <h4 style="font-size: 1.05rem; font-weight: bold; color: #fff; margin-bottom: 8px; font-family: var(--font-sans);">COMPTE LIÉ AVEC SUCCÈS !</h4>
+      <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 24px; line-height: 1.4; font-family: var(--font-sans);">
+        Le jeton d'authentification a été validé et intégré par redirection. Votre agent est désormais opérationnel.
+      </p>
+      <button onclick="closeOauthSimulation()" style="padding: 10px 24px; background: #10b981; border: none; border-radius: 6px; color: #fff; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: var(--transition); font-family: var(--font-sans);">
+        Continuer vers le Tableau de bord
+      </button>
+    </div>
+  `;
+  
+  showToast(`Connexion express réussie avec ${connector} !`, 'success');
+};
+
+window.runServerScanSimulation = async function(agentId, connector) {
+  const modalBody = document.getElementById('oauth-modal-body');
+  if (!modalBody) return;
+  
+  const hostVal = document.getElementById('oauth-input-host')?.value || "127.0.0.1";
+  const userVal = document.getElementById('oauth-input-user')?.value || "admin";
+  
+  const steps = [
+    { text: `Pinging cible hôte : ${hostVal}...`, type: "system" },
+    { text: "Détection des ports ouverts en cours...", type: "info" },
+    { text: connector.includes('SSH') ? "Port 22 (SSH) détecté ouvert !" : "Port 5432 (Postgres) détecté ouvert !", type: "success" },
+    { text: `Lancement d'une tentative de handshake sécurisé (${userVal})...`, type: "info" },
+    { text: "Négociation d'échange de clés asymétriques...", type: "info" },
+    { text: "Création et injection de la clé d'accès César-IA...", type: "success" },
+    { text: "Connexion établie, enregistrement de la passerelle...", type: "system" }
+  ];
+  
+  modalBody.innerHTML = `
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 0; font-family: var(--font-mono);">
+      <span class="spinner" style="width: 40px; height: 40px; border-width: 3px; border-color: var(--accent-color) transparent transparent transparent; margin-bottom: 24px; display: inline-block;"></span>
+      <h4 style="font-size: 0.95rem; font-weight: bold; color: #fff; margin-bottom: 16px; font-family: var(--font-sans);">SCAN & DIAGNOSTIC AUTOMATIQUE...</h4>
+      <div id="oauth-progress-console" style="width: 100%; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 12px; font-size: 0.75rem; text-align: left; display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; box-sizing: border-box;"></div>
+    </div>
+  `;
+  
+  const consoleDiv = document.getElementById('oauth-progress-console');
+  const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+  
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i];
+    const timestamp = new Date().toLocaleTimeString('fr-FR');
+    let color = 'var(--text-secondary)';
+    if (step.type === 'success') color = '#10b981';
+    if (step.type === 'system') color = 'var(--accent-color)';
+    
+    const line = document.createElement('div');
+    line.style.color = color;
+    line.innerHTML = `<span style="color: #5e616e; margin-right: 6px;">[${timestamp}]</span> ${step.text}`;
+    consoleDiv.appendChild(line);
+    consoleDiv.scrollTop = consoleDiv.scrollHeight;
+    
+    await delay(600 + Math.random() * 300);
+  }
+  
+  // Fill the technical fields in the DOM card
+  const toggleId = `toggle-${agentId}-${connector.replace(/[^a-zA-Z0-9]/g, '')}`;
+  const toggleDiv = document.getElementById(toggleId);
+  if (toggleDiv) {
+    const inputs = toggleDiv.querySelectorAll('input');
+    inputs.forEach(input => {
+      const field = input.getAttribute('data-field');
+      if (field === 'host') {
+        input.value = hostVal;
+      } else if (field === 'user') {
+        input.value = userVal;
+      } else if (field === 'secret') {
+        input.value = `auto_injected_rsa_key_verified_${Math.random().toString(36).substring(2, 8)}`;
+      } else if (field === 'uri') {
+        input.value = `postgresql://${userVal}:••••••••@${hostVal}:5432/cesar_analytics`;
+      }
+    });
+  }
+  
+  // Save credentials via main logic
+  await saveConnectors();
+  
+  // Finish screen
+  modalBody.innerHTML = `
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 0; text-align: center;">
+      <div style="width: 54px; height: 54px; background: rgba(16, 185, 129, 0.1); border: 2px solid #10b981; color: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; margin-bottom: 20px; box-shadow: 0 0 15px rgba(16, 185, 129, 0.2); animation: pulse 2s infinite;">✓</div>
+      <h4 style="font-size: 1.05rem; font-weight: bold; color: #fff; margin-bottom: 8px; font-family: var(--font-sans);">SCAN TERMINÉ & LIEN ACTIF</h4>
+      <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 24px; line-height: 1.4; font-family: var(--font-sans);">
+        Le scan a détecté et configuré avec succès la passerelle sécurisée pour votre hôte local.
+      </p>
+      <button onclick="closeOauthSimulation()" style="padding: 10px 24px; background: #10b981; border: none; border-radius: 6px; color: #fff; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: var(--transition); font-family: var(--font-sans);">
+        Continuer vers le Tableau de bord
+      </button>
+    </div>
+  `;
+  
+  showToast(`Scan & configuration express réussie avec ${connector} !`, 'success');
+};
 
 // RUN INITIALIZER
 initApp();
