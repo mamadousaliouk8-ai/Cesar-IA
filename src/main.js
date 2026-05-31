@@ -2158,34 +2158,56 @@ function parseMarkdown(text) {
 function getGeminiSystemInstruction(agent) {
   const capabilitiesList = agent.capabilities.map(c => `- ${c}`).join('\n');
   
-  // Try to find if the user has defined a Brand Profile for their business (shared across agents)
+  // Merge all "Profil de l'Entreprise" configurations across all active agents
   let brandProfile = {};
   for (const aid of Object.keys(state.connectorsData)) {
     if (state.connectorsData[aid] && state.connectorsData[aid]["Profil de l'Entreprise"]) {
       const p = state.connectorsData[aid]["Profil de l'Entreprise"];
-      if (p.companyName && p.companyName.trim().length > 0) {
-        brandProfile = p;
-        break;
-      }
+      brandProfile = { ...brandProfile, ...p };
     }
   }
   
   let brandContext = "";
-  if (brandProfile.companyName) {
+  const hasProfile = Object.keys(brandProfile).some(key => brandProfile[key] && brandProfile[key].trim().length > 0);
+  
+  if (hasProfile) {
     brandContext = `
-### IDENTITÉ ET CONTEXTE DE L'ENTREPRISE DU CLIENT :
-Tu agis en tant qu'agent dédié pour l'entreprise du client. Tu dois absolument utiliser ces informations et oublier toute référence par défaut à César-IA, sauf si l'utilisateur te demande explicitement le contraire.
-- **Nom de son entreprise / marque** : ${brandProfile.companyName}
-- **Son activité, services et produits** : ${brandProfile.description || 'Non spécifié'}
-- **Le style de rédaction souhaité (Ton)** : ${brandProfile.tone || 'humain'}
-- **Thématiques clés ou sujets d'intérêt** : ${brandProfile.topics || 'Non spécifié'}
-
-Directives spéciales pour la rédaction : Rédige tous les articles, e-mails, posts ou réponses avec ce contexte de marque en tête. Sois cohérent avec cette identité de marque ! Si le ton est "human", écris avec un style ultra-fluide, des phrases courtes et des sauts de lignes fréquents (copywriting LinkedIn). Oublie le Starter Pack de César-IA et parle du business de cette entreprise.
+### IDENTITÉ ET CONTEXTE SPÉCIFIQUE DU CLIENT :
+Tu es configuré sur-mesure pour le projet et l'activité réelle du client. Oublie les paramètres par défaut de César-IA et utilise impérativement ces informations pour toutes tes actions (analyses, rédactions, diagnostics, etc.) :
 `;
+    if (brandProfile.companyName) {
+      brandContext += `- **Nom de l'entreprise / marque** : ${brandProfile.companyName}
+- **Activité, services & offre** : ${brandProfile.description || 'Non spécifié'}
+- **Style de communication préféré** : ${brandProfile.tone || 'humain'}
+- **Thématiques à aborder** : ${brandProfile.topics || 'Non spécifié'}
+`;
+    }
+    if (brandProfile.envName) {
+      brandContext += `- **Environnement Système** : ${brandProfile.envName}
+- **Système d'Exploitation (OS)** : ${brandProfile.osType || 'Linux'}
+- **Stack DevOps / Logiciels** : ${brandProfile.techStack || 'Non spécifié'}
+- **Canal de Notifications & Alertes** : ${brandProfile.alertChannel || 'Non spécifié'}
+`;
+    }
+    if (brandProfile.companyKPIs) {
+      brandContext += `- **Indicateurs Métiers / KPIs clés** : ${brandProfile.companyKPIs}
+- **Fréquence de Reporting attendue** : ${brandProfile.reportingFreq || 'hebdomadaire'}
+- **Tables SQL prioritaires** : ${brandProfile.dbTables || 'Non spécifié'}
+- **Seuils d'Alerte KPI** : ${brandProfile.kpiAlertThreshold || 'Non spécifié'}
+`;
+    }
+    if (brandProfile.knowledgeBaseDomain) {
+      brandContext += `- **Type d'Audience cible** : ${brandProfile.audienceType || 'B2C'}
+- **Niveau d'Autonomie / Action** : ${brandProfile.actionRule || 'Réponse autonome'}
+- **Base de Connaissances (FAQ/Wiki)** : ${brandProfile.knowledgeBaseDomain || 'Non spécifié'}
+- **Directives de Support / Charte** : ${brandProfile.supportPolicy || 'Non spécifié'}
+`;
+    }
+    brandContext += `\nConsigne d'intégration : Applique ces contraintes réelles à toutes tes réponses pour qu'elles s'insèrent parfaitement dans le business et l'infrastructure du client.`;
   } else {
     brandContext = `
 ### CONTEXTE D'ENTREPRISE CIBLE (PAR DÉFAUT) :
-Le client n'a pas encore configuré son "Profil de l'Entreprise" dans l'onglet des Connecteurs. Par défaut, tu peux orienter tes exemples ou suggestions vers les thématiques de la plateforme César-IA (Automatisation des opérations d'entreprise via 15 agents IA autonomes). Cependant, s'il te donne d'autres sujets dans la discussion, ou s'il s'agit d'un sujet personnalisé, adapte-toi instantanément à 100% à son domaine !
+Le client n'a pas encore configuré ses détails d'activité dans l'onglet des Connecteurs. Par défaut, tu peux orienter tes réponses vers les thématiques de la plateforme César-IA (Plateforme d'agents IA DevOps, Data, CM et Support autonome). Cependant, s'il te donne d'autres détails ou sujets dans la discussion, ou s'il s'agit d'un sujet personnalisé, adapte-toi instantanément à 100% à son domaine !
 `;
   }
   
@@ -3445,24 +3467,108 @@ function renderConnectorsForm() {
   
   const companyProfile = savedData["Profil de l'Entreprise"] || {};
   
-  profileCard.innerHTML = `
-    <div class="connector-card-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 12px; margin-bottom: 4px;">
-      <div class="connector-name-block" style="display: flex; align-items: center; gap: 10px;">
-        <div class="connector-icon" style="font-size: 1.5rem;">🏢</div>
-        <div style="display: flex; flex-direction: column;">
-          <span class="connector-title" style="color: #c084fc; font-weight: 700; font-size: 1.05rem;">Profil & Thématiques de votre Entreprise</span>
-          <span style="font-size: 0.72rem; color: var(--text-muted);">Paramètres généraux d'identité de marque</span>
-        </div>
+  // Dynamic parameters based on agent category role
+  let profileTitle = "Profil & Thématiques de votre Entreprise";
+  let profileIcon = "🏢";
+  let profileDesc = "Renseignez les détails de votre marque ou de votre projet. Cet agent adaptera sa plume et ses réponses à votre domaine réel, et non aux thématiques César-IA par défaut.";
+  let profileFieldsHtml = "";
+  
+  const marketingAgents = ['chronos', 'hermes', 'apollo', 'vesta'];
+  const devopsAgents = ['atlas', 'ares', 'hephaestus'];
+  const dataAgents = ['sybil', 'demeter'];
+  const supportAgents = ['hestia', 'nemesis', 'athena', 'janus', 'zeus'];
+  
+  if (devopsAgents.includes(agentId)) {
+    profileTitle = "Configuration d'Infrastructure & Stack DevOps";
+    profileIcon = "☁️";
+    profileDesc = "Spécifiez les caractéristiques de votre environnement de serveurs et de développement. L'agent adaptera ses scripts Docker, ses diagnostics SSH et ses recommandations de sécurité en conséquence.";
+    profileFieldsHtml = `
+      <div class="form-group" style="grid-column: span 1; display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Nom de l'Environnement Cible</label>
+        <input type="text" data-conn="Profil de l'Entreprise" data-field="envName" value="${companyProfile.envName || ''}" placeholder="ex: Cluster Prod AWS, VPS Staging..." style="width: 100%; padding: 10px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: #fff; font-size: 0.85rem;" />
       </div>
-      <span class="badge-connected" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); font-size: 0.7rem; font-weight: 600; padding: 4px 8px; border-radius: 20px;">
-        Personnalisation Active
-      </span>
-    </div>
-    <p style="color: var(--text-secondary); font-size: 0.78rem; line-height: 1.45; margin: 0 0 4px 0;">
-      Renseignez les détails de votre marque ou de votre projet. Nos agents (comme <strong>Chronos</strong> pour vos posts ou <strong>Hermes</strong> pour le SEO) adapteront instantanément leur plume à votre activité réelle, et non aux thématiques César-IA par défaut.
-    </p>
-    
-    <div class="brand-profile-fields" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 6px;">
+      <div class="form-group" style="grid-column: span 1; display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Système d'Exploitation (OS)</label>
+        <select data-conn="Profil de l'Entreprise" data-field="osType" style="width: 100%; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); color: #fff; padding: 10px; border-radius: 6px; font-size: 0.85rem; height: 38px; cursor: pointer; outline: none;">
+          <option value="ubuntu" ${companyProfile.osType === 'ubuntu' || !companyProfile.osType ? 'selected' : ''}>🐧 Linux Ubuntu / Debian</option>
+          <option value="centos" ${companyProfile.osType === 'centos' ? 'selected' : ''}>🐧 Linux CentOS / RHEL</option>
+          <option value="alpine" ${companyProfile.osType === 'alpine' ? 'selected' : ''}>🐳 Docker Alpine Linux</option>
+          <option value="macos" ${companyProfile.osType === 'macos' ? 'selected' : ''}>🍎 macOS Server</option>
+          <option value="windows" ${companyProfile.osType === 'windows' ? 'selected' : ''}>🪟 Windows Server</option>
+        </select>
+      </div>
+      <div class="form-group" style="grid-column: span 2; display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Technologies, Logiciels & Stack Technique (Séparés par des virgules)</label>
+        <input type="text" data-conn="Profil de l'Entreprise" data-field="techStack" value="${companyProfile.techStack || ''}" placeholder="ex: Docker, Nginx, Node.js, PostgreSQL, Redis, AWS EC2, Cloudflare..." style="width: 100%; padding: 10px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: #fff; font-size: 0.85rem;" />
+      </div>
+      <div class="form-group" style="grid-column: span 2; display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Canal de Notification d'Urgence / Alertes Critiques</label>
+        <input type="text" data-conn="Profil de l'Entreprise" data-field="alertChannel" value="${companyProfile.alertChannel || ''}" placeholder="ex: devops-alerts@entreprise.com ou URL Slack webhook..." style="width: 100%; padding: 10px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: #fff; font-size: 0.85rem;" />
+      </div>
+    `;
+  } else if (dataAgents.includes(agentId)) {
+    profileTitle = "Configuration Métier & Paramètres Data Analyst";
+    profileIcon = "📊";
+    profileDesc = "Définissez les indicateurs clés de performance (KPI) et les schémas de données que cet agent doit cibler. Ses requêtes d'analyse SQL et ses rapports s'adapteront à vos priorités métiers.";
+    profileFieldsHtml = `
+      <div class="form-group" style="grid-column: span 1; display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Indicateurs Métiers / KPIs Cibles (Séparés par virgules)</label>
+        <input type="text" data-conn="Profil de l'Entreprise" data-field="companyKPIs" value="${companyProfile.companyKPIs || ''}" placeholder="ex: Chiffre d'Affaires, Panier Moyen, Taux de Rétention (LTV), Nouveaux Clients..." style="width: 100%; padding: 10px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: #fff; font-size: 0.85rem;" />
+      </div>
+      <div class="form-group" style="grid-column: span 1; display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Fréquence des Rapports Souhaitée</label>
+        <select data-conn="Profil de l'Entreprise" data-field="reportingFreq" style="width: 100%; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); color: #fff; padding: 10px; border-radius: 6px; font-size: 0.85rem; height: 38px; cursor: pointer; outline: none;">
+          <option value="daily" ${companyProfile.reportingFreq === 'daily' ? 'selected' : ''}>☀️ Synthèse Quotidienne (Tous les matins)</option>
+          <option value="weekly" ${companyProfile.reportingFreq === 'weekly' || !companyProfile.reportingFreq ? 'selected' : ''}>📅 Rapport Hebdomadaire (Chaque vendredi)</option>
+          <option value="monthly" ${companyProfile.reportingFreq === 'monthly' ? 'selected' : ''}>📊 Bilan Mensuel Complet (Fin de mois)</option>
+        </select>
+      </div>
+      <div class="form-group" style="grid-column: span 2; display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Tables SQL principales à interroger en priorité</label>
+        <input type="text" data-conn="Profil de l'Entreprise" data-field="dbTables" value="${companyProfile.dbTables || ''}" placeholder="ex: users, orders, subscriptions, products, logs..." style="width: 100%; padding: 10px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: #fff; font-size: 0.85rem;" />
+      </div>
+      <div class="form-group" style="grid-column: span 2; display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Seuils d'Alerte Critique (KPI Hors Standard)</label>
+        <input type="text" data-conn="Profil de l'Entreprise" data-field="kpiAlertThreshold" value="${companyProfile.kpiAlertThreshold || ''}" placeholder="ex: Chute CA quotidien > 20%, Taux de rebond > 80%..." style="width: 100%; padding: 10px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: #fff; font-size: 0.85rem;" />
+      </div>
+    `;
+  } else if (supportAgents.includes(agentId)) {
+    profileTitle = "Configuration & Base de Connaissances Support / Gestion de Projet";
+    profileIcon = "👥";
+    profileDesc = "Paramétrez le public cible, les directives et le niveau d'autonomie pour cet agent. Il adaptera la tonalité de ses interactions et le tri de sa base de connaissances en fonction.";
+    profileFieldsHtml = `
+      <div class="form-group" style="grid-column: span 1; display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Public Cible Principal</label>
+        <select data-conn="Profil de l'Entreprise" data-field="audienceType" style="width: 100%; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); color: #fff; padding: 10px; border-radius: 6px; font-size: 0.85rem; height: 38px; cursor: pointer; outline: none;">
+          <option value="b2c" ${companyProfile.audienceType === 'b2c' || !companyProfile.audienceType ? 'selected' : ''}>🛍️ Clients Grand Public (B2C)</option>
+          <option value="b2b" ${companyProfile.audienceType === 'b2b' ? 'selected' : ''}>🏢 Partenaires Professionnels & Entreprises (B2B)</option>
+          <option value="internal" ${companyProfile.audienceType === 'internal' ? 'selected' : ''}>👥 Collaborateurs Internes / Équipe</option>
+          <option value="vip" ${companyProfile.audienceType === 'vip' ? 'selected' : ''}>💎 Comptes Premium & VIP (SLA strict)</option>
+        </select>
+      </div>
+      <div class="form-group" style="grid-column: span 1; display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Règle de Modération ou de Résolution</label>
+        <select data-conn="Profil de l'Entreprise" data-field="actionRule" style="width: 100%; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); color: #fff; padding: 10px; border-radius: 6px; font-size: 0.85rem; height: 38px; cursor: pointer; outline: none;">
+          <option value="fully_auto" ${companyProfile.actionRule === 'fully_auto' || !companyProfile.actionRule ? 'selected' : ''}>⚡ Répondre & Résoudre en totale autonomie</option>
+          <option value="draft_only" ${companyProfile.actionRule === 'draft_only' ? 'selected' : ''}>✍️ Rédiger uniquement les brouillons (attente validation)</option>
+          <option value="critical_escalation" ${companyProfile.actionRule === 'critical_escalation' ? 'selected' : ''}>⚠️ Alerte & Escalade humaine pour les cas sensibles</option>
+        </select>
+      </div>
+      <div class="form-group" style="grid-column: span 2; display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Périmètre thématique de la Base de Connaissances (FAQ/Wiki)</label>
+        <input type="text" data-conn="Profil de l'Entreprise" data-field="knowledgeBaseDomain" value="${companyProfile.knowledgeBaseDomain || ''}" placeholder="ex: Documentation de l'API développeurs, procédures RH internes, catalogue e-commerce..." style="width: 100%; padding: 10px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: #fff; font-size: 0.85rem;" />
+      </div>
+      <div class="form-group" style="grid-column: span 2; display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Consigne spéciale de politesse ou charte client</label>
+        <input type="text" data-conn="Profil de l'Entreprise" data-field="supportPolicy" value="${companyProfile.supportPolicy || ''}" placeholder="ex: Tutoiement chaleureux encouragé, mentionner les liens officiels, rester neutre..." style="width: 100%; padding: 10px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: #fff; font-size: 0.85rem;" />
+      </div>
+    `;
+  } else {
+    // Standard: Marketing, Content & Sales
+    profileTitle = "Profil & Thématiques de votre Entreprise";
+    profileIcon = "🏢";
+    profileDesc = "Renseignez les détails de votre marque ou de votre projet. Nos agents (comme <strong>Chronos</strong> pour vos posts ou <strong>Hermes</strong> pour le SEO) adapteront sa plume et son style à votre marque.";
+    profileFieldsHtml = `
       <div class="form-group" style="grid-column: span 1; display: flex; flex-direction: column; gap: 6px;">
         <label style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Nom de votre Entreprise / Projet</label>
         <input type="text" data-conn="Profil de l'Entreprise" data-field="companyName" value="${companyProfile.companyName || ''}" placeholder="ex: César Tech, Cabinet Martin, BioFood..." style="width: 100%; padding: 10px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: #fff; font-size: 0.85rem;" />
@@ -3485,6 +3591,29 @@ function renderConnectorsForm() {
         <label style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Thématiques, Mots-clés ou Sujets d'Intérêt</label>
         <input type="text" data-conn="Profil de l'Entreprise" data-field="topics" value="${companyProfile.topics || ''}" placeholder="ex: Recrutement hybride, investissement immobilier, bien-être au travail..." style="width: 100%; padding: 10px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: #fff; font-size: 0.85rem;" />
       </div>
+    </div>
+  `;
+  }
+  
+  profileCard.innerHTML = `
+    <div class="connector-card-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 12px; margin-bottom: 4px;">
+      <div class="connector-name-block" style="display: flex; align-items: center; gap: 10px;">
+        <div class="connector-icon" style="font-size: 1.5rem;">${profileIcon}</div>
+        <div style="display: flex; flex-direction: column;">
+          <span class="connector-title" style="color: #c084fc; font-weight: 700; font-size: 1.05rem;">${profileTitle}</span>
+          <span style="font-size: 0.72rem; color: var(--text-muted);">Paramètres généraux de personnalisation de l'agent</span>
+        </div>
+      </div>
+      <span class="badge-connected" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); font-size: 0.7rem; font-weight: 600; padding: 4px 8px; border-radius: 20px;">
+        Personnalisation Active
+      </span>
+    </div>
+    <p style="color: var(--text-secondary); font-size: 0.78rem; line-height: 1.45; margin: 0 0 4px 0;">
+      ${profileDesc}
+    </p>
+    
+    <div class="brand-profile-fields" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 6px;">
+      ${profileFieldsHtml}
     </div>
   `;
   
