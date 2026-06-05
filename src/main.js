@@ -41,6 +41,14 @@ function isAdminEmail(email) {
   return expandedAdmins.includes(cleanEmail.normalize('NFC')) || expandedAdmins.includes(cleanEmail.normalize('NFD'));
 }
 
+function extractUserEmail(user) {
+  if (!user) return '';
+  return user.email || 
+         (user.user_metadata && user.user_metadata.email) || 
+         (user.app_metadata && user.app_metadata.email) || 
+         '';
+}
+
 // Helper pour envelopper une promesse avec un timeout
 function promiseWithTimeout(promise, ms, timeoutErrorMsg) {
   let timeoutId;
@@ -731,23 +739,24 @@ async function initSupabaseAuth() {
     logDebug(`onAuthStateChange déclenché. Événement: ${event}, Session: ${session ? 'active' : 'nulle'}`);
     
     if (session) {
+      const email = extractUserEmail(session.user);
       const isSameUser = state.currentUser && state.currentUser.uid === session.user.id && state.currentUser.isAdmin !== undefined;
       
       if (!isSameUser) {
         state.currentUser = {
-          email: session.user.email,
+          email: email || (state.currentUser ? state.currentUser.email : ''),
           uid: session.user.id
         };
       } else {
-        state.currentUser.email = session.user.email;
+        state.currentUser.email = email || state.currentUser.email || '';
         state.currentUser.uid = session.user.id;
       }
       
-      if (isAdminEmail(session.user.email)) {
+      if (isAdminEmail(state.currentUser.email)) {
         state.currentUser.isAdmin = true;
       }
       
-      logDebug(`Session utilisateur détectée pour email: ${state.currentUser.email}`);
+      logDebug(`Session utilisateur détectée pour email: ${state.currentUser.email}, Admin: ${state.currentUser.isAdmin}`);
       
       // Exécuter loadUserData et handleStripeCallback hors du lock synchrone de Supabase Auth
       setTimeout(async () => {
@@ -824,14 +833,22 @@ async function initSupabaseAuth() {
       authInitialized = true;
     } else if (session) {
       logDebug(`Session active récupérée au chargement pour: ${session.user.email}`);
-      if (!authInitialized) {
+      const email = extractUserEmail(session.user);
+      
+      if (!state.currentUser || state.currentUser.uid !== session.user.id) {
         state.currentUser = {
-          email: session.user.email,
+          email: email || (state.currentUser ? state.currentUser.email : ''),
           uid: session.user.id
         };
-        if (isAdminEmail(session.user.email)) {
-          state.currentUser.isAdmin = true;
-        }
+      } else {
+        state.currentUser.email = email || state.currentUser.email || '';
+      }
+      
+      if (isAdminEmail(state.currentUser.email)) {
+        state.currentUser.isAdmin = true;
+      }
+      
+      if (!authInitialized) {
         await loadUserData();
         await handleStripeCallback();
         updateUI();
@@ -842,6 +859,8 @@ async function initSupabaseAuth() {
         } else {
           navigateTo(state.activeRoute);
         }
+      } else {
+        updateUI();
       }
     } else {
       logDebug("Aucune session active détectée au chargement direct.");
@@ -890,17 +909,17 @@ async function loadUserData() {
       }
         
       if (!errProfile && profile) {
-        state.currentUser.isAdmin = profile.is_admin;
-        logDebug(`Profil utilisateur chargé. Admin: ${profile.is_admin}`);
+        state.currentUser.isAdmin = profile.is_admin || state.currentUser.isAdmin || false;
+        logDebug(`Profil utilisateur chargé. Admin de la base de données : ${profile.is_admin}. Sticky Admin global : ${state.currentUser.isAdmin}`);
       } else {
-        logDebug(`Erreur profiles ou non trouvé, valeur par défaut non-admin (erreur: ${errProfile ? errProfile.message : 'aucune'})`);
-        state.currentUser.isAdmin = false;
+        logDebug(`Erreur profiles ou non trouvé, conservation du statut admin actuel (erreur: ${errProfile ? errProfile.message : 'aucune'})`);
+        state.currentUser.isAdmin = state.currentUser.isAdmin || false;
       }
       
       // Fallback de sécurité robuste par email pour César-IA admin
       if (isAdminEmail(state.currentUser.email)) {
         state.currentUser.isAdmin = true;
-        logDebug(`[loadUserData] Force de l'état Admin via l'adresse e-mail.`);
+        logDebug(`[loadUserData] Force de l'état Admin via l'adresse e-mail : ${state.currentUser.email}`);
       }
 
       logDebug("Chargement des agents adoptés...");
@@ -918,7 +937,10 @@ async function loadUserData() {
       
       // Si l'utilisateur est admin ou contact@cesar-ia.com, on lui pré-adopte TOUS les 15 agents par défaut et on les synchronise
       const isAdminUser = state.currentUser.isAdmin || isAdminEmail(state.currentUser.email);
+      logDebug(`[loadUserData] Évaluation de l'administration globale : ${isAdminUser}. Email : ${state.currentUser.email}, isAdmin : ${state.currentUser.isAdmin}`);
+      
       if (isAdminUser) {
+        logDebug(`[loadUserData] L'utilisateur est Admin. Attribution forcée des 15 agents.`);
         const allAgentIds = [
           'sybil', 'atlas', 'chronos', 'hermes', 'hestia',
           'vesta', 'ares', 'athena', 'hephaestus', 'iris',

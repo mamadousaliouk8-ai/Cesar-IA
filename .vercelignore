@@ -1,0 +1,12 @@
+# Ignore environment files
+.env
+.env.*
+.env.production.local
+.env.development.local
+.env.local
+
+# Ignore build outputs and cache
+dist
+.vercel
+node_modules
+*.log
