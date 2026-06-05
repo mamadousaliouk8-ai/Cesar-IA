@@ -24,6 +24,7 @@ function logDebug(message) {
 
 function isAdminEmail(email) {
   if (!email) return false;
+  const cleanEmail = email.trim().toLowerCase();
   const adminEmails = [
     'contact@cesar-ia.com',
     'admin@cesar-ia.com',
@@ -32,7 +33,12 @@ function isAdminEmail(email) {
     'contact@xn--csar-ia-bya.com',
     'admin@xn--csar-ia-bya.com'
   ];
-  return adminEmails.includes(email.trim().toLowerCase());
+  const expandedAdmins = [];
+  adminEmails.forEach(e => {
+    expandedAdmins.push(e.normalize('NFC'));
+    expandedAdmins.push(e.normalize('NFD'));
+  });
+  return expandedAdmins.includes(cleanEmail.normalize('NFC')) || expandedAdmins.includes(cleanEmail.normalize('NFD'));
 }
 
 // Helper pour envelopper une promesse avec un timeout
@@ -727,10 +733,15 @@ async function initSupabaseAuth() {
     if (session) {
       const isSameUser = state.currentUser && state.currentUser.uid === session.user.id && state.currentUser.isAdmin !== undefined;
       
-      state.currentUser = {
-        email: session.user.email,
-        uid: session.user.id
-      };
+      if (!isSameUser) {
+        state.currentUser = {
+          email: session.user.email,
+          uid: session.user.id
+        };
+      } else {
+        state.currentUser.email = session.user.email;
+        state.currentUser.uid = session.user.id;
+      }
       
       if (isAdminEmail(session.user.email)) {
         state.currentUser.isAdmin = true;
@@ -847,150 +858,165 @@ async function initSupabaseAuth() {
   }
 }
 
+let loadUserDataPromise = null;
+
 async function loadUserData() {
   if (isMock || !state.currentUser) return;
-  
-  try {
-    state.activePack = getActivePack();
-    state.cancelledAgents = JSON.parse(localStorage.getItem(`cesar_ia_cancelled_agents_${state.currentUser.uid}`) || '[]');
-    state.cancelledPacks = JSON.parse(localStorage.getItem(`cesar_ia_cancelled_packs_${state.currentUser.uid}`) || '[]');
-    // Tester le fetch direct avant les requêtes client Supabase pour isoler le problème réseau
-    await testDirectFetch();
-    
-    logDebug(`Chargement des informations du profil utilisateur pour UID: ${state.currentUser.uid} et Email: ${state.currentUser.email}...`);
-    let profile = null;
-    let errProfile = null;
-    try {
-      const data = await supabaseFetch('profiles', {
-        queryParams: `?id=eq.${state.currentUser.uid}&select=is_admin`
-      });
-      logDebug(`Données reçues de la table profiles: ${JSON.stringify(data)}`);
-      profile = data && data.length > 0 ? data[0] : null;
-    } catch (err) {
-      errProfile = err;
-    }
-      
-    if (!errProfile && profile) {
-      state.currentUser.isAdmin = profile.is_admin;
-      logDebug(`Profil utilisateur chargé. Admin: ${profile.is_admin}`);
-    } else {
-      logDebug(`Erreur profiles ou non trouvé, valeur par défaut non-admin (erreur: ${errProfile ? errProfile.message : 'aucune'})`);
-      state.currentUser.isAdmin = false;
-    }
-    
-    // Fallback de sécurité robuste par email pour César-IA admin
-    if (isAdminEmail(state.currentUser.email)) {
-      state.currentUser.isAdmin = true;
-      logDebug(`[loadUserData] Force de l'état Admin via l'adresse e-mail.`);
-    }
 
-    logDebug("Chargement des agents adoptés...");
-    let adopted = [];
+  if (loadUserDataPromise) {
+    logDebug("loadUserData: Une requête est déjà en cours, attente du résultat existant...");
+    return loadUserDataPromise;
+  }
+
+  loadUserDataPromise = (async () => {
     try {
-      adopted = await supabaseFetch('adopted_agents', {
-        queryParams: `?user_id=eq.${state.currentUser.uid}&select=agent_id`
-      }) || [];
-    } catch (errAdopted) {
-      logDebug(`Erreur lors du chargement des agents adoptés: ${errAdopted.message}`);
-      throw errAdopted;
-    }
-    
-    state.adoptedAgents = adopted.map(a => a.agent_id);
-    
-    // Si l'utilisateur est admin ou contact@cesar-ia.com, on lui pré-adopte TOUS les 15 agents par défaut et on les synchronise
-    const isAdminUser = state.currentUser.isAdmin || isAdminEmail(state.currentUser.email);
-    if (isAdminUser) {
-      const allAgentIds = [
-        'sybil', 'atlas', 'chronos', 'hermes', 'hestia',
-        'vesta', 'ares', 'athena', 'hephaestus', 'iris',
-        'apollo', 'demeter', 'janus', 'nemesis', 'zeus'
-      ];
-      state.adoptedAgents = allAgentIds;
+      state.activePack = getActivePack();
+      state.cancelledAgents = JSON.parse(localStorage.getItem(`cesar_ia_cancelled_agents_${state.currentUser.uid}`) || '[]');
+      state.cancelledPacks = JSON.parse(localStorage.getItem(`cesar_ia_cancelled_packs_${state.currentUser.uid}`) || '[]');
+      // Tester le fetch direct avant les requêtes client Supabase pour isoler le problème réseau
+      await testDirectFetch();
       
-      // On lance la synchronisation de tous les agents en arrière-plan vers Supabase
-      setTimeout(async () => {
-        try {
-          console.log(`loadUserData: Auto-adoption complète pour l'admin UID ${state.currentUser.uid} dans Supabase...`);
-          for (const agentId of allAgentIds) {
-            const { error: errAdopt } = await supabase
-              .from('adopted_agents')
-              .insert({ user_id: state.currentUser.uid, agent_id: agentId });
-              
-            if (errAdopt && errAdopt.code !== '23505') {
-              console.warn(`Erreur lors de l'auto-adoption de ${agentId}:`, errAdopt);
-              continue;
-            }
-            
-            // Si l'agent a été inséré avec succès, on crée la facture correspondante
-            if (!errAdopt) {
-              const agentMeta = AGENTS.find(a => a.id === agentId);
-              const invoiceNo = "INV-" + Math.floor(100000 + Math.random() * 900000);
-              
-              await supabase
-                .from('invoices')
-                .insert({
-                  user_id: state.currentUser.uid,
-                  invoice_number: invoiceNo,
-                  agent_name: agentMeta ? agentMeta.name : agentId.toUpperCase(),
-                  price: agentMeta ? agentMeta.price : 49,
-                  status: 'Payée'
-                });
-            }
-          }
-        } catch (e) {
-          console.warn("Échec de la synchronisation asynchrone d'auto-adoption de tous les agents :", e);
-        }
-      }, 100);
-    }
-    
-    if (state.currentUser) {
-      state.currentUser.adopted = state.adoptedAgents;
-    }
-    logDebug(`Agents adoptés chargés (${state.adoptedAgents.length}) : ${state.adoptedAgents.join(', ')}`);
-    
-    logDebug("Chargement des connecteurs...");
-    let connectors = [];
-    try {
-      connectors = await supabaseFetch('connectors', {
-        queryParams: `?user_id=eq.${state.currentUser.uid}&select=*`
-      }) || [];
-    } catch (errConnectors) {
-      logDebug(`Erreur lors du chargement des connecteurs: ${errConnectors.message}`);
-      throw errConnectors;
-    }
-      
-    state.connectorsData = {};
-    connectors.forEach(c => {
-      if (!state.connectorsData[c.agent_id]) {
-        state.connectorsData[c.agent_id] = {};
+      logDebug(`Chargement des informations du profil utilisateur pour UID: ${state.currentUser.uid} et Email: ${state.currentUser.email}...`);
+      let profile = null;
+      let errProfile = null;
+      try {
+        const data = await supabaseFetch('profiles', {
+          queryParams: `?id=eq.${state.currentUser.uid}&select=is_admin`
+        });
+        logDebug(`Données reçues de la table profiles: ${JSON.stringify(data)}`);
+        profile = data && data.length > 0 ? data[0] : null;
+      } catch (err) {
+        errProfile = err;
       }
-      state.connectorsData[c.agent_id][c.connector_name] = c.credentials || {};
-    });
-    logDebug("Connecteurs chargés avec succès.");
-    
-    logDebug("Chargement de l'historique des factures...");
-    let invoices = [];
-    try {
-      invoices = await supabaseFetch('invoices', {
-        queryParams: `?user_id=eq.${state.currentUser.uid}&select=*&order=created_at.desc`
-      }) || [];
-    } catch (errInvoices) {
-      logDebug(`Erreur lors du chargement des factures: ${errInvoices.message}`);
-      throw errInvoices;
-    }
+        
+      if (!errProfile && profile) {
+        state.currentUser.isAdmin = profile.is_admin;
+        logDebug(`Profil utilisateur chargé. Admin: ${profile.is_admin}`);
+      } else {
+        logDebug(`Erreur profiles ou non trouvé, valeur par défaut non-admin (erreur: ${errProfile ? errProfile.message : 'aucune'})`);
+        state.currentUser.isAdmin = false;
+      }
       
-    state.invoices = invoices.map(inv => ({
-      id: inv.invoice_number,
-      date: new Date(inv.created_at).toLocaleDateString('fr-FR'),
-      agentName: inv.agent_name,
-      price: inv.price,
-      status: inv.status
-    }));
-    logDebug(`Factures chargées avec succès (${state.invoices.length}).`);
-  } catch (error) {
-    logDebug(`Erreur lors du chargement des données depuis Supabase: ${error.message}`);
-    console.error("Erreur lors du chargement des données depuis Supabase :", error);
-    showToast("Erreur lors du chargement de vos données. Mode démo actif.", "warning");
+      // Fallback de sécurité robuste par email pour César-IA admin
+      if (isAdminEmail(state.currentUser.email)) {
+        state.currentUser.isAdmin = true;
+        logDebug(`[loadUserData] Force de l'état Admin via l'adresse e-mail.`);
+      }
+
+      logDebug("Chargement des agents adoptés...");
+      let adopted = [];
+      try {
+        adopted = await supabaseFetch('adopted_agents', {
+          queryParams: `?user_id=eq.${state.currentUser.uid}&select=agent_id`
+        }) || [];
+      } catch (errAdopted) {
+        logDebug(`Erreur lors du chargement des agents adoptés: ${errAdopted.message}`);
+        throw errAdopted;
+      }
+      
+      state.adoptedAgents = adopted.map(a => a.agent_id);
+      
+      // Si l'utilisateur est admin ou contact@cesar-ia.com, on lui pré-adopte TOUS les 15 agents par défaut et on les synchronise
+      const isAdminUser = state.currentUser.isAdmin || isAdminEmail(state.currentUser.email);
+      if (isAdminUser) {
+        const allAgentIds = [
+          'sybil', 'atlas', 'chronos', 'hermes', 'hestia',
+          'vesta', 'ares', 'athena', 'hephaestus', 'iris',
+          'apollo', 'demeter', 'janus', 'nemesis', 'zeus'
+        ];
+        state.adoptedAgents = allAgentIds;
+        
+        // On lance la synchronisation de tous les agents en arrière-plan vers Supabase
+        setTimeout(async () => {
+          try {
+            console.log(`loadUserData: Auto-adoption complète pour l'admin UID ${state.currentUser.uid} dans Supabase...`);
+            for (const agentId of allAgentIds) {
+              const { error: errAdopt } = await supabase
+                .from('adopted_agents')
+                .insert({ user_id: state.currentUser.uid, agent_id: agentId });
+                
+              if (errAdopt && errAdopt.code !== '23505') {
+                console.warn(`Erreur lors de l'auto-adoption de ${agentId}:`, errAdopt);
+                continue;
+              }
+              
+              // Si l'agent a été inséré avec succès, on crée la facture correspondante
+              if (!errAdopt) {
+                const agentMeta = AGENTS.find(a => a.id === agentId);
+                const invoiceNo = "INV-" + Math.floor(100000 + Math.random() * 900000);
+                
+                await supabase
+                  .from('invoices')
+                  .insert({
+                    user_id: state.currentUser.uid,
+                    invoice_number: invoiceNo,
+                    agent_name: agentMeta ? agentMeta.name : agentId.toUpperCase(),
+                    price: agentMeta ? agentMeta.price : 49,
+                    status: 'Payée'
+                  });
+              }
+            }
+          } catch (e) {
+            console.warn("Échec de la synchronisation asynchrone d'auto-adoption de tous les agents :", e);
+          }
+        }, 100);
+      }
+      
+      if (state.currentUser) {
+        state.currentUser.adopted = state.adoptedAgents;
+      }
+      logDebug(`Agents adoptés chargés (${state.adoptedAgents.length}) : ${state.adoptedAgents.join(', ')}`);
+      
+      logDebug("Chargement des connecteurs...");
+      let connectors = [];
+      try {
+        connectors = await supabaseFetch('connectors', {
+          queryParams: `?user_id=eq.${state.currentUser.uid}&select=*`
+        }) || [];
+      } catch (errConnectors) {
+        logDebug(`Erreur lors du chargement des connecteurs: ${errConnectors.message}`);
+        throw errConnectors;
+      }
+        
+      state.connectorsData = {};
+      connectors.forEach(c => {
+        if (!state.connectorsData[c.agent_id]) {
+          state.connectorsData[c.agent_id] = {};
+        }
+        state.connectorsData[c.agent_id][c.connector_name] = c.credentials || {};
+      });
+      logDebug("Connecteurs chargés avec succès.");
+      
+      logDebug("Chargement de l'historique des factures...");
+      let invoices = [];
+      try {
+        invoices = await supabaseFetch('invoices', {
+          queryParams: `?user_id=eq.${state.currentUser.uid}&select=*&order=created_at.desc`
+        }) || [];
+      } catch (errInvoices) {
+        logDebug(`Erreur lors du chargement des factures: ${errInvoices.message}`);
+        throw errInvoices;
+      }
+        
+      state.invoices = invoices.map(inv => ({
+        id: inv.invoice_number,
+        date: new Date(inv.created_at).toLocaleDateString('fr-FR'),
+        agentName: inv.agent_name,
+        price: inv.price,
+        status: inv.status
+      }));
+      logDebug(`Factures chargées avec succès (${state.invoices.length}).`);
+    } catch (error) {
+      logDebug(`Erreur lors du chargement des données depuis Supabase: ${error.message}`);
+      console.error("Erreur lors du chargement des données depuis Supabase :", error);
+      showToast("Erreur lors du chargement de vos données. Mode démo actif.", "warning");
+    }
+  })();
+
+  try {
+    await loadUserDataPromise;
+  } finally {
+    loadUserDataPromise = null;
   }
 }
 
