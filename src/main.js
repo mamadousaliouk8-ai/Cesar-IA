@@ -191,6 +191,7 @@ const state = {
   cancelledAgents: [], // list of agent ids scheduled for cancellation
   cancelledPacks: [], // list of pack ids scheduled for cancellation
   connectorsData: {}, // { agentId: { connectorName: { field1: val, ... } } }
+  connectorsDrafts: {}, // { agentId: { connectorName: { field1: val, ... } } }
   invoices: [],
   cardDetailsSaved: false,
   stripeLinks: {}, // { agentId: url }
@@ -236,6 +237,15 @@ function setActivePack(packId) {
 
 function isAgentAdopted(agentId) {
   if (!state.currentUser) return false;
+  
+  // Administrators get access to everything
+  const isAdminUser = state.currentUser.isAdmin || 
+                      (state.currentUser.email && (
+                        state.currentUser.email.trim().toLowerCase() === 'admin@cesar-ia.com' || 
+                        state.currentUser.email.trim().toLowerCase() === 'contact@cesar-ia.com'
+                      ));
+  if (isAdminUser) return true;
+
   if (agentId === 'zeus') {
     return state.adoptedAgents.includes('zeus');
   }
@@ -254,12 +264,27 @@ function isAgentAdopted(agentId) {
 }
 
 function getAdoptedAgentIds() {
-  if (state.tourActive) {
-    const ids = new Set(state.adoptedAgents);
-    ids.add('sybil');
-    return Array.from(ids);
-  }
   if (!state.currentUser) return [];
+
+  const isAdminUser = state.currentUser.isAdmin || 
+                      (state.currentUser.email && (
+                        state.currentUser.email.trim().toLowerCase() === 'admin@cesar-ia.com' || 
+                        state.currentUser.email.trim().toLowerCase() === 'contact@cesar-ia.com'
+                      ));
+
+  if (isAdminUser) {
+    return [
+      'sybil', 'atlas', 'chronos', 'hermes', 'hestia',
+      'vesta', 'ares', 'athena', 'hephaestus', 'iris',
+      'apollo', 'demeter', 'janus', 'nemesis', 'zeus'
+    ];
+  }
+
+  // Pour l'agent spécial Zeus : s'il est adopté, on affiche uniquement Zeus dans le dashboard, aucun autre agent
+  if (state.adoptedAgents.includes('zeus')) {
+    return ['zeus'];
+  }
+
   const ids = new Set(state.adoptedAgents);
   if (state.activePack === 'starter') {
     ['chronos', 'apollo', 'nemesis', 'iris'].forEach(id => ids.add(id));
@@ -324,9 +349,43 @@ function initApp() {
     
     // Show welcome toast
     showToast("Bienvenue sur César-IA ! Explorez notre catalogue.");
+
+    // Vérifier le retour d'une authentification OAuth
+    checkOauthCallback();
   } catch (error) {
     alert("Erreur d'initialisation de l'application :\n" + error.name + ": " + error.message + "\n\nStack:\n" + error.stack);
     console.error("Initialization error:", error);
+  }
+}
+
+async function checkOauthCallback() {
+  const params = new URLSearchParams(window.location.search);
+  const status = params.get('oauth_status');
+  const agentId = params.get('agent_id');
+  const connector = params.get('connector');
+  
+  if (status && agentId && connector) {
+    // Nettoyer la barre d'adresse sans recharger
+    const cleanUrl = window.location.pathname + window.location.hash;
+    window.history.replaceState({}, document.title, cleanUrl);
+    
+    if (status === 'success') {
+      showToast(`Connexion officielle réussie avec ${connector} ! 🚀`, "success");
+      // Sélectionner l'agent et ouvrir l'onglet connecteurs
+      state.activeDashboardAgentId = agentId;
+      state.activeDashboardTab = 'connectors';
+      
+      try {
+        await loadUserData();
+      } catch (e) {
+        console.error("Erreur de rechargement utilisateur:", e);
+      }
+      
+      navigateTo('dashboard');
+      renderDashboardTabContent();
+    } else {
+      showToast(`Échec de la connexion officielle avec ${connector}.`, "error");
+    }
   }
 }
 
@@ -370,6 +429,12 @@ function setupRoutes() {
 }
 
 function navigateTo(route) {
+  // Nettoyer le style anti-flicker s'il existe
+  const initialStyle = document.getElementById('initial-route-style');
+  if (initialStyle) {
+    initialStyle.remove();
+  }
+
   state.activeRoute = route;
   try {
     sessionStorage.setItem('cesar_ia_active_route', route);
@@ -626,9 +691,19 @@ async function initSupabaseAuth() {
     const savedUser = localStorage.getItem('cesar_ia_mock_user');
     if (savedUser) {
       state.currentUser = JSON.parse(savedUser);
+      if (state.currentUser.email && state.currentUser.email.trim().toLowerCase() === 'contact@cesar-ia.com') {
+        state.currentUser.isAdmin = true;
+      }
       loadMockState();
       await handleStripeCallback();
       updateUI();
+      
+      // Navigate to the active route on reload
+      if (state.activeRoute === 'home') {
+        navigateTo('catalog');
+      } else {
+        navigateTo(state.activeRoute);
+      }
     } else {
       await handleStripeCallback();
     }
@@ -637,43 +712,13 @@ async function initSupabaseAuth() {
   
   logDebug("Initialisation de Supabase Auth...");
   
-  // Tenter de récupérer la session immédiatement au chargement (évite les ratés de onAuthStateChange)
-  try {
-    logDebug("Récupération de la session en cours (direct)...");
-    const { data: { session }, error } = await supabase.auth.getSession();
-    if (error) {
-      logDebug(`Erreur getSession: ${error.message}`);
-    } else if (session) {
-      logDebug(`Session active récupérée au chargement pour: ${session.user.email}`);
-      state.currentUser = {
-        email: session.user.email,
-        uid: session.user.id
-      };
-      if (session.user.email && session.user.email.toLowerCase() === 'contact@cesar-ia.com') {
-        state.currentUser.isAdmin = true;
-      }
-      await loadUserData();
-      await handleStripeCallback();
-      updateUI();
-      
-      logDebug(`[getSession] Redirection vers l'onglet : ${state.activeRoute === 'home' ? 'catalog' : state.activeRoute}`);
-      if (state.activeRoute === 'home') {
-        navigateTo('catalog');
-      } else {
-        navigateTo(state.activeRoute);
-      }
-    } else {
-      logDebug("Aucune session active détectée au chargement direct.");
-      if (state.activeRoute === 'dashboard' || state.activeRoute === 'billing' || state.activeRoute === 'admin') {
-        navigateTo('home');
-      }
-    }
-  } catch (errSession) {
-    logDebug(`Exception lors de getSession: ${errSession.message}`);
-  }
+  // Flag to avoid race conditions and double redirects during initialization
+  let authInitialized = false;
 
+  // Set up auth state change listener first
   supabase.auth.onAuthStateChange(async (event, session) => {
     logDebug(`onAuthStateChange déclenché. Événement: ${event}, Session: ${session ? 'active' : 'nulle'}`);
+    
     if (session) {
       const isSameUser = state.currentUser && state.currentUser.uid === session.user.id && state.currentUser.isAdmin !== undefined;
       
@@ -682,20 +727,30 @@ async function initSupabaseAuth() {
         uid: session.user.id
       };
       
-      // Fallback immédiat d'authentification par e-mail
-      if (session.user.email && session.user.email.toLowerCase() === 'contact@cesar-ia.com') {
+      if (session.user.email && session.user.email.trim().toLowerCase() === 'contact@cesar-ia.com') {
         state.currentUser.isAdmin = true;
       }
       
       logDebug(`Session utilisateur détectée pour email: ${state.currentUser.email}`);
       
-      if (!isSameUser) {
-        await loadUserData();
-      } else {
-        logDebug("L'utilisateur était déjà connecté dans l'état local.");
-      }
-      
-      await handleStripeCallback();
+      // Exécuter loadUserData et handleStripeCallback hors du lock synchrone de Supabase Auth
+      setTimeout(async () => {
+        try {
+          if (!isSameUser) {
+            await loadUserData();
+          }
+          await handleStripeCallback();
+          updateUI();
+          
+          if (state.activeRoute === 'home') {
+            navigateTo('catalog');
+          } else {
+            navigateTo(state.activeRoute);
+          }
+        } catch (err) {
+          console.error("Error in deferred onAuthStateChange actions:", err);
+        }
+      }, 0);
       
       const authModal = document.getElementById('auth-modal');
       if (authModal && authModal.open) {
@@ -704,20 +759,29 @@ async function initSupabaseAuth() {
       }
       
       updateUI();
+      authInitialized = true;
       
-      logDebug(`Redirection vers l'onglet : ${state.activeRoute === 'home' ? 'catalog' : state.activeRoute}`);
       if (state.activeRoute === 'home') {
         navigateTo('catalog');
       } else {
         navigateTo(state.activeRoute);
       }
     } else {
-      // Si l'utilisateur n'est pas connecté et qu'on essaie de charger une page protégée, renvoi à l'accueil
+      // Avoid clearing if auth is still initializing (to prevent race conditions on reload)
+      if (!authInitialized) {
+        return;
+      }
+
+      // Éviter de réinitialiser la session si elle a déjà été chargée avec succès par getSession
+      if (event === 'INITIAL_SESSION' && state.currentUser) {
+        logDebug("[onAuthStateChange] Événement INITIAL_SESSION avec session nulle ignoré car l'utilisateur est connecté.");
+        return;
+      }
+
       if (state.activeRoute === 'dashboard' || state.activeRoute === 'billing' || state.activeRoute === 'admin') {
         navigateTo('home');
       }
       
-      // Éviter de réinitialiser inutilement si l'utilisateur était déjà nul
       if (state.currentUser === null) {
         return;
       }
@@ -734,6 +798,48 @@ async function initSupabaseAuth() {
       updateUI();
     }
   });
+
+  // Tenter de récupérer la session immédiatement au chargement (évite les ratés de onAuthStateChange)
+  try {
+    logDebug("Récupération de la session en cours (direct)...");
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error) {
+      logDebug(`Erreur getSession: ${error.message}`);
+      authInitialized = true;
+    } else if (session) {
+      logDebug(`Session active récupérée au chargement pour: ${session.user.email}`);
+      if (!authInitialized) {
+        state.currentUser = {
+          email: session.user.email,
+          uid: session.user.id
+        };
+        if (session.user.email && session.user.email.trim().toLowerCase() === 'contact@cesar-ia.com') {
+          state.currentUser.isAdmin = true;
+        }
+        await loadUserData();
+        await handleStripeCallback();
+        updateUI();
+        authInitialized = true;
+        
+        if (state.activeRoute === 'home') {
+          navigateTo('catalog');
+        } else {
+          navigateTo(state.activeRoute);
+        }
+      }
+    } else {
+      logDebug("Aucune session active détectée au chargement direct.");
+      if (!authInitialized) {
+        authInitialized = true;
+        if (state.activeRoute === 'dashboard' || state.activeRoute === 'billing' || state.activeRoute === 'admin') {
+          navigateTo('home');
+        }
+      }
+    }
+  } catch (errSession) {
+    logDebug(`Exception lors de getSession: ${errSession.message}`);
+    authInitialized = true;
+  }
 }
 
 async function loadUserData() {
@@ -785,6 +891,57 @@ async function loadUserData() {
     }
     
     state.adoptedAgents = adopted.map(a => a.agent_id);
+    
+    // Si l'utilisateur est admin ou contact@cesar-ia.com, on lui pré-adopte TOUS les 15 agents par défaut et on les synchronise
+    const isAdminUser = state.currentUser.isAdmin || 
+                        (state.currentUser.email && (
+                          state.currentUser.email.toLowerCase() === 'contact@cesar-ia.com' || 
+                          state.currentUser.email.toLowerCase() === 'admin@cesar-ia.com'
+                        ));
+    if (isAdminUser) {
+      const allAgentIds = [
+        'sybil', 'atlas', 'chronos', 'hermes', 'hestia',
+        'vesta', 'ares', 'athena', 'hephaestus', 'iris',
+        'apollo', 'demeter', 'janus', 'nemesis', 'zeus'
+      ];
+      state.adoptedAgents = allAgentIds;
+      
+      // On lance la synchronisation de tous les agents en arrière-plan vers Supabase
+      setTimeout(async () => {
+        try {
+          console.log(`loadUserData: Auto-adoption complète pour l'admin UID ${state.currentUser.uid} dans Supabase...`);
+          for (const agentId of allAgentIds) {
+            const { error: errAdopt } = await supabase
+              .from('adopted_agents')
+              .insert({ user_id: state.currentUser.uid, agent_id: agentId });
+              
+            if (errAdopt && errAdopt.code !== '23505') {
+              console.warn(`Erreur lors de l'auto-adoption de ${agentId}:`, errAdopt);
+              continue;
+            }
+            
+            // Si l'agent a été inséré avec succès, on crée la facture correspondante
+            if (!errAdopt) {
+              const agentMeta = AGENTS.find(a => a.id === agentId);
+              const invoiceNo = "INV-" + Math.floor(100000 + Math.random() * 900000);
+              
+              await supabase
+                .from('invoices')
+                .insert({
+                  user_id: state.currentUser.uid,
+                  invoice_number: invoiceNo,
+                  agent_name: agentMeta ? agentMeta.name : agentId.toUpperCase(),
+                  price: agentMeta ? agentMeta.price : 49,
+                  status: 'Payée'
+                });
+            }
+          }
+        } catch (e) {
+          console.warn("Échec de la synchronisation asynchrone d'auto-adoption de tous les agents :", e);
+        }
+      }, 100);
+    }
+    
     if (state.currentUser) {
       state.currentUser.adopted = state.adoptedAgents;
     }
@@ -1447,6 +1604,22 @@ function setupDashboard() {
       }
     });
   }
+
+  // Événements de recherche dans l'historique
+  const historySearch = document.getElementById('history-search-input');
+  if (historySearch) {
+    historySearch.addEventListener('input', () => {
+      renderHistoryTab();
+    });
+  }
+
+  const clearHistorySearch = document.getElementById('btn-clear-history-search');
+  if (clearHistorySearch) {
+    clearHistorySearch.addEventListener('click', () => {
+      if (historySearch) historySearch.value = '';
+      renderHistoryTab();
+    });
+  }
 }
 
 function renderDashboardSidebar() {
@@ -1502,6 +1675,17 @@ function selectDashboardAgent(agentId) {
   state.activeDashboardAgentId = agentId;
   renderDashboardSidebar();
   renderDashboardPanel();
+
+  // Chargement asynchrone de l'historique et rafraîchissement des messages
+  loadChatHistory(agentId).then(() => {
+    if (state.activeDashboardAgentId === agentId) {
+      if (state.activeDashboardTab === 'chat') {
+        renderChatMessages();
+      } else if (state.activeDashboardTab === 'history') {
+        renderHistoryTab();
+      }
+    }
+  });
 }
 
 function renderDashboardPanel() {
@@ -1537,17 +1721,24 @@ function renderDashboardPanel() {
 
 function renderDashboardTabContent() {
   const tabChat = document.getElementById('tab-chat');
+  const tabHistory = document.getElementById('tab-history');
   const tabConnectors = document.getElementById('tab-connectors');
   const tabStats = document.getElementById('tab-stats');
   
   // Masquer tous les onglets par défaut
   tabChat.classList.remove('active');
+  if (tabHistory) tabHistory.classList.remove('active');
   tabConnectors.classList.remove('active');
   tabStats.classList.remove('active');
   
   if (state.activeDashboardTab === 'chat') {
     tabChat.classList.add('active');
     renderChatMessages();
+  } else if (state.activeDashboardTab === 'history') {
+    if (tabHistory) {
+      tabHistory.classList.add('active');
+      renderHistoryTab();
+    }
   } else if (state.activeDashboardTab === 'connectors') {
     tabConnectors.classList.add('active');
     renderConnectorsForm();
@@ -2028,8 +2219,159 @@ function renderConsoleLogs(agent, getSeededRandom, isConfig) {
 }
 
 // CHAT TAB IN DASHBOARD
-// Store chat history by agentId: { agentId: [{ sender: 'agent'|'user', text: '' }] }
+// Store chat history by agentId: { agentId: [{ sender: 'agent'|'user', text: '', executionLogs: [] }] }
 const chatHistories = {};
+
+// Extraction des journaux d'exécution masqués sous forme de commentaire HTML JSON
+function extractMessageLogs(rawText) {
+  const regex = /<!-- EXECUTION_LOGS_JSON: ([\s\S]*?) -->/;
+  let executionLogs = [];
+  let text = rawText || '';
+  const match = text.match(regex);
+  if (match) {
+    try {
+      executionLogs = JSON.parse(match[1]);
+      text = text.replace(regex, '').trim();
+    } catch (e) {
+      logDebug(`[extractMessageLogs] Erreur de parsing JSON: ${e.message}`);
+    }
+  }
+  return { text, executionLogs };
+}
+
+// Charger l'historique de discussion pour un agent spécifique (Supabase avec repli local)
+async function loadChatHistory(agentId) {
+  const agent = AGENTS.find(a => a.id === agentId);
+  if (!agent) return;
+
+  // Si déjà chargé en mémoire avec plus que le message de bienvenue, on ne recharge pas
+  if (chatHistories[agentId] && chatHistories[agentId].length > 1) {
+    return;
+  }
+
+  // Initialisation par défaut avec le message d'accueil
+  chatHistories[agentId] = [
+    { sender: 'agent', text: agent.welcome, executionLogs: [] }
+  ];
+
+  const uid = state.currentUser ? state.currentUser.uid : null;
+  if (!uid) return;
+
+  if (isMock) {
+    // Mode Simulation/Démo : chargement depuis localStorage
+    const localKey = `cesar_ia_chat_history_${uid}_${agentId}`;
+    const stored = localStorage.getItem(localKey);
+    if (stored) {
+      try {
+        const parsedList = JSON.parse(stored);
+        chatHistories[agentId] = parsedList.map(msg => {
+          const parsed = extractMessageLogs(msg.text);
+          return {
+            sender: msg.sender,
+            text: parsed.text,
+            executionLogs: msg.executionLogs || parsed.executionLogs
+          };
+        });
+      } catch (e) {
+        logDebug(`[loadChatHistory] Erreur de parsing localStorage: ${e.message}`);
+      }
+    }
+  } else {
+    // Mode Connecté Supabase
+    try {
+      logDebug(`[loadChatHistory] Récupération de l'historique dans Supabase pour l'agent: ${agentId}...`);
+      const data = await supabaseFetch('chat_messages', {
+        queryParams: `?user_id=eq.${uid}&agent_id=eq.${agentId}&order=created_at.asc`
+      });
+      if (data && data.length > 0) {
+        chatHistories[agentId] = data.map(msg => {
+          const parsed = extractMessageLogs(msg.text);
+          return {
+            sender: msg.sender,
+            text: parsed.text,
+            executionLogs: parsed.executionLogs
+          };
+        });
+        logDebug(`[loadChatHistory] ${data.length} messages chargés depuis Supabase.`);
+      } else {
+        // Tenter de charger depuis le stockage de repli local si la DB est vide pour cet utilisateur
+        const fallbackKey = `cesar_ia_supabase_fallback_chat_history_${uid}_${agentId}`;
+        const stored = localStorage.getItem(fallbackKey);
+        if (stored) {
+          try {
+            const parsedList = JSON.parse(stored);
+            chatHistories[agentId] = parsedList.map(msg => {
+              const parsed = extractMessageLogs(msg.text);
+              return {
+                sender: msg.sender,
+                text: parsed.text,
+                executionLogs: msg.executionLogs || parsed.executionLogs
+              };
+            });
+            logDebug(`[loadChatHistory] Historique vide dans Supabase, chargement du repli localStorage.`);
+          } catch (e) {}
+        }
+      }
+    } catch (err) {
+      logDebug(`[loadChatHistory] Échec de récupération Supabase (table chat_messages manquante ou erreur), repli local: ${err.message}`);
+      // Repli sur localStorage
+      const fallbackKey = `cesar_ia_supabase_fallback_chat_history_${uid}_${agentId}`;
+      const stored = localStorage.getItem(fallbackKey);
+      if (stored) {
+        try {
+          const parsedList = JSON.parse(stored);
+          chatHistories[agentId] = parsedList.map(msg => {
+            const parsed = extractMessageLogs(msg.text);
+            return {
+              sender: msg.sender,
+              text: parsed.text,
+              executionLogs: msg.executionLogs || parsed.executionLogs
+            };
+          });
+        } catch (e) {}
+      }
+    }
+  }
+}
+
+// Sauvegarder un message dans l'historique (Supabase avec repli local)
+async function saveChatMessage(agentId, sender, text, executionLogs = []) {
+  const uid = state.currentUser ? state.currentUser.uid : null;
+  if (!uid) return;
+
+  // Si on a des logs d'exécution, on les sérialise dans le texte de sauvegarde
+  let dbText = text;
+  if (executionLogs && executionLogs.length > 0) {
+    dbText = text + "\n\n<!-- EXECUTION_LOGS_JSON: " + JSON.stringify(executionLogs) + " -->";
+  }
+
+  if (isMock) {
+    // Mode Simulation/Démo : sauvegarde dans localStorage
+    const localKey = `cesar_ia_chat_history_${uid}_${agentId}`;
+    localStorage.setItem(localKey, JSON.stringify(chatHistories[agentId]));
+  } else {
+    // Mode Connecté Supabase
+    try {
+      logDebug(`[saveChatMessage] Enregistrement du message dans Supabase...`);
+      await supabaseFetch('chat_messages', {
+        method: 'POST',
+        body: {
+          user_id: uid,
+          agent_id: agentId,
+          sender: sender,
+          text: dbText
+        }
+      });
+      logDebug(`[saveChatMessage] Message enregistré avec succès dans Supabase.`);
+    } catch (err) {
+      logDebug(`[saveChatMessage] Échec de l'enregistrement dans Supabase (repli local) : ${err.message}`);
+      // Sauvegarde de repli locale
+      const fallbackKey = `cesar_ia_supabase_fallback_chat_history_${uid}_${agentId}`;
+      localStorage.setItem(fallbackKey, JSON.stringify(chatHistories[agentId]));
+    }
+  }
+}
+
 
 function parseMarkdown(text) {
   if (!text) return "";
@@ -2888,6 +3230,70 @@ function openInvoiceModal(invoiceId) {
   modal.showModal();
 }
 
+function renderExecutionLogsMarkup(executionLogs) {
+  if (!executionLogs || executionLogs.length === 0) return '';
+
+  let html = `<div class="execution-logs-container">`;
+  
+  executionLogs.forEach(log => {
+    const isError = log.result && (log.result.error || (log.result.exitCode !== undefined && log.result.exitCode !== 0));
+    const cardClass = isError ? 'execution-log-card error' : 'execution-log-card success';
+    const statusIcon = isError ? '❌' : '⚡';
+    const statusText = isError ? 'Échec' : 'Succès';
+    
+    // Déterminer le contenu console
+    let consoleContent = '';
+    if (log.result) {
+      if (log.result.error) {
+        consoleContent = `Erreur : ${log.result.error}`;
+      } else if (log.result.stdout !== undefined || log.result.stderr !== undefined) {
+        consoleContent = '';
+        if (log.result.stdout) consoleContent += log.result.stdout;
+        if (log.result.stderr) consoleContent += `\n[Stderr]: ${log.result.stderr}`;
+        if (!consoleContent) consoleContent = `(Aucune sortie, Code de sortie : ${log.result.exitCode})`;
+      } else if (log.result.rows) {
+        consoleContent = `Lignes SQL retournées (${log.result.rowCount} lignes) :\n` + JSON.stringify(log.result.rows, null, 2);
+      } else if (log.result.success) {
+        consoleContent = `Statut : Succès\n` + JSON.stringify(log.result, null, 2);
+      } else {
+        consoleContent = JSON.stringify(log.result, null, 2);
+      }
+    } else {
+      consoleContent = 'Aucun retour reçu.';
+    }
+
+    // Protection contre injection XSS dans le nom de l'outil et les arguments
+    const toolEscaped = String(log.tool || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const argsString = JSON.stringify(log.args || {});
+    const argsEscaped = argsString.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const consoleEscaped = consoleContent.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+    html += `
+      <div class="${cardClass}" style="margin-top: 10px; background: rgba(0,0,0,0.2); border: 1px solid ${isError ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)'}; padding: 12px; border-radius: 6px; font-family: system-ui, sans-serif;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <div style="display: flex; align-items: center; gap: 6px; font-weight: bold; font-size: 0.8rem; color: #fff;">
+            <span>${statusIcon}</span>
+            <span>Outil : ${toolEscaped}</span>
+          </div>
+          <span style="font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; background: ${isError ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)'}; color: ${isError ? '#f87171' : '#34d399'}; font-weight: bold;">
+            ${statusText}
+          </span>
+        </div>
+        <div style="font-size: 0.75rem; color: rgba(255,255,255,0.7); margin-bottom: 6px; word-break: break-word;">
+          <strong>Arguments :</strong> <code style="font-family: monospace; background: rgba(0,0,0,0.15); padding: 1px 4px; border-radius: 3px; font-size: 0.75rem;">${argsEscaped}</code>
+        </div>
+        <details style="font-size: 0.75rem; color: var(--text-secondary); cursor: pointer;">
+          <summary style="outline: none; user-select: none;">▶ Inspecter la console</summary>
+          <pre style="margin-top: 6px; padding: 8px; background: #000; border-radius: 4px; overflow-x: auto; color: #34d399; font-family: monospace; font-size: 0.72rem; max-height: 150px; text-align: left; white-space: pre-wrap; border: 1px solid rgba(255,255,255,0.05);">${consoleEscaped}</pre>
+        </details>
+      </div>
+    `;
+  });
+  
+  html += `</div>`;
+  return html;
+}
+
 function renderChatMessages() {
   const container = document.getElementById('chat-messages-container');
   container.innerHTML = '';
@@ -2898,7 +3304,7 @@ function renderChatMessages() {
   if (!chatHistories[agentId]) {
     // Initial welcome message
     chatHistories[agentId] = [
-      { sender: 'agent', text: agent.welcome }
+      { sender: 'agent', text: agent.welcome, executionLogs: [] }
     ];
   }
   
@@ -2907,13 +3313,76 @@ function renderChatMessages() {
     bubble.className = `message ${msg.sender}`;
     bubble.innerHTML = `
       <div class="msg-avatar">${msg.sender === 'agent' ? agent.avatar : '👤'}</div>
-      <div class="msg-bubble">${parseMarkdown(msg.text)}</div>
+      <div class="msg-bubble">
+        ${parseMarkdown(msg.text)}
+        ${renderExecutionLogsMarkup(msg.executionLogs)}
+      </div>
     `;
     container.appendChild(bubble);
   });
   
   // Auto-scroll to bottom
   container.scrollTop = container.scrollHeight;
+}
+
+function renderHistoryTab() {
+  const container = document.getElementById('history-messages-container');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const agentId = state.activeDashboardAgentId;
+  const agent = AGENTS.find(a => a.id === agentId);
+  if (!agent) return;
+
+  const messages = chatHistories[agentId] || [];
+  const searchInput = document.getElementById('history-search-input');
+  const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+  // Filtrer les messages par mot-clé
+  const filtered = query
+    ? messages.filter(msg => msg.text.toLowerCase().includes(query))
+    : messages;
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 36px; color: var(--text-muted); font-size: 0.9rem;">
+        Aucun message trouvé ${query ? 'pour cette recherche' : "dans l'historique"}.
+      </div>
+    `;
+    return;
+  }
+
+  filtered.forEach(msg => {
+    const isUser = msg.sender === 'user';
+    const messageCard = document.createElement('div');
+    messageCard.className = `history-message-card ${msg.sender}`;
+    messageCard.style.cssText = `
+      display: flex;
+      gap: 12px;
+      padding: 14px 18px;
+      border-radius: 8px;
+      background: ${isUser ? 'rgba(99, 102, 241, 0.08)' : 'rgba(255, 255, 255, 0.02)'};
+      border: 1px solid ${isUser ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255, 255, 255, 0.05)'};
+    `;
+    
+    let contentHtml = parseMarkdown(msg.text);
+    
+    messageCard.innerHTML = `
+      <div class="msg-avatar" style="font-size: 1.1rem; width: 28px; height: 28px; min-width: 28px; border-radius: 6px; background: ${isUser ? 'var(--accent-color)' : 'rgba(255,255,255,0.04)'}; color: white; display: flex; align-items: center; justify-content: center; border: 1px solid ${isUser ? 'transparent' : 'var(--border-color)'};">
+        ${isUser ? '👤' : agent.avatar}
+      </div>
+      <div style="flex: 1;">
+        <div style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 5px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.3px;">
+          ${isUser ? 'Vous (Client)' : agent.name}
+        </div>
+        <div class="history-msg-body" style="font-size: 0.9rem; color: var(--text-primary); line-height: 1.5; word-break: break-word;">
+          ${contentHtml}
+        </div>
+        ${renderExecutionLogsMarkup(msg.executionLogs)}
+      </div>
+    `;
+    container.appendChild(messageCard);
+  });
 }
 
 async function sendChatMessage() {
@@ -2925,9 +3394,12 @@ async function sendChatMessage() {
   const agent = AGENTS.find(a => a.id === agentId);
   
   // Save user message
-  chatHistories[agentId].push({ sender: 'user', text: text });
+  chatHistories[agentId].push({ sender: 'user', text: text, executionLogs: [] });
   renderChatMessages();
   input.value = '';
+  
+  // Persist user message
+  saveChatMessage(agentId, 'user', text, []);
   
   // Show Agent Typing Indicator
   const container = document.getElementById('chat-messages-container');
@@ -2960,17 +3432,30 @@ async function sendChatMessage() {
     try {
       logDebug("[Gemini Chat] Envoi du message à la route Serverless sécurisée...");
       const connectors = state.connectorsData[agentId] || {};
+      
+      let token = null;
+      if (supabase) {
+        try {
+          const { data } = await supabase.auth.getSession();
+          token = data?.session?.access_token;
+        } catch (e) {
+          logDebug(`[Chat] Impossible de récupérer le token: ${e.message}`);
+        }
+      }
+      
       res = await fetch('/api/chat', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
           contents: contents,
           systemInstruction: systemInstruction,
           apiKey: localKey, // Passe la clé locale si elle existe, sinon le backend prendra celle d'environnement
           connectors: connectors,
-          agentName: agent.name
+          agentName: agent.name,
+          agentId: agentId
         })
       });
       
@@ -3029,24 +3514,31 @@ async function sendChatMessage() {
     
     if (res.ok && data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
       const replyText = data.candidates[0].content.parts[0].text;
+      const executionLogs = data.executionLogs || [];
       const finishReason = data.candidates[0]?.finishReason;
       logDebug(`[Gemini API] Réponse reçue avec succès. finishReason: ${finishReason || 'STOP'}`);
       if (finishReason && finishReason !== 'STOP') {
         logDebug(`[Gemini API] Attention: La génération s'est arrêtée avec le motif: ${finishReason}`);
       }
-      chatHistories[agentId].push({ sender: 'agent', text: replyText });
+      chatHistories[agentId].push({ sender: 'agent', text: replyText, executionLogs: executionLogs });
       renderChatMessages();
+      saveChatMessage(agentId, 'agent', replyText, executionLogs);
     } else {
       const errorMsg = data.error?.message || "Erreur de réponse API";
       logDebug(`[Gemini API] Échec de l'appel API: ${errorMsg}. Repli sur la simulation.`);
       throw new Error(errorMsg);
     }
   } catch (err) {
-    logDebug(`[Gemini API] Erreur lors de l'appel: ${err.message}. Bascule en simulation.`);
+    logDebug(`[Gemini API] Erreur lors de l'appel: ${err.message}. Pas de repli simulation.`);
     if (typingMsg) typingMsg.remove();
-    const response = getSimulatedAgentResponse(agent, text);
-    chatHistories[agentId].push({ sender: 'agent', text: response });
+    const errMsg = `❌ **Erreur d'appel API** :\n\n${err.message}\n\nVeuillez vérifier la configuration de la clé API Gemini (\`GEMINI_API_KEY\`) sur le serveur Vercel.`;
+    chatHistories[agentId].push({ 
+      sender: 'agent', 
+      text: errMsg,
+      executionLogs: []
+    });
     renderChatMessages();
+    saveChatMessage(agentId, 'agent', errMsg, []);
   }
 }
 
@@ -3451,6 +3943,7 @@ function renderConnectorsForm() {
   if (!agent) return;
   
   const savedData = state.connectorsData[agentId] || {};
+  const draftData = state.connectorsDrafts[agentId] || {};
   
   // 1. Render Company Profile / Brand Profile Card at the very top of the grid
   const profileCard = document.createElement('div');
@@ -3465,7 +3958,9 @@ function renderConnectorsForm() {
   profileCard.style.flexDirection = 'column';
   profileCard.style.gap = '12px';
   
-  const companyProfile = savedData["Profil de l'Entreprise"] || {};
+  const savedCompanyProfile = savedData["Profil de l'Entreprise"] || {};
+  const draftCompanyProfile = draftData["Profil de l'Entreprise"] || {};
+  const companyProfile = { ...savedCompanyProfile, ...draftCompanyProfile };
   
   // Dynamic parameters based on agent category role
   let profileTitle = "Profil & Thématiques de votre Entreprise";
@@ -3623,8 +4118,18 @@ function renderConnectorsForm() {
     const card = document.createElement('div');
     card.className = 'connector-card';
     
+    const savedConnData = savedData[connector] || {};
+    const draftConnData = draftData[connector] || {};
+    const connectorData = { ...savedConnData, ...draftConnData };
+    
     // Determine status (connected or not)
-    const isConn = savedData[connector] && Object.values(savedData[connector]).some(val => val.length > 0);
+    const isConn = savedData[connector] && Object.values(savedData[connector]).some(val => {
+      if (val === null || val === undefined) return false;
+      if (typeof val === 'string') return val.trim().length > 0;
+      if (typeof val === 'number') return true;
+      if (typeof val === 'boolean') return val;
+      return false;
+    });
     
     let fieldsHtml = '';
     
@@ -3633,37 +4138,50 @@ function renderConnectorsForm() {
       fieldsHtml = `
         <div class="form-group">
           <label>Hôte du Serveur (IP ou Domaine)</label>
-          <input type="text" data-conn="${connector}" data-field="host" value="${savedData[connector]?.host || ''}" placeholder="ex: 192.168.1.100" />
+          <input type="text" data-conn="${connector}" data-field="host" value="${connectorData.host || ''}" placeholder="ex: 192.168.1.100" />
         </div>
         <div class="form-group">
           <label>Utilisateur SSH</label>
-          <input type="text" data-conn="${connector}" data-field="user" value="${savedData[connector]?.user || ''}" placeholder="ex: root" />
+          <input type="text" data-conn="${connector}" data-field="user" value="${connectorData.user || ''}" placeholder="ex: root" />
         </div>
         <div class="form-group">
           <label>Clé Privée SSH ou Mot de Passe</label>
-          <input type="password" data-conn="${connector}" data-field="secret" value="${savedData[connector]?.secret || ''}" placeholder="••••••••••••••" />
+          <input type="password" data-conn="${connector}" data-field="secret" value="${connectorData.secret || ''}" placeholder="••••••••••••••" />
         </div>
       `;
     } else if (connector.includes('PostgreSQL') || connector.includes('MySQL') || connector.includes('BigQuery') || connector.includes('Snowflake') || connector.includes('MongoDB') || connector.includes('Database')) {
       fieldsHtml = `
         <div class="form-group">
           <label>Chaîne de Connexion (URI / Connexion)</label>
-          <input type="text" data-conn="${connector}" data-field="uri" value="${savedData[connector]?.uri || ''}" placeholder="postgresql://user:password@localhost:5432/db" />
+          <input type="text" data-conn="${connector}" data-field="uri" value="${connectorData.uri || ''}" placeholder="postgresql://user:password@localhost:5432/db" />
         </div>
       `;
     } else {
       // Default: API Token, Webhook or SaaS credentials
-      const needsUrl = ['Zendesk', 'Jira', 'WordPress', 'Shopify', 'Webflow', 'Crisp', 'Freshdesk', 'WooCommerce', 'PrestaShop', 'ClickUp', 'Linear', 'Crowdin', 'Phrase', 'Sellsy', 'Axonaut', 'Qonto', 'Spendesk', 'GitBook', 'SharePoint', 'Grafana'].some(term => connector.includes(term));
+      const needsUrl = ['Zendesk', 'Jira', 'WordPress', 'Shopify', 'Webflow', 'Crisp', 'Freshdesk', 'WooCommerce', 'PrestaShop', 'ClickUp', 'Linear', 'Crowdin', 'Phrase', 'Sellsy', 'Axonaut', 'Qonto', 'Spendesk', 'GitBook', 'SharePoint', 'Grafana', 'GitHub', 'Notion', 'Airtable'].some(term => connector.includes(term));
       
+      let domainLabel = "URL du Logiciel (Domaine)";
+      let domainPlaceholder = "https://votre-domaine.com";
+      if (connector.includes('GitHub')) {
+        domainLabel = "Dépôt GitHub (proprietaire/nom-depot)";
+        domainPlaceholder = "proprietaire/nom-depot";
+      } else if (connector.includes('Notion')) {
+        domainLabel = "ID de la Base de Données";
+        domainPlaceholder = "ID de votre base de données";
+      } else if (connector.includes('Airtable')) {
+        domainLabel = "Base & Table Airtable (baseId/nomTable)";
+        domainPlaceholder = "baseId/nomTable";
+      }
+
       fieldsHtml = `
         <div class="form-group">
           <label>${connector.includes('Webhook') ? "URL du Webhook / Clé secrète" : "Clé d'API / Jeton d'Accès"}</label>
-          <input type="password" data-conn="${connector}" data-field="token" value="${savedData[connector]?.token || ''}" placeholder="${connector.includes('Webhook') ? 'https://votre-serveur.com/webhook' : 'sk_live_••••••••••••••••'}" />
+          <input type="password" data-conn="${connector}" data-field="token" value="${connectorData.token || ''}" placeholder="${connector.includes('Webhook') ? 'https://votre-serveur.com/webhook' : 'sk_live_••••••••••••••••'}" />
         </div>
         ${needsUrl ? `
         <div class="form-group">
-          <label>URL du Logiciel (Domaine)</label>
-          <input type="text" data-conn="${connector}" data-field="domain" value="${savedData[connector]?.domain || ''}" placeholder="https://votre-domaine.com" />
+          <label>${domainLabel}</label>
+          <input type="text" data-conn="${connector}" data-field="domain" value="${connectorData.domain || ''}" placeholder="${domainPlaceholder}" />
         </div>
         ` : ''}
       `;
@@ -3712,6 +4230,9 @@ function renderConnectorsForm() {
         
         <div id="${toggleId}" class="connector-fields" style="display: none; margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.04); padding-top: 12px;">
           ${fieldsHtml}
+          <button type="button" onclick="saveConnectors()" class="btn btn-primary" style="width: 100%; margin-top: 12px; font-size: 0.78rem; padding: 8px 12px; background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%); border: none; font-weight: 600;">
+            💾 Valider et Enregistrer la clé
+          </button>
         </div>
       </div>
     `;
@@ -3727,6 +4248,27 @@ function renderConnectorsForm() {
   if (disconnectBtn) {
     disconnectBtn.style.display = isAgentConfigured(agentId) ? 'block' : 'none';
   }
+
+  // Écouter les modifications réactives pour sauvegarder dans les brouillons de saisie (Phase F)
+  const formInputs = formGrid.querySelectorAll('input, textarea, select');
+  formInputs.forEach(input => {
+    const handler = (e) => {
+      const conn = e.target.getAttribute('data-conn');
+      const field = e.target.getAttribute('data-field');
+      const val = e.target.value;
+      if (!conn || !field) return;
+      
+      if (!state.connectorsDrafts[agentId]) {
+        state.connectorsDrafts[agentId] = {};
+      }
+      if (!state.connectorsDrafts[agentId][conn]) {
+        state.connectorsDrafts[agentId][conn] = {};
+      }
+      state.connectorsDrafts[agentId][conn][field] = val;
+    };
+    input.addEventListener('input', handler);
+    input.addEventListener('change', handler);
+  });
 }
 
 function getConnectorEmoji(conn) {
@@ -3793,6 +4335,11 @@ async function saveConnectors() {
     }
   }
   
+  // Nettoyer les brouillons temporaires puisque les données sont maintenant officiellement sauvegardées
+  if (state.connectorsDrafts[agentId]) {
+    delete state.connectorsDrafts[agentId];
+  }
+
   // Re-render status dots in sidebar and reload connectors display
   renderDashboardSidebar();
   renderConnectorsForm();
@@ -5004,78 +5551,59 @@ function displayAdminData(users, adoptions) {
 }
 
 // =================================================================
-//  OAUTH EXPRESS CONNECTION & REDIRECT SIMULATION (UX PREMIUM)
+//  REAL OAUTH2 CONNECTION & TECHNICAL CREDENTIALS MODAL
 // =================================================================
 
-// Simulated SMS Notification Helper (Mimics Mobile Lock Screen SMS Toast)
-window.triggerSimulatedSMSNotification = function() {
-  const existing = document.querySelector('.simulated-sms-toast');
-  if (existing) existing.remove();
-  
-  const sms = document.createElement('div');
-  sms.className = 'simulated-sms-toast';
-  sms.style.cssText = `
-    position: fixed;
-    top: 24px;
-    left: 50%;
-    transform: translateX(-50%) translateY(-150px);
-    width: 90%;
-    max-width: 380px;
-    background: rgba(15, 15, 20, 0.95);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    box-shadow: 0 15px 40px rgba(0,0,0,0.6);
-    border-radius: 14px;
-    padding: 14px 18px;
-    z-index: 20000;
-    display: flex;
-    gap: 12px;
-    align-items: center;
-    backdrop-filter: blur(25px);
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    transition: transform 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s;
-    box-sizing: border-box;
-    opacity: 0;
-  `;
-  
-  sms.innerHTML = `
-    <div style="width: 38px; height: 38px; background: rgba(37, 211, 102, 0.15); border: 1px solid #25d366; color: #25d366; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0; box-shadow: 0 0 10px rgba(37, 211, 102, 0.2);">💬</div>
-    <div style="flex: 1; text-align: left;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
-        <span style="font-size: 0.72rem; font-weight: 700; color: #fff; text-transform: uppercase; letter-spacing: 0.5px;">💬 Messages • SMS</span>
-        <span style="font-size: 0.65rem; color: var(--text-muted);">À l'instant</span>
-      </div>
-      <p style="font-size: 0.78rem; color: #f4f4f7; margin: 0; line-height: 1.4;">
-        <strong>César-IA</strong> : Votre code de vérification à usage unique est <strong style="color: #25d366; font-family: var(--font-mono); font-size: 0.82rem; letter-spacing: 0.5px; border-bottom: 1px dashed #25d366; padding-bottom: 1px;">842910</strong>.
-      </p>
-    </div>
-  `;
-  
-  document.body.appendChild(sms);
-  
-  // Animate Down
-  setTimeout(() => {
-    sms.style.transform = 'translateX(-50%) translateY(0)';
-    sms.style.opacity = '1';
-  }, 100);
-  
-  // Auto Dismiss
-  setTimeout(() => {
-    sms.style.transform = 'translateX(-50%) translateY(-150px)';
-    sms.style.opacity = '0';
-    setTimeout(() => sms.remove(), 450);
-  }, 7000);
-  
-  showToast("Simulé : Code OTP envoyé par SMS !", "success");
-};
-
-window.startOauthSimulation = function(agentId, connector) {
-  // Save body overflow to prevent scrollbars
+window.startOauthSimulation = async function(agentId, connector) {
+  // Prevent body overflow
   document.body.style.overflow = 'hidden';
   
-  const isServer = connector.includes('SSH') || connector.includes('PostgreSQL') || connector.includes('MySQL') || connector.includes('Database') || connector.includes('Server') || connector.includes('SQL');
-  const isPhoneAuth = connector.includes('WhatsApp') || connector.includes('Telegram') || connector.includes('Twilio') || connector.includes('SMS') || connector.includes('WeChat') || connector.includes('Viber') || connector.includes('Lydia') || connector.includes('Messenger API');
+  const connLower = connector.toLowerCase();
+  
+  // 1. Check if it's a technical connector (SSH, databases)
+  const isTechnical = connLower.includes('ssh') || 
+                      connLower.includes('server') || 
+                      connLower.includes('serveur') || 
+                      connLower.includes('sql') || 
+                      connLower.includes('postgres') || 
+                      connLower.includes('mysql') || 
+                      connLower.includes('mongodb') || 
+                      connLower.includes('database') || 
+                      connLower.includes('snowflake') || 
+                      connLower.includes('bigquery') ||
+                      connLower.includes('mariadb');
+  
+  if (isTechnical) {
+    // Show technical modal to enter real credentials
+    showTechnicalCredentialsModal(agentId, connector);
+  } else {
+    // SaaS Connector / OAuth2
+    // Some connectors need user input first (Shopify, Zendesk, Notion, Airtable, GitHub)
+    const needsDomain = connLower.includes('shopify') || connLower.includes('zendesk');
+    const needsRepo = connLower.includes('github') || connLower.includes('gitlab');
+    const needsBase = connLower.includes('airtable') || connLower.includes('notion');
+    
+    if (needsDomain || needsRepo || needsBase) {
+      showSubdomainOrRepoModal(agentId, connector);
+    } else {
+      // Direct OAuth
+      await initiateRealOauth(agentId, connector);
+    }
+  }
+};
 
-  // Trigger loading screen "Redirection..."
+window.closeOauthSimulation = function() {
+  document.body.style.overflow = '';
+  const styles = document.getElementById('oauth-mockup-styles');
+  if (styles) styles.remove();
+  
+  const overlay = document.querySelector('.oauth-modal-overlay');
+  if (overlay) {
+    overlay.remove();
+  }
+};
+
+function createModalOverlay(title, contentHtml) {
   const overlay = document.createElement('div');
   overlay.className = 'oauth-modal-overlay';
   overlay.style.cssText = `
@@ -5084,630 +5612,381 @@ window.startOauthSimulation = function(agentId, connector) {
     left: 0;
     right: 0;
     bottom: 0;
-    background: #000000;
+    background: rgba(9, 9, 11, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     z-index: 100000;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: #fff;
+    padding: 20px;
+    box-sizing: border-box;
+  `;
+
+  overlay.innerHTML = `
+    <div class="glass-modal" style="width: 100%; max-width: 480px; background: rgba(22, 22, 28, 0.75); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); overflow: hidden; display: flex; flex-direction: column; animation: modalFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);">
+      <!-- Header -->
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.06);">
+        <h3 style="font-size: 1.1rem; font-weight: 700; margin: 0; background: linear-gradient(135deg, #fff 0%, #a5a5ab 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">${title}</h3>
+        <button onclick="closeOauthSimulation()" style="background: transparent; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer; line-height: 1; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--text-muted)'">&times;</button>
+      </div>
+      <!-- Body -->
+      <div id="oauth-modal-body" style="padding: 24px; max-height: 70vh; overflow-y: auto;">
+        ${contentHtml}
+      </div>
+    </div>
+    <style>
+      @keyframes modalFadeIn {
+        from { opacity: 0; transform: scale(0.95) translateY(10px); }
+        to { opacity: 1; transform: scale(1) translateY(0); }
+      }
+      .glass-modal input, .glass-modal textarea, .glass-modal select {
+        width: 100%;
+        background: rgba(0,0,0,0.3);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        padding: 10px 14px;
+        color: #fff;
+        font-size: 0.88rem;
+        margin-top: 6px;
+        margin-bottom: 16px;
+        outline: none;
+        box-sizing: border-box;
+        transition: border-color 0.2s, box-shadow 0.2s;
+      }
+      .glass-modal input:focus, .glass-modal textarea:focus, .glass-modal select:focus {
+        border-color: #a855f7;
+        box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.2);
+      }
+      .glass-modal label {
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        display: block;
+        text-align: left;
+      }
+      .glass-modal .btn {
+        padding: 10px 20px;
+        font-weight: 600;
+        font-size: 0.88rem;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+      }
+    </style>
+  `;
+  document.body.appendChild(overlay);
+}
+
+function showTechnicalCredentialsModal(agentId, connector) {
+  const connLower = connector.toLowerCase();
+  const isSsh = connLower.includes('ssh') || connLower.includes('server') || connLower.includes('serveur');
+  
+  let fieldsHtml = '';
+  if (isSsh) {
+    fieldsHtml = `
+      <div class="form-group">
+        <label>Hôte SSH (IP ou Nom de domaine)</label>
+        <input type="text" id="tech-host" placeholder="ex: 192.168.1.100" required />
+      </div>
+      <div class="form-group">
+        <label>Nom d'utilisateur</label>
+        <input type="text" id="tech-user" placeholder="ex: root, ubuntu" required />
+      </div>
+      <div class="form-group">
+        <label>Clé Privée (RSA / ED25519) ou Mot de passe</label>
+        <textarea id="tech-secret" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----&#10;..." rows="4" style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 10px 14px; color: #fff; font-size: 0.75rem; margin-top: 6px; margin-bottom: 16px; outline: none; box-sizing: border-box; font-family: var(--font-mono); resize: vertical; height: 100px;" required></textarea>
+      </div>
+    `;
+  } else {
+    // Database (PostgreSQL, MySQL, etc.)
+    fieldsHtml = `
+      <div class="form-group">
+        <label>Chaîne de Connexion de la Base de Données (URI)</label>
+        <input type="text" id="tech-uri" placeholder="postgresql://user:password@host:5432/database" required />
+      </div>
+    `;
+  }
+
+  const contentHtml = `
+    <form id="oauth-tech-form" style="text-align: left;">
+      <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.45;">
+        Veuillez renseigner les paramètres de connexion sécurisés pour le connecteur <strong>${connector}</strong>.
+      </p>
+      ${fieldsHtml}
+      <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+        <button type="button" onclick="closeOauthSimulation()" class="btn" style="background: rgba(255,255,255,0.05); color: #fff; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none;">Annuler</button>
+        <button type="submit" class="btn" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #fff; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none;">Enregistrer et Activer 🔒</button>
+      </div>
+    </form>
+  `;
+
+  createModalOverlay(`Connexion Sécurisée : ${connector}`, contentHtml);
+
+  document.getElementById('oauth-tech-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    // Find the toggle form in the DOM and fill it
+    const toggleId = `toggle-${agentId}-${connector.replace(/[^a-zA-Z0-9]/g, '')}`;
+    const toggleDiv = document.getElementById(toggleId);
+    
+    if (toggleDiv) {
+      if (isSsh) {
+        const hostVal = document.getElementById('tech-host').value.trim();
+        const userVal = document.getElementById('tech-user').value.trim();
+        const secretVal = document.getElementById('tech-secret').value.trim();
+        
+        const hostInput = toggleDiv.querySelector(`input[data-field="host"]`);
+        const userInput = toggleDiv.querySelector(`input[data-field="user"]`);
+        const secretInput = toggleDiv.querySelector(`input[data-field="secret"]`);
+        
+        if (hostInput) hostInput.value = hostVal;
+        if (userInput) userInput.value = userVal;
+        if (secretInput) secretInput.value = secretVal;
+      } else {
+        const uriVal = document.getElementById('tech-uri').value.trim();
+        const uriInput = toggleDiv.querySelector(`input[data-field="uri"]`);
+        if (uriInput) uriInput.value = uriVal;
+      }
+      
+      // Save
+      await saveConnectors();
+      closeOauthSimulation();
+    } else {
+      showToast("Formulaire de configuration introuvable pour ce connecteur.", "error");
+      closeOauthSimulation();
+    }
+  });
+}
+
+function showSubdomainOrRepoModal(agentId, connector) {
+  const connLower = connector.toLowerCase();
+  let labelText = "Nom du sous-domaine / URL";
+  let placeholderText = "ex: mon-entreprise";
+  let descText = "Saisissez les informations demandées par le fournisseur pour démarrer le processus d'authentification officielle.";
+
+  if (connLower.includes('shopify')) {
+    labelText = "Nom de votre boutique Shopify";
+    placeholderText = "ex: ma-boutique.myshopify.com ou boutique-name";
+    descText = "Saisissez le sous-domaine de votre boutique Shopify pour être redirigé vers l'écran d'autorisation d'application.";
+  } else if (connLower.includes('zendesk')) {
+    labelText = "Sous-domaine Zendesk";
+    placeholderText = "ex: mon-entreprise";
+    descText = "Saisissez le sous-domaine de votre instance Zendesk.";
+  } else if (connLower.includes('github') || connLower.includes('gitlab')) {
+    labelText = "Dépôt (propriétaire/nom-dépôt)";
+    placeholderText = "ex: cesar-ia/plateforme-agents-ia";
+    descText = "Indiquez le dépôt ciblé pour l'agent avant d'initier la redirection OAuth.";
+  } else if (connLower.includes('notion')) {
+    labelText = "ID de la Base de Données Notion (Optionnel)";
+    placeholderText = "ex: 4a25b16...";
+    descText = "Permet de cibler une base de données spécifique. Laissez vide pour connecter tout votre espace de travail.";
+  } else if (connLower.includes('airtable')) {
+    labelText = "Base & Table Airtable (baseId/nomTable)";
+    placeholderText = "ex: app12345678/Commandes";
+    descText = "Format requis : ID de la base Airtable, suivi d'un slash, puis le nom exact de la table.";
+  }
+
+  const contentHtml = `
+    <form id="oauth-pre-auth-form" style="text-align: left;">
+      <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.45;">
+        ${descText}
+      </p>
+      <div class="form-group">
+        <label style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary);">${labelText}</label>
+        <input type="text" id="pre-auth-input" placeholder="${placeholderText}" required style="width: 100%;" />
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+        <button type="button" onclick="closeOauthSimulation()" class="btn" style="background: rgba(255,255,255,0.05); color: #fff; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none;">Annuler</button>
+        <button type="submit" class="btn" style="background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%); color: #fff; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none;">Démarrer la connexion ⚡</button>
+      </div>
+    </form>
+  `;
+
+  createModalOverlay(`Configuration ${connector}`, contentHtml);
+
+  document.getElementById('oauth-pre-auth-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const val = document.getElementById('pre-auth-input').value.trim();
+    if (!val) return;
+    
+    // Save to the UI field in the connectors form grid so it persists
+    const toggleId = `toggle-${agentId}-${connector.replace(/[^a-zA-Z0-9]/g, '')}`;
+    const toggleDiv = document.getElementById(toggleId);
+    if (toggleDiv) {
+      const domInput = toggleDiv.querySelector(`input[data-field="domain"]`);
+      if (domInput) {
+        domInput.value = val;
+        domInput.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }
+    
+    // Launch OAuth
+    await initiateRealOauth(agentId, connector, val);
+  });
+}
+
+async function initiateRealOauth(agentId, connector, domainValue = null) {
+  // Show premium loading screen
+  const modalOverlay = document.querySelector('.oauth-modal-overlay') || document.createElement('div');
+  modalOverlay.className = 'oauth-modal-overlay';
+  modalOverlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(9, 9, 11, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     color: #fff;
   `;
   
-  overlay.innerHTML = `
-    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; animation: zoomIn 0.2s ease-out;">
-      <span class="spinner" style="width: 44px; height: 44px; border: 3px solid rgba(255,255,255,0.1); border-top-color: #8ab4f8; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px;"></span>
-      <h4 style="font-size: 1.05rem; font-weight: 500; margin-bottom: 8px; color: #fff;">Redirection vers accounts.google.com...</h4>
-      <p style="font-size: 0.85rem; color: #9aa0a6; margin: 0;">Établissement du tunnel SSO sécurisé</p>
+  modalOverlay.innerHTML = `
+    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; animation: zoomIn 0.2s ease-out; padding: 24px;">
+      <span class="spinner" style="width: 44px; height: 44px; border: 3px solid rgba(255,255,255,0.1); border-top-color: #a855f7; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px;"></span>
+      <h4 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 8px; color: #fff;">Redirection sécurisée...</h4>
+      <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0; max-width: 320px; line-height: 1.4;">Connexion officielle en cours avec ${connector} via tunnel SSL chiffré.</p>
     </div>
     <style>
       @keyframes spin {
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
       }
+      @keyframes zoomIn {
+        from { transform: scale(0.95); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+      }
     </style>
   `;
-  
-  document.body.appendChild(overlay);
-  
-  setTimeout(() => {
-    // 1. Simulate Google OAuth URL redirection in browser address bar
-    try {
-      history.pushState(null, '', `?oauth=google-login&service=${encodeURIComponent(connector)}&client_id=cesar-ia-auth-sso`);
-    } catch(e) {}
-    
-    // Inject custom stylesheet for hover animations
-    const styleBlock = document.createElement('style');
-    styleBlock.id = 'oauth-mockup-styles';
-    styleBlock.innerHTML = `
-      .safari-tab:hover {
-        background: rgba(255,255,255,0.06) !important;
-        color: #fff !important;
-      }
-      .safari-tab.active {
-        background: #131314 !important;
-        color: #ffffff !important;
-        border: 1px solid rgba(255,255,255,0.06) !important;
-        border-bottom: none !important;
-      }
-      .google-account-row:hover {
-        background: rgba(255,255,255,0.04) !important;
-      }
-      .google-link:hover {
-        text-decoration: underline !important;
-      }
-      .google-btn:hover {
-        opacity: 0.9 !important;
-      }
-      .safari-tabs-list::-webkit-scrollbar {
-        display: none;
-      }
-    `;
-    document.head.appendChild(styleBlock);
-    
-    // 2. Render Safari + Google accounts screen
-    const ACCOUNTS = [
-      { name: "cheraiti manel", email: "manel.cheraiti@gmail.com", initial: "c", bg: "#e67e22", status: "" },
-      { name: "mamadou-saliou koulibaly", email: "mamadousaliouk8@gmail.com", initial: "m", bg: "#2ecc71", status: "" },
-      { name: "cheraiti manel", email: "contact@xn--csar-ia-bya.com", initial: "c", bg: "#7f8c8d", status: "Déconnecté" },
-      { name: "cheraiti manel", email: "contact@cesar-ia.com", initial: "c", bg: "#d35400", status: "" },
-      { name: "S&M Car", email: "sm.rent93@gmail.com", initial: "s", bg: "#27ae60", status: "Déconnecté" },
-      { name: "Mohamed Doucoure", email: "doucouremohamed016@gmail.com", initial: "m", bg: "#8e44ad", status: "Déconnecté" },
-      { name: "DA jdbud", email: "logiciel.dystinctagency@gmail.com", initial: "d", bg: "#c0392b", status: "Déconnecté" },
-      { name: "mamadou koulibaly", email: "kouli.madou@gmail.com", initial: "m", bg: "#2980b9", status: "" }
-    ];
-
-    let accountsListHtml = ACCOUNTS.map((acc) => {
-      const isDisconnected = acc.status === "Déconnecté";
-      return `
-        <div onclick="selectOauthAccount('${agentId}', '${connector.replace(/'/g, "\\'")}', '${acc.name.replace(/'/g, "\\'")}', '${acc.email.replace(/'/g, "\\'")}')" class="google-account-row" style="display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-radius:12px; cursor:pointer; transition:background 0.2s; border-bottom:1px solid rgba(255,255,255,0.03);" onmouseover="this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.background='transparent'">
-          <div style="display:flex; align-items:center; gap:16px;">
-            <!-- Avatar Circle -->
-            <div style="width:34px; height:34px; border-radius:50%; background:${acc.bg}; display:flex; align-items:center; justify-content:center; font-size:0.95rem; font-weight:bold; color:#fff; text-transform:uppercase; font-family:var(--font-sans);">
-              ${acc.initial}
-            </div>
-            <!-- Name & Email Info -->
-            <div style="display:flex; flex-direction:column; text-align:left; font-family:var(--font-sans);">
-              <span style="font-size:0.88rem; font-weight:500; color:#fff; line-height:1.25;">${acc.name}</span>
-              <span style="font-size:0.75rem; color:#9aa0a6;">${acc.email}</span>
-            </div>
-          </div>
-          <!-- Status Badge -->
-          ${isDisconnected ? `<span style="font-size:0.72rem; color:#9aa0a6; font-weight:400; padding:2px 6px; font-family:var(--font-sans);">Déconnecté</span>` : ''}
-        </div>
-      `;
-    }).join('');
-
-    overlay.style.justifyContent = 'flex-start';
-    overlay.style.alignItems = 'stretch';
-    overlay.innerHTML = `
-      <!-- Safari Browser Chrome Mockup -->
-      <div class="safari-browser-chrome" style="width: 100%; height: 76px; background: #252526; border-bottom: 1px solid #1a1a1b; display: flex; flex-direction: column; justify-content: space-between; padding-top: 6px; box-sizing: border-box; user-select: none;">
-        <!-- Tab Bar Row -->
-        <div style="display: flex; align-items: center; padding: 0 12px; height: 32px; width: 100%; box-sizing: border-box; overflow: hidden;">
-          <!-- MacOS window controls -->
-          <div style="display: flex; gap: 8px; margin-right: 20px; align-items: center; width: 60px; flex-shrink: 0;">
-            <div onclick="closeOauthSimulation()" style="width: 12px; height: 12px; border-radius: 50%; background: #ff5f56; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 7px; color: rgba(0,0,0,0.4);" onmouseover="this.textContent='×'" onmouseout="this.textContent=''"></div>
-            <div style="width: 12px; height: 12px; border-radius: 50%; background: #ffbd2e;"></div>
-            <div style="width: 12px; height: 12px; border-radius: 50%; background: #27c93f;"></div>
-          </div>
-          
-          <!-- Tab items -->
-          <div style="display: flex; gap: 4px; overflow-x: auto; flex: 1; height: 32px; align-items: flex-end; scrollbar-width: none;" class="safari-tabs-list">
-            <div class="safari-tab" style="display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 26px; border-radius: 6px 6px 0 0; background: rgba(255,255,255,0.03); font-size: 0.7rem; color: #8c8c8e; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0;">
-              <span style="color: #4cd964; font-size: 9px;">⚡</span> RLS Policies...
-            </div>
-            <div class="safari-tab" style="display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 26px; border-radius: 6px 6px 0 0; background: rgba(255,255,255,0.03); font-size: 0.7rem; color: #8c8c8e; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0;">
-              <span style="color: #fff; font-size: 9px;">▲</span> plateforme-a...
-            </div>
-            <div class="safari-tab" style="display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 26px; border-radius: 6px 6px 0 0; background: rgba(255,255,255,0.03); font-size: 0.7rem; color: #8c8c8e; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0;">
-              <span style="color: #635bff; font-size: 9px;">💳</span> Payment Link...
-            </div>
-            <div class="safari-tab" style="display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 26px; border-radius: 6px 6px 0 0; background: rgba(255,255,255,0.03); font-size: 0.7rem; color: #8c8c8e; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0;">
-              <span style="color: #fff; font-size: 9px;">🐙</span> mamadousali...
-            </div>
-            <div class="safari-tab" style="display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 26px; border-radius: 6px 6px 0 0; background: rgba(255,255,255,0.03); font-size: 0.7rem; color: #8c8c8e; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0;">
-              <span style="font-size: 9px;">🤖</span> César-IA
-            </div>
-            <div class="safari-tab" style="display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 26px; border-radius: 6px 6px 0 0; background: rgba(255,255,255,0.03); font-size: 0.7rem; color: #8c8c8e; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0;">
-              <span style="color: #ffcc00; font-size: 9px;">🔑</span> API keys | Go...
-            </div>
-            <div class="safari-tab" style="display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 26px; border-radius: 6px 6px 0 0; background: rgba(255,255,255,0.03); font-size: 0.7rem; color: #8c8c8e; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0;">
-              <span style="font-size: 9px;">🤖</span> César-IA - Pla...
-            </div>
-            <div class="safari-tab" style="display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 26px; border-radius: 6px 6px 0 0; background: rgba(255,255,255,0.03); font-size: 0.7rem; color: #8c8c8e; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0;">
-              <span style="font-size: 9px;">📄</span> Accroche CV...
-            </div>
-            <div class="safari-tab" style="display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 26px; border-radius: 6px 6px 0 0; background: rgba(255,255,255,0.03); font-size: 0.7rem; color: #8c8c8e; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0;">
-              <span style="font-size: 9px;">G</span> Connexion : c...
-            </div>
-            <div class="safari-tab" style="display: flex; align-items: center; gap: 6px; padding: 0 12px; height: 26px; border-radius: 6px 6px 0 0; background: rgba(255,255,255,0.03); font-size: 0.7rem; color: #8c8c8e; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0;">
-              <span style="color: #ff2d55; font-size: 9px;">★</span> Feed | Missio...
-            </div>
-            <!-- Active tab mimicking screenshot exactly! -->
-            <div class="safari-tab active" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 14px; height: 28px; border-radius: 6px 6px 0 0; background: #131314; font-size: 0.74rem; color: #ffffff; min-width: 130px; overflow: hidden; flex-shrink: 0; box-shadow: 0 -2px 10px rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05); border-bottom: none; font-weight: 500;">
-              <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                <!-- Small colored Google 'G' icon -->
-                <svg style="width: 11px; height: 11px; flex-shrink: 0;" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z"/>
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                </svg>
-                <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Connexion : c...</span>
-              </div>
-              <span onclick="closeOauthSimulation()" style="font-size: 9px; cursor: pointer; color: #8c8c8e; font-weight: bold; width: 12px; height: 12px; display: flex; align-items: center; justify-content: center; border-radius: 50%;" onmouseover="this.style.background='rgba(255,255,255,0.1)'; this.style.color='#fff';" onmouseout="this.style.background='transparent'; this.style.color='#8c8c8e';">✕</span>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Address Bar Row -->
-        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 16px 6px 16px; height: 38px; width: 100%; box-sizing: border-box;">
-          <!-- Left Navigation Items -->
-          <div style="display: flex; align-items: center; gap: 16px; width: 110px; flex-shrink: 0;">
-            <span style="color: #8c8c8e; font-size: 0.95rem; cursor: pointer;">▤</span>
-            <span style="color: rgba(255,255,255,0.2); font-size: 0.95rem; font-weight: bold;">&lt;</span>
-            <span style="color: rgba(255,255,255,0.2); font-size: 0.95rem; font-weight: bold;">&gt;</span>
-          </div>
-          
-          <!-- Address Input -->
-          <div id="safari-address-bar" style="flex: 1; max-width: 680px; height: 28px; background: #1c1c1e; border: 1px solid rgba(255,255,255,0.06); border-radius: 9px; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 0.76rem; color: #fff; cursor: default; user-select: none; position: relative;">
-            <svg style="width: 10px; height: 10px; fill: #8c8c8e;" viewBox="0 0 24 24">
-              <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
-            </svg>
-            <span style="font-weight: 400; color: #ffffff; letter-spacing: 0.1px;">accounts.google.com</span>
-            <span style="position: absolute; right: 10px; color: #8c8c8e; font-size: 0.72rem; cursor: pointer;" onmouseover="this.style.color='#fff';" onmouseout="this.style.color='#8c8c8e';">↻</span>
-          </div>
-          
-          <!-- Right Utilities -->
-          <div style="display: flex; align-items: center; justify-content: flex-end; gap: 16px; width: 110px; flex-shrink: 0; color: #8c8c8e;">
-            <svg style="width: 14px; height: 14px; fill: currentColor; cursor: pointer;" viewBox="0 0 24 24">
-              <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/>
-            </svg>
-            <span style="font-size: 1.15rem; font-weight: 300; cursor: pointer; line-height: 1;">+</span>
-            <svg style="width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.8; cursor: pointer;" viewBox="0 0 24 24">
-              <rect x="3" y="9" width="12" height="12" rx="2"></rect>
-              <path d="M9 9V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-4"></path>
-            </svg>
-          </div>
-        </div>
-      </div>
-
-      <!-- Viewport content area (simulated browser viewport) -->
-      <div id="oauth-safari-content-area" style="flex: 1; width: 100%; background: #131314; overflow-y: auto; display: flex; flex-direction: column; box-sizing: border-box;">
-        
-        <!-- Google Accounts native header -->
-        <div style="height: 48px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; padding: 0 24px; box-sizing: border-box; justify-content: flex-start; gap: 8px;">
-          <svg style="width:16px; height:16px;" viewBox="0 0 24 24">
-            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z"/>
-            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z"/>
-          </svg>
-          <span style="font-size: 0.78rem; color: #fff; font-weight: 500; font-family: Roboto, Arial, sans-serif;">Se connecter avec Google</span>
-        </div>
-
-        <!-- Google Accounts main container -->
-        <div style="flex: 1; display: flex; align-items: flex-start; justify-content: center; width: 100%; max-width: 900px; margin: 0 auto; padding: 50px 24px; box-sizing: border-box; gap: 50px;">
-          
-          <!-- Left Column (Branding & Application) -->
-          <div style="width: 40%; display: flex; flex-direction: column; text-align: left; box-sizing: border-box;">
-            <!-- Purple Make logo in deep purple square -->
-            <div style="width: 46px; height: 46px; background: #68217a; border-radius: 9px; display: flex; align-items: center; justify-content: center; margin-bottom: 24px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); flex-shrink: 0;">
-              <!-- Custom high fidelity stylized César laurel white icon -->
-              <span style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.4rem; color: #fff;">C</span>
-            </div>
-            
-            <h2 style="font-size: 2.1rem; font-weight: 400; color: #fff; margin: 0 0 12px 0; font-family: 'Google Sans', Roboto, sans-serif; line-height: 1.25; letter-spacing: -0.4px;">Sélectionnez un compte</h2>
-            <p style="font-size: 0.9rem; color: #e3e3e3; margin: 0; font-family: Roboto, Arial, sans-serif;">
-              Accéder à l'application <a class="google-link" href="#" style="color: #8ab4f8; text-decoration: none; font-weight: 500;">César-IA</a>
-            </p>
-          </div>
-
-          <!-- Right Column (Accounts List) -->
-          <div style="flex: 1.2; display: flex; flex-direction: column; box-sizing: border-box;">
-            <!-- Accounts scroll container -->
-            <div style="border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; background: rgba(255,255,255,0.01); max-height: 380px; overflow-y: auto; display: flex; flex-direction: column; padding: 4px;">
-              ${accountsListHtml}
-              
-              <!-- Use another account -->
-              <div onclick="runCustomOauthEmailInput('${agentId}', '${connector.replace(/'/g, "\\'")}')" class="google-account-row" style="display:flex; align-items:center; gap:16px; padding:14px 18px; border-radius:12px; cursor:pointer; transition:background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.background='transparent'">
-                <div style="width:34px; height:34px; border:1px solid rgba(255,255,255,0.15); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1rem; color:#9aa0a6; background:rgba(255,255,255,0.02); font-family:var(--font-sans);">👤</div>
-                <div style="display:flex; flex-direction:column; text-align:left; font-family:var(--font-sans);">
-                  <span style="font-size:0.88rem; font-weight:500; color:#fff; line-height:1.25;">Utiliser un autre compte</span>
-                  <span style="font-size:0.75rem; color:#9aa0a6;">(Connecter réellement LinkedIn)</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Footer terms -->
-            <div style="font-size: 0.74rem; color: #70757a; margin-top: 32px; line-height: 1.5; font-family: Roboto, Arial, sans-serif; text-align: left;">
-              Avant d'utiliser l'appli César-IA, vous pouvez consulter ses <a class="google-link" href="#" style="color:#8ab4f8; text-decoration:none;">Règles de confidentialité</a> et ses <a class="google-link" href="#" style="color:#8ab4f8; text-decoration:none;">Conditions d'utilisation</a>.
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-  }, 900);
-};
-
-window.closeOauthSimulation = function() {
-  // Restore body scroll
-  document.body.style.overflow = '';
-  
-  const styles = document.getElementById('oauth-mockup-styles');
-  if (styles) styles.remove();
-  
-  const overlay = document.querySelector('.oauth-modal-overlay');
-  if (overlay) {
-    try {
-      history.pushState(null, '', '?oauth_callback=cancel');
-    } catch(e) {}
-    overlay.remove();
-  }
-};
-
-window.runCustomOauthEmailInput = function(agentId, connector) {
-  const contentArea = document.getElementById('oauth-safari-content-area');
-  if (!contentArea) return;
-  
-  const isLinkedIn = connector.includes('LinkedIn');
-
-  contentArea.innerHTML = `
-    <!-- Google Accounts native header -->
-    <div style="height: 48px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; padding: 0 24px; box-sizing: border-box; justify-content: flex-start; gap: 8px;">
-      <svg style="width:16px; height:16px;" viewBox="0 0 24 24">
-        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z"/>
-        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z"/>
-      </svg>
-      <span style="font-size: 0.78rem; color: #fff; font-weight: 500; font-family: Roboto, Arial, sans-serif;">Se connecter avec Google</span>
-    </div>
-
-    <!-- Google input card -->
-    <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px 24px; box-sizing: border-box;">
-      <div style="width:100%; max-width:440px; background:#0f0f11; border:1px solid rgba(255,255,255,0.06); border-radius:24px; padding:36px; box-shadow:0 15px 45px rgba(0,0,0,0.5); display:flex; flex-direction:column; box-sizing:border-box; color:#e3e3e3; font-family:Roboto, Arial, sans-serif; text-align:left; animation: zoomIn 0.2s ease-out;">
-        <h3 style="font-size:1.4rem; font-weight:400; color:#fff; margin:0 0 6px 0; font-family:'Google Sans', Roboto, sans-serif;">${isLinkedIn ? 'Connexion Réelle LinkedIn' : 'Se connecter'}</h3>
-        <p style="font-size:0.85rem; color:#9aa0a6; margin:0 0 24px 0;">${isLinkedIn ? 'Associer votre profil personnel LinkedIn en direct' : 'Utiliser votre compte Google'}</p>
-        
-        <div style="display:flex; flex-direction:column; gap:18px; margin-bottom:28px;">
-          <div style="display:flex; flex-direction:column; gap:6px;">
-            <label style="font-size:0.75rem; color:#8ab4f8; font-weight:700; letter-spacing:0.5px;">${isLinkedIn ? "JETON D'ACCÈS LINKEDIN (ACCESS TOKEN)" : "ADRESSE E-MAIL OU TÉLÉPHONE"}</label>
-            <input type="text" id="custom-oauth-email-val" style="background:#000; border:1px solid rgba(255,255,255,0.12); border-radius:8px; padding:12px 14px; color:#fff; font-size:0.85rem; font-family:var(--font-mono); box-sizing:border-box; outline:none; transition:border 0.2s;" onfocus="this.style.borderColor='#8ab4f8'" onblur="this.style.borderColor='rgba(255,255,255,0.12)'" placeholder="${isLinkedIn ? 'AQW... (Coller le jeton LinkedIn réel)' : 'nom@example.com'}" value="" />
-          </div>
-          
-          ${isLinkedIn ? `
-            <div style="font-size:0.75rem; color:#9aa0a6; line-height:1.4; border-left:2px solid #8ab4f8; padding-left:10px; font-family: Roboto, sans-serif;">
-              <strong>Comment obtenir votre jeton réel ?</strong><br/>
-              1. Rendez-vous sur le <a href="https://developer.linkedin.com" target="_blank" style="color:#8ab4f8; text-decoration:none;">Portail LinkedIn Developer</a> et connectez-vous.<br/>
-              2. Créez un projet/application et activez le produit <em>Share on LinkedIn</em>.<br/>
-              3. Utilisez l'outil officiel <strong>Token Generator</strong> de LinkedIn avec le scope <code>w_member_social</code>.<br/>
-              4. Générez le jeton, copiez-le et collez-le ci-dessus pour que César-IA puisse réellement publier sur votre profil personnel.
-            </div>
-          ` : ''}
-        </div>
-        
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <button onclick="startOauthSimulation('${agentId}', '${connector.replace(/'/g, "\\'")}')" class="google-btn" style="background:transparent; border:none; color:#8ab4f8; font-size:0.85rem; cursor:pointer; font-weight:600; padding:10px 0;">Retour</button>
-          <button onclick="selectOauthAccount('${agentId}', '${connector.replace(/'/g, "\\'")}', '${isLinkedIn ? 'Jeton Réel' : 'Utilisateur custom'}', document.getElementById('custom-oauth-email-val').value)" class="google-btn" style="padding:10px 24px; background:#8ab4f8; border:none; border-radius:6px; color:#000; font-weight:600; font-size:0.85rem; cursor:pointer; transition: opacity 0.2s;">Suivant</button>
-        </div>
-      </div>
-    </div>
-  `;
-};
-
-window.selectOauthAccount = async function(agentId, connector, name, email) {
-  const contentArea = document.getElementById('oauth-safari-content-area');
-  const addressBarText = document.querySelector('#safari-address-bar span');
-  if (!contentArea) return;
-  
-  const isPhoneAuth = connector.includes('WhatsApp') || connector.includes('Telegram') || connector.includes('Twilio') || connector.includes('SMS') || connector.includes('WeChat') || connector.includes('Viber') || connector.includes('Lydia') || connector.includes('Messenger API');
-  const isRealToken = email && (email.startsWith('AQ') || email.length > 50);
-
-  // Transition to a beautiful Google verification step inside Safari
-  contentArea.innerHTML = `
-    <!-- Google Accounts native header -->
-    <div style="height: 48px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; padding: 0 24px; box-sizing: border-box; justify-content: flex-start; gap: 8px;">
-      <svg style="width:16px; height:16px;" viewBox="0 0 24 24">
-        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z"/>
-        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z"/>
-      </svg>
-      <span style="font-size: 0.78rem; color: #fff; font-weight: 500; font-family: Roboto, Arial, sans-serif;">Sécurisé avec Google Accounts</span>
-    </div>
-
-    <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px 24px; box-sizing: border-box;">
-      <div style="width:100%; max-width:440px; background:#0f0f11; border:1px solid rgba(255,255,255,0.06); border-radius:24px; padding:36px; box-shadow:0 20px 60px rgba(0,0,0,0.8); display:flex; flex-direction:column; align-items:center; justify-content:center; box-sizing:border-box; color:#e3e3e3; font-family:Roboto, Arial, sans-serif; text-align:center; animation: zoomIn 0.2s ease-out;">
-        <!-- Google Logo -->
-        <svg style="width:32px; height:32px; margin-bottom:24px;" viewBox="0 0 24 24">
-          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z"/>
-          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z"/>
-        </svg>
-        
-        <span class="spinner" style="width:36px; height:36px; border: 3px solid rgba(255,255,255,0.1); border-top-color: #8ab4f8; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom:20px; display:inline-block;"></span>
-        
-        <h3 style="font-size:1.25rem; font-weight:400; color:#fff; margin:0 0 6px 0; font-family:'Google Sans', Roboto, sans-serif;">Vérification de la connexion...</h3>
-        <p style="font-size:0.85rem; color:#9aa0a6; margin:0 0 24px 0;">
-          ${isRealToken ? 'Tentative de liaison API LinkedIn réelle...' : `Liaison OAuth autorisée pour ${email}`}
-        </p>
-        
-        <div id="oauth-redirect-progress-console" style="width: 100%; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 14px; font-size: 0.72rem; font-family: var(--font-mono); text-align: left; display: flex; flex-direction: column; gap: 6px; box-sizing: border-box; max-height: 160px; overflow-y: auto; color: #c4c6c9;">
-          <div>[SSL] Négociation du protocole TLS 1.3...</div>
-        </div>
-      </div>
-    </div>
-  `;
-  
-  const consoleDiv = document.getElementById('oauth-redirect-progress-console');
-  const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-  
-  const steps = [
-    { text: "Tunnel SSL sécurisé initialisé avec succès.", type: "info" },
-    { text: isRealToken ? "Validation du jeton d'accès LinkedIn fourni..." : `Vérification du compte OAuth Google pour ${connector}...`, type: "info" },
-    { text: isRealToken ? "Connexion API LinkedIn approuvée !" : "Clé de session d'authentification valide.", type: "success" },
-    { text: isRealToken ? "Enregistrement de la clé de liaison permanente en base..." : "Génération du jeton SSO César-IA...", type: "success" },
-    { text: "Négociation de l'URL de retour (callback)...", type: "info" },
-    { text: "Redirection vers César-IA en cours...", type: "system" }
-  ];
-  
-  for (let i = 0; i < steps.length; i++) {
-    await delay(400 + Math.random() * 200);
-    const step = steps[i];
-    const timestamp = new Date().toLocaleTimeString('fr-FR');
-    let color = '#c4c6c9';
-    if (step.type === 'success') color = '#10b981';
-    if (step.type === 'system') color = '#8ab4f8';
-    
-    const line = document.createElement('div');
-    line.style.color = color;
-    line.innerHTML = `<span style="color:#5f6368; margin-right: 4px;">[${timestamp}]</span> ${step.text}`;
-    if (consoleDiv) {
-      consoleDiv.appendChild(line);
-      consoleDiv.scrollTop = consoleDiv.scrollHeight;
-    }
+  if (!modalOverlay.parentElement) {
+    document.body.appendChild(modalOverlay);
   }
   
-  await delay(700);
-  
-  // Fill the technical inputs in the dashboard DOM
-  const toggleId = `toggle-${agentId}-${connector.replace(/[^a-zA-Z0-9]/g, '')}`;
-  const toggleDiv = document.getElementById(toggleId);
-  if (toggleDiv) {
-    const inputs = toggleDiv.querySelectorAll('input');
-    inputs.forEach(input => {
-      const field = input.getAttribute('data-field');
-      if (field === 'token' || field === 'secret') {
-        if (isRealToken) {
-          input.value = email.trim(); // Save their REAL LinkedIn token!
-        } else if (isPhoneAuth) {
-          input.value = `phone_auth_verified_google_${Math.random().toString(36).substring(2, 8)}`;
-        } else {
-          input.value = `oauth_google_v2_live_${Math.random().toString(36).substring(2, 10)}`;
-        }
-      } else if (field === 'domain') {
-        input.value = `https://api.${connector.toLowerCase().replace(/[^a-z]/g, '')}.com`;
-      }
-    });
-  }
-  
-  // Update browser chrome address text to simulate redirection
-  if (addressBarText) {
-    addressBarText.textContent = "cesar-ia.com/dashboard?oauth_callback=success";
-  }
-  
-  // Clean real address bar history pushState
   try {
-    history.pushState(null, '', '?oauth_callback=success');
-  } catch(e) {}
-  
-  // Save credentials via main logic (actually updates Supabase database!)
-  await saveConnectors();
-  
-  // Finish screen inside Safari
-  contentArea.innerHTML = `
-    <!-- Google Accounts native header -->
-    <div style="height: 48px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; padding: 0 24px; box-sizing: border-box; justify-content: flex-start; gap: 8px;">
-      <svg style="width:16px; height:16px;" viewBox="0 0 24 24">
-        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-      </svg>
-      <span style="font-size: 0.78rem; color: #10b981; font-weight: 500; font-family: Roboto, Arial, sans-serif;">Connexion validée !</span>
-    </div>
+    const userId = state.currentUser ? state.currentUser.uid : '';
+    let url = `/api/get-oauth-url?userId=${encodeURIComponent(userId)}&agentId=${encodeURIComponent(agentId)}&connector=${encodeURIComponent(connector)}`;
+    if (domainValue) {
+      url += `&domain=${encodeURIComponent(domainValue)}`;
+    }
+    
+    let token = null;
+    if (supabase) {
+      try {
+        const { data } = await supabase.auth.getSession();
+        token = data?.session?.access_token;
+      } catch (e) {
+        logDebug(`[OAuth] Impossible de récupérer le token: ${e.message}`);
+      }
+    }
+    
+    const response = await fetch(url, {
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
+    });
+    const data = await response.json();
+    
+    if (!response.ok || data.error) {
+      if (data.error === 'missing_config') {
+        showConfigHelpModal(connector, data.message || "Variable d'environnement manquante sur Vercel.");
+      } else {
+        showToast(data.message || data.error || "Impossible d'obtenir l'URL d'authentification.", "error");
+        closeOauthSimulation();
+      }
+      return;
+    }
+    
+    if (data.url) {
+      // Save domain field to UI draft/data if provided
+      if (domainValue) {
+        const toggleId = `toggle-${agentId}-${connector.replace(/[^a-zA-Z0-9]/g, '')}`;
+        const toggleDiv = document.getElementById(toggleId);
+        if (toggleDiv) {
+          const domInput = toggleDiv.querySelector(`input[data-field="domain"]`);
+          if (domInput) {
+            domInput.value = domainValue;
+            domInput.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }
+      }
+      
+      // Redirect browser to the official provider OAuth page
+      window.location.assign(data.url);
+    } else {
+      showToast("URL de redirection OAuth non spécifiée par l'API.", "error");
+      closeOauthSimulation();
+    }
+  } catch (err) {
+    console.error("OAuth error:", err);
+    showToast("Une erreur est survenue lors de l'initialisation de la liaison.", "error");
+    closeOauthSimulation();
+  }
+}
 
-    <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px 24px; box-sizing: border-box;">
-      <div style="width:100%; max-width:440px; background:#0f0f11; border:1px solid rgba(255,255,255,0.06); border-radius:24px; padding:36px; box-shadow:0 20px 60px rgba(0,0,0,0.8); display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; box-sizing:border-box; color:#e3e3e3; font-family:Roboto, Arial, sans-serif;">
-        <div style="width: 52px; height: 52px; background: rgba(16, 185, 129, 0.1); border: 2px solid #10b981; color: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; margin-bottom: 20px; box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);">✓</div>
-        <h4 style="font-size: 1.15rem; font-weight: 500; color: #fff; margin-bottom: 8px; font-family:'Google Sans', Roboto, sans-serif;">LIAISON DE COMPTE ACCEPTÉE !</h4>
-        <p style="font-size: 0.85rem; color: #9aa0a6; margin-bottom: 24px; line-height: 1.45;">
-          ${isRealToken ? `Votre compte LinkedIn a été connecté en direct ! Les publications de l'agent Chronos seront désormais postées en temps réel sur votre feed.` : `Votre compte ${connector} a été associé avec succès via la liaison sécurisée Google Accounts.`}
+function showConfigHelpModal(connector, message) {
+  const overlay = document.querySelector('.oauth-modal-overlay') || document.createElement('div');
+  overlay.className = 'oauth-modal-overlay';
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(9, 9, 11, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: #fff;
+    padding: 20px;
+    box-sizing: border-box;
+  `;
+  
+  overlay.innerHTML = `
+    <div class="glass-modal" style="width: 100%; max-width: 500px; background: rgba(22, 22, 28, 0.9); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.6); overflow: hidden; display: flex; flex-direction: column; animation: modalFadeIn 0.3s ease-out;">
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+        <h3 style="font-size: 1.1rem; font-weight: 700; margin: 0; color: #f43f5e; display: flex; align-items: center; gap: 8px;">
+          ⚠️ Configuration Vercel Requise
+        </h3>
+        <button onclick="closeOauthSimulation()" style="background: transparent; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer; line-height: 1;">&times;</button>
+      </div>
+      <div style="padding: 24px; text-align: left; font-size: 0.88rem; line-height: 1.5;">
+        <p style="margin-top: 0; color: #f43f5e; font-weight: 600;">Liaison officielle échouée : Clés d'API manquantes.</p>
+        <p style="color: var(--text-secondary); margin-bottom: 20px;">
+          Pour activer l'authentification officielle réelle avec <strong>${connector}</strong>, vous devez configurer la variable d'environnement sur votre tableau de bord Vercel :
         </p>
-        <button onclick="closeOauthSimulation()" class="google-btn" style="padding: 11px 26px; background: #10b981; border: none; border-radius: 8px; color: #fff; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: opacity 0.2s;">
-          Retourner au Tableau de bord
-        </button>
+        
+        <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.06); padding: 14px; border-radius: 8px; font-family: var(--font-mono); font-size: 0.8rem; color: #c084fc; margin-bottom: 20px; word-break: break-all;">
+          ${message}
+        </div>
+        
+        <p style="color: var(--text-secondary); margin-bottom: 24px;">
+          Une fois la clé configurée, redéployez le projet sur Vercel pour rendre la liaison active.
+        </p>
+        
+        <div style="display: flex; justify-content: flex-end; gap: 12px;">
+          <button onclick="closeOauthSimulation()" class="btn" style="background: rgba(255,255,255,0.05); color: #fff; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none;">Fermer</button>
+          <a href="https://vercel.com" target="_blank" class="btn" style="background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%); color: #fff; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center;">Aller sur Vercel</a>
+        </div>
       </div>
     </div>
   `;
-  
-  showToast(isRealToken ? "Liaison LinkedIn réelle établie avec succès !" : `Connexion express réussie avec ${connector} !`, 'success');
-};
-
-window.runServerScanSimulation = async function(agentId, connector) {
-  const modalBody = document.getElementById('oauth-modal-body');
-  if (!modalBody) {
-    // If we are in the Google Selector full page, adapt overlay
-    const overlay = document.querySelector('.oauth-modal-overlay');
-    if (overlay) {
-      overlay.innerHTML = `
-        <div id="oauth-modal-body" style="width:100%; max-width:440px; background:#0f0f11; border:1px solid rgba(255,255,255,0.06); border-radius:24px; padding:32px; box-shadow:0 20px 60px rgba(0,0,0,0.8); box-sizing:border-box;"></div>
-      `;
-    }
+  if (!overlay.parentElement) {
+    document.body.appendChild(overlay);
   }
-  
-  const consoleBody = document.getElementById('oauth-modal-body');
-  const hostVal = "192.168.1.42";
-  const userVal = "admin";
-  
-  const steps = [
-    { text: `Pinging cible hôte : ${hostVal}...`, type: "system" },
-    { text: "Détection des ports ouverts en cours...", type: "info" },
-    { text: connector.includes('SSH') ? "Port 22 (SSH) détecté ouvert !" : "Port 5432 (Postgres) détecté ouvert !", type: "success" },
-    { text: `Lancement d'une tentative de handshake sécurisé (${userVal})...`, type: "info" },
-    { text: "Négociation d'échange de clés asymétriques...", type: "info" },
-    { text: "Création et injection de la clé d'accès César-IA...", type: "success" },
-    { text: "Connexion établie, enregistrement de la passerelle...", type: "system" }
-  ];
-  
-  consoleBody.innerHTML = `
-    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 0; font-family: var(--font-mono); color: #fff;">
-      <span class="spinner" style="width: 40px; height: 40px; border-width: 3px; border-color: var(--accent-color) transparent transparent transparent; margin-bottom: 24px; display: inline-block;"></span>
-      <h4 style="font-size: 0.95rem; font-weight: bold; color: #fff; margin-bottom: 16px; font-family: var(--font-sans);">SCAN & DIAGNOSTIC AUTOMATIQUE...</h4>
-      <div id="oauth-progress-console" style="width: 100%; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 12px; font-size: 0.75rem; text-align: left; display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; box-sizing: border-box;"></div>
-    </div>
-  `;
-  
-  const consoleDiv = document.getElementById('oauth-progress-console');
-  const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-  
-  for (let i = 0; i < steps.length; i++) {
-    const step = steps[i];
-    const timestamp = new Date().toLocaleTimeString('fr-FR');
-    let color = 'var(--text-secondary)';
-    if (step.type === 'success') color = '#10b981';
-    if (step.type === 'system') color = 'var(--accent-color)';
-    
-    const line = document.createElement('div');
-    line.style.color = color;
-    line.innerHTML = `<span style="color: #5e616e; margin-right: 6px;">[${timestamp}]</span> ${step.text}`;
-    consoleDiv.appendChild(line);
-    consoleDiv.scrollTop = consoleDiv.scrollHeight;
-    
-    await delay(600 + Math.random() * 300);
-  }
-  
-  // Fill the technical fields in the DOM card
-  const toggleId = `toggle-${agentId}-${connector.replace(/[^a-zA-Z0-9]/g, '')}`;
-  const toggleDiv = document.getElementById(toggleId);
-  if (toggleDiv) {
-    const inputs = toggleDiv.querySelectorAll('input');
-    inputs.forEach(input => {
-      const field = input.getAttribute('data-field');
-      if (field === 'host') {
-        input.value = hostVal;
-      } else if (field === 'user') {
-        input.value = userVal;
-      } else if (field === 'secret') {
-        input.value = `auto_injected_rsa_key_verified_${Math.random().toString(36).substring(2, 8)}`;
-      } else if (field === 'uri') {
-        input.value = `postgresql://${userVal}:••••••••@${hostVal}:5432/cesar_analytics`;
-      }
-    });
-  }
-  
-  // Save credentials via main logic
-  await saveConnectors();
-  
-  // Finish screen
-  consoleBody.innerHTML = `
-    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 0; text-align: center; color: #fff;">
-      <div style="width: 54px; height: 54px; background: rgba(16, 185, 129, 0.1); border: 2px solid #10b981; color: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; margin-bottom: 20px; box-shadow: 0 0 15px rgba(16, 185, 129, 0.2); animation: pulse 2s infinite;">✓</div>
-      <h4 style="font-size: 1.05rem; font-weight: bold; color: #fff; margin-bottom: 8px; font-family: var(--font-sans);">SCAN TERMINÉ & LIEN ACTIF</h4>
-      <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 24px; line-height: 1.4; font-family: var(--font-sans);">
-        Le scan a détecté et configuré avec succès la passerelle sécurisée pour votre hôte local.
-      </p>
-      <button onclick="document.querySelector('.oauth-modal-overlay').remove();" style="padding: 10px 24px; background: #10b981; border: none; border-radius: 6px; color: #fff; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: var(--transition); font-family: var(--font-sans);">
-        Continuer vers le Tableau de bord
-      </button>
-    </div>
-  `;
-  
-  showToast(`Scan & configuration express réussie avec ${connector} !`, 'success');
-};
-
-window.runServerScanSimulation = async function(agentId, connector) {
-  const modalBody = document.getElementById('oauth-modal-body');
-  if (!modalBody) return;
-  
-  const hostVal = document.getElementById('oauth-input-host')?.value || "127.0.0.1";
-  const userVal = document.getElementById('oauth-input-user')?.value || "admin";
-  
-  const steps = [
-    { text: `Pinging cible hôte : ${hostVal}...`, type: "system" },
-    { text: "Détection des ports ouverts en cours...", type: "info" },
-    { text: connector.includes('SSH') ? "Port 22 (SSH) détecté ouvert !" : "Port 5432 (Postgres) détecté ouvert !", type: "success" },
-    { text: `Lancement d'une tentative de handshake sécurisé (${userVal})...`, type: "info" },
-    { text: "Négociation d'échange de clés asymétriques...", type: "info" },
-    { text: "Création et injection de la clé d'accès César-IA...", type: "success" },
-    { text: "Connexion établie, enregistrement de la passerelle...", type: "system" }
-  ];
-  
-  modalBody.innerHTML = `
-    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 0; font-family: var(--font-mono);">
-      <span class="spinner" style="width: 40px; height: 40px; border-width: 3px; border-color: var(--accent-color) transparent transparent transparent; margin-bottom: 24px; display: inline-block;"></span>
-      <h4 style="font-size: 0.95rem; font-weight: bold; color: #fff; margin-bottom: 16px; font-family: var(--font-sans);">SCAN & DIAGNOSTIC AUTOMATIQUE...</h4>
-      <div id="oauth-progress-console" style="width: 100%; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 12px; font-size: 0.75rem; text-align: left; display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; box-sizing: border-box;"></div>
-    </div>
-  `;
-  
-  const consoleDiv = document.getElementById('oauth-progress-console');
-  const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-  
-  for (let i = 0; i < steps.length; i++) {
-    const step = steps[i];
-    const timestamp = new Date().toLocaleTimeString('fr-FR');
-    let color = 'var(--text-secondary)';
-    if (step.type === 'success') color = '#10b981';
-    if (step.type === 'system') color = 'var(--accent-color)';
-    
-    const line = document.createElement('div');
-    line.style.color = color;
-    line.innerHTML = `<span style="color: #5e616e; margin-right: 6px;">[${timestamp}]</span> ${step.text}`;
-    consoleDiv.appendChild(line);
-    consoleDiv.scrollTop = consoleDiv.scrollHeight;
-    
-    await delay(600 + Math.random() * 300);
-  }
-  
-  // Fill the technical fields in the DOM card
-  const toggleId = `toggle-${agentId}-${connector.replace(/[^a-zA-Z0-9]/g, '')}`;
-  const toggleDiv = document.getElementById(toggleId);
-  if (toggleDiv) {
-    const inputs = toggleDiv.querySelectorAll('input');
-    inputs.forEach(input => {
-      const field = input.getAttribute('data-field');
-      if (field === 'host') {
-        input.value = hostVal;
-      } else if (field === 'user') {
-        input.value = userVal;
-      } else if (field === 'secret') {
-        input.value = `auto_injected_rsa_key_verified_${Math.random().toString(36).substring(2, 8)}`;
-      } else if (field === 'uri') {
-        input.value = `postgresql://${userVal}:••••••••@${hostVal}:5432/cesar_analytics`;
-      }
-    });
-  }
-  
-  // Save credentials via main logic
-  await saveConnectors();
-  
-  // Finish screen
-  modalBody.innerHTML = `
-    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 0; text-align: center;">
-      <div style="width: 54px; height: 54px; background: rgba(16, 185, 129, 0.1); border: 2px solid #10b981; color: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; margin-bottom: 20px; box-shadow: 0 0 15px rgba(16, 185, 129, 0.2); animation: pulse 2s infinite;">✓</div>
-      <h4 style="font-size: 1.05rem; font-weight: bold; color: #fff; margin-bottom: 8px; font-family: var(--font-sans);">SCAN TERMINÉ & LIEN ACTIF</h4>
-      <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 24px; line-height: 1.4; font-family: var(--font-sans);">
-        Le scan a détecté et configuré avec succès la passerelle sécurisée pour votre hôte local.
-      </p>
-      <button onclick="closeOauthSimulation()" style="padding: 10px 24px; background: #10b981; border: none; border-radius: 6px; color: #fff; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: var(--transition); font-family: var(--font-sans);">
-        Continuer vers le Tableau de bord
-      </button>
-    </div>
-  `;
-  
-  showToast(`Scan & configuration express réussie avec ${connector} !`, 'success');
-};
+}
 
 // RUN INITIALIZER
 initApp();

@@ -5,6 +5,20 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>César-IA - Plateforme SaaS d'Agents IA Connectés</title>
+    <script>
+      (function() {
+        const initialRoute = sessionStorage.getItem('cesar_ia_active_route') || 'home';
+        if (initialRoute !== 'home') {
+          const style = document.createElement('style');
+          style.id = 'initial-route-style';
+          style.innerHTML = `
+            #route-home { display: none !important; }
+            #route-${initialRoute} { display: block !important; }
+          `;
+          document.head.appendChild(style);
+        }
+      })();
+    </script>
   </head>
   <body>
     <!-- Background glow shapes -->
@@ -21,7 +35,7 @@
           <a href="#" class="nav-link active" data-route="home">Accueil</a>
           <a href="#" class="nav-link" data-route="catalog">Catalogue</a>
           <a href="#" class="nav-link" data-route="dashboard" id="nav-dashboard-link">Tableau de Bord</a>
-          <a href="#" class="nav-link" data-route="billing" id="nav-billing-link">Facturation</a>
+          <a href="#" class="nav-link" data-route="billing" id="nav-billing-link">Nos abonnements</a>
         </nav>
         <div class="nav-auth" id="auth-nav-container">
           <button class="btn btn-secondary btn-sm" id="btn-login-open">Se connecter</button>
@@ -129,7 +143,7 @@
               <details class="faq-item">
                 <summary class="faq-question">Puis-je annuler l'adoption d'un agent à tout moment ?</summary>
                 <div class="faq-answer">
-                  <p>Oui. Tous nos abonnements sont sans engagement de durée. Vous pouvez suspendre ou résilier l'adoption de n'importe quel agent en un clic depuis votre espace "Facturation", l'agent cessera de fonctionner immédiatement.</p>
+                  <p>Oui. Tous nos abonnements sont sans engagement de durée. Vous pouvez suspendre ou résilier l'adoption de n'importe quel agent en un clic depuis votre espace "Nos abonnements", l'agent cessera de fonctionner immédiatement.</p>
                 </div>
               </details>
 
@@ -201,6 +215,7 @@
                   </div>
                   <div class="panel-tabs">
                     <button class="panel-tab active" data-tab="chat">Discussion</button>
+                    <button class="panel-tab" data-tab="history" title="Historique des discussions">📋</button>
                     <button class="panel-tab" data-tab="connectors">Connecteurs & Logiciels</button>
                     <button class="panel-tab" data-tab="stats">Statistiques & Usage</button>
                   </div>
@@ -214,6 +229,28 @@
                   <div class="chat-input-bar">
                     <input type="text" id="chat-user-input" placeholder="Envoyer un message à l'agent..." />
                     <button class="btn btn-primary" id="btn-chat-send">Envoyer</button>
+                  </div>
+                </div>
+
+                <!-- History tab -->
+                <div class="tab-content" id="tab-history">
+                  <div class="history-layout" style="padding: 24px; display: flex; flex-direction: column; height: 100%;">
+                    <h3>Historique des Discussions</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 20px;">
+                      Recherchez et explorez la mémoire des discussions passées avec cet agent.
+                    </p>
+                    
+                    <div class="history-search-bar" style="display: flex; gap: 12px; margin-bottom: 20px; align-items: center;">
+                      <div style="position: relative; flex: 1; display: flex; align-items: center;">
+                        <span style="position: absolute; left: 14px; color: var(--text-secondary); font-size: 0.9rem;">🔍</span>
+                        <input type="text" id="history-search-input" placeholder="Rechercher des mots-clés dans les messages..." style="width: 100%; height: 42px; padding: 0 16px 0 40px; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(0,0,0,0.25); color: var(--text-primary); outline: none; font-size: 0.88rem;" />
+                      </div>
+                      <button class="btn btn-secondary" id="btn-clear-history-search" style="height: 42px; font-size: 0.85rem; padding: 0 16px; border-radius: 8px;">Effacer</button>
+                    </div>
+
+                    <div class="history-messages-list" id="history-messages-container" style="flex: 1; min-height: 250px; max-height: 450px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; background: rgba(0, 0, 0, 0.15); padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+                      <!-- Messages injectés dynamiquement -->
+                    </div>
                   </div>
                 </div>
 
@@ -318,7 +355,7 @@
         <!-- ================= BILLING SECTION ================= -->
         <section id="route-billing" class="route-section">
           <div class="section-header">
-            <h2>Espace Facturation</h2>
+            <h2>Nos abonnements</h2>
             <p>Gérez vos moyens de paiement, vos abonnements d'agents actifs et téléchargez vos factures.</p>
           </div>
 
@@ -699,6 +736,22 @@
         <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 14px;" id="btn-auth-submit">Continuer</button>
       </form>
       
+      <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin: 16px 0; color: var(--text-muted); font-size: 0.8rem;">
+        <span style="flex: 1; height: 1px; background: rgba(255,255,255,0.08);"></span>
+        <span>OU</span>
+        <span style="flex: 1; height: 1px; background: rgba(255,255,255,0.08);"></span>
+      </div>
+      
+      <button type="button" id="btn-google-auth" class="btn btn-secondary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 12px; font-weight: 600; color: #fff; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.06)'" onmouseout="this.style.background='rgba(255,255,255,0.03)'">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+        </svg>
+        Continuer avec Google
+      </button>
+      
       <div class="dialog-footer">
         <span id="auth-toggle-msg">Pas encore de compte ?</span>
         <a href="#" id="auth-toggle-link">Créer un compte</a>
@@ -920,35 +973,7 @@
       <div id="floating-debug-log" style="white-space: pre-wrap; word-break: break-all;">[Système] Prêt...</div>
     </div>
 
-    <!-- ================= ONBOARDING TOUR ================= -->
-    <!-- Floating button to start tour -->
-    <button id="btn-start-tour" class="floating-tour-btn">
-      <span class="tour-btn-icon">🚀</span>
-      <span>Visite Guidée</span>
-    </button>
 
-    <!-- Onboarding Tour Container -->
-    <div id="onboarding-tour-container" class="tour-overlay-container" style="display: none;">
-      <div class="tour-backdrop" id="tour-backdrop"></div>
-      
-      <div class="tour-card" id="tour-card">
-        <div class="tour-card-header">
-          <span class="tour-badge" id="tour-step-badge">Étape 1/7</span>
-          <button class="tour-close-btn" id="tour-btn-close">×</button>
-        </div>
-        <div class="tour-card-body">
-          <h3 class="tour-card-title" id="tour-title">Bienvenue sur César-IA ! 🚀</h3>
-          <p class="tour-card-text" id="tour-text">Nous allons vous guider à travers les fonctionnalités clés du tableau de bord pour configurer et utiliser vos agents autonomes en 2 minutes.</p>
-        </div>
-        <div class="tour-progress-container">
-          <div class="tour-progress-bar" id="tour-progress" style="width: 14%;"></div>
-        </div>
-        <div class="tour-card-footer">
-          <button class="btn btn-secondary btn-sm" id="tour-btn-prev" style="visibility: hidden;">Précédent</button>
-          <button class="btn btn-primary btn-sm" id="tour-btn-next">C'est parti !</button>
-        </div>
-      </div>
-    </div>
 
     <!-- Main Module Script -->
     <script type="module" src="/src/main.js"></script>

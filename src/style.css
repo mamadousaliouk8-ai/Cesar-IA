@@ -2559,3 +2559,211 @@ dialog.invoice-dialog::backdrop {
     transform: scale(1);
   }
 }
+
+/* --- HISTORY TAB STYLES --- */
+.history-layout h3 {
+  font-size: 1.15rem;
+  margin-bottom: 6px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.history-message-card {
+  transition: transform 0.2s, border-color 0.2s;
+}
+
+.history-message-card:hover {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  transform: translateX(2px);
+}
+
+.history-messages-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.history-messages-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.history-messages-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+}
+
+.history-messages-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* --- TOOL EXECUTION LOGS STYLES --- */
+.execution-logs-container {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.execution-log-card {
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: 'Outfit', sans-serif;
+  text-align: left;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  backdrop-filter: blur(4px);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.execution-log-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+}
+
+.execution-log-card.success {
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.execution-log-card.error {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.execution-log-card .tool-badge {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.75rem;
+}
+
+.execution-log-card .status-badge {
+  font-size: 0.7rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 12px;
+  letter-spacing: 0.5px;
+}
+
+.execution-log-card.success .status-badge {
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+}
+
+.execution-log-card.error .status-badge {
+  background: #ef4444;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}
+
+.execution-log-card details summary {
+  font-size: 0.75rem;
+  cursor: pointer;
+  color: var(--accent-color);
+  font-weight: 500;
+  outline: none;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  transition: color 0.2s;
+}
+
+.execution-log-card details summary:hover {
+  color: #818cf8;
+}
+
+.execution-log-card details pre {
+  margin-top: 6px;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 8px;
+  border-radius: 6px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.75rem;
+  color: #a7f3d0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* --- PHASE E: DESIGN PREMIUM & ANIMATIONS INTERACTIVES --- */
+.message {
+  animation: messageFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+@keyframes messageFadeIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.typing-indicator {
+  background: rgba(255, 255, 255, 0.02) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  backdrop-filter: blur(8px);
+  border-radius: 12px 12px 12px 4px !important;
+  padding: 10px 16px !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.typing-dot {
+  background: linear-gradient(135deg, var(--accent-color), #818cf8) !important;
+  box-shadow: 0 0 8px rgba(99, 102, 241, 0.5);
+}
+
+.execution-log-card {
+  animation: cardSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+@keyframes cardSlideUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.execution-log-card.success:hover {
+  border-color: rgba(16, 185, 129, 0.5) !important;
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.25), 0 4px 12px rgba(0,0,0,0.25) !important;
+  transform: translateY(-2px) !important;
+}
+
+.execution-log-card.error:hover {
+  border-color: rgba(239, 68, 68, 0.5) !important;
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.25), 0 4px 12px rgba(0,0,0,0.25) !important;
+  transform: translateY(-2px) !important;
+}
+
+.execution-log-card .status-badge {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.execution-log-card:hover .status-badge {
+  transform: scale(1.05);
+}
+
+.execution-log-card details[open] pre {
+  animation: consoleReveal 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+  transform: scaleY(0.95);
+  transform-origin: top;
+}
+
+@keyframes consoleReveal {
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+
