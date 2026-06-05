@@ -1172,11 +1172,16 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
           }
           userId = user.id;
           
-          // Check if admin
-          const isAdminEmail = user.email && (
-            user.email.toLowerCase() === 'contact@cesar-ia.com' ||
-            user.email.toLowerCase() === 'admin@cesar-ia.com'
-          );
+          // Check if admin (ASCII, accented, and punycode variations)
+          const adminEmails = [
+            'contact@cesar-ia.com',
+            'admin@cesar-ia.com',
+            'contact@césar-ia.com',
+            'admin@césar-ia.com',
+            'contact@xn--csar-ia-bya.com',
+            'admin@xn--csar-ia-bya.com'
+          ];
+          const isAdminEmail = user.email && adminEmails.includes(user.email.trim().toLowerCase());
           
           let isAdminProfile = false;
           try {

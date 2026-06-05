@@ -22,6 +22,19 @@ function logDebug(message) {
 
 
 
+function isAdminEmail(email) {
+  if (!email) return false;
+  const adminEmails = [
+    'contact@cesar-ia.com',
+    'admin@cesar-ia.com',
+    'contact@césar-ia.com',
+    'admin@césar-ia.com',
+    'contact@xn--csar-ia-bya.com',
+    'admin@xn--csar-ia-bya.com'
+  ];
+  return adminEmails.includes(email.trim().toLowerCase());
+}
+
 // Helper pour envelopper une promesse avec un timeout
 function promiseWithTimeout(promise, ms, timeoutErrorMsg) {
   let timeoutId;
@@ -239,11 +252,7 @@ function isAgentAdopted(agentId) {
   if (!state.currentUser) return false;
   
   // Administrators get access to everything
-  const isAdminUser = state.currentUser.isAdmin || 
-                      (state.currentUser.email && (
-                        state.currentUser.email.trim().toLowerCase() === 'admin@cesar-ia.com' || 
-                        state.currentUser.email.trim().toLowerCase() === 'contact@cesar-ia.com'
-                      ));
+  const isAdminUser = state.currentUser.isAdmin || isAdminEmail(state.currentUser.email);
   if (isAdminUser) return true;
 
   if (agentId === 'zeus') {
@@ -266,11 +275,7 @@ function isAgentAdopted(agentId) {
 function getAdoptedAgentIds() {
   if (!state.currentUser) return [];
 
-  const isAdminUser = state.currentUser.isAdmin || 
-                      (state.currentUser.email && (
-                        state.currentUser.email.trim().toLowerCase() === 'admin@cesar-ia.com' || 
-                        state.currentUser.email.trim().toLowerCase() === 'contact@cesar-ia.com'
-                      ));
+  const isAdminUser = state.currentUser.isAdmin || isAdminEmail(state.currentUser.email);
 
   if (isAdminUser) {
     return [
@@ -691,7 +696,7 @@ async function initSupabaseAuth() {
     const savedUser = localStorage.getItem('cesar_ia_mock_user');
     if (savedUser) {
       state.currentUser = JSON.parse(savedUser);
-      if (state.currentUser.email && state.currentUser.email.trim().toLowerCase() === 'contact@cesar-ia.com') {
+      if (isAdminEmail(state.currentUser.email)) {
         state.currentUser.isAdmin = true;
       }
       loadMockState();
@@ -727,7 +732,7 @@ async function initSupabaseAuth() {
         uid: session.user.id
       };
       
-      if (session.user.email && session.user.email.trim().toLowerCase() === 'contact@cesar-ia.com') {
+      if (isAdminEmail(session.user.email)) {
         state.currentUser.isAdmin = true;
       }
       
@@ -813,7 +818,7 @@ async function initSupabaseAuth() {
           email: session.user.email,
           uid: session.user.id
         };
-        if (session.user.email && session.user.email.trim().toLowerCase() === 'contact@cesar-ia.com') {
+        if (isAdminEmail(session.user.email)) {
           state.currentUser.isAdmin = true;
         }
         await loadUserData();
@@ -874,7 +879,7 @@ async function loadUserData() {
     }
     
     // Fallback de sécurité robuste par email pour César-IA admin
-    if (state.currentUser.email && state.currentUser.email.toLowerCase() === 'contact@cesar-ia.com') {
+    if (isAdminEmail(state.currentUser.email)) {
       state.currentUser.isAdmin = true;
       logDebug(`[loadUserData] Force de l'état Admin via l'adresse e-mail.`);
     }
@@ -893,11 +898,7 @@ async function loadUserData() {
     state.adoptedAgents = adopted.map(a => a.agent_id);
     
     // Si l'utilisateur est admin ou contact@cesar-ia.com, on lui pré-adopte TOUS les 15 agents par défaut et on les synchronise
-    const isAdminUser = state.currentUser.isAdmin || 
-                        (state.currentUser.email && (
-                          state.currentUser.email.toLowerCase() === 'contact@cesar-ia.com' || 
-                          state.currentUser.email.toLowerCase() === 'admin@cesar-ia.com'
-                        ));
+    const isAdminUser = state.currentUser.isAdmin || isAdminEmail(state.currentUser.email);
     if (isAdminUser) {
       const allAgentIds = [
         'sybil', 'atlas', 'chronos', 'hermes', 'hestia',
