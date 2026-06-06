@@ -1676,6 +1676,7 @@ function renderDashboardSidebar() {
   sidebarList.innerHTML = '';
   
   const adoptedIds = getAdoptedAgentIds();
+  logDebug(`[renderDashboardSidebar] rendering sidebar for agents: ${adoptedIds.join(', ')}`);
   
   if (adoptedIds.length === 0) {
     sidebarList.innerHTML = `
@@ -1688,36 +1689,51 @@ function renderDashboardSidebar() {
   }
   
   adoptedIds.forEach(agentId => {
-    const agent = AGENTS.find(a => a.id === agentId);
-    if (!agent) return;
-    
-    const isConfigured = isAgentConfigured(agentId);
-    const item = document.createElement('button');
-    item.className = `adopted-agent-item ${state.activeDashboardAgentId === agentId ? 'active' : ''}`;
-    item.innerHTML = `
-      <span class="item-avatar">${agent.avatar}</span>
-      <div class="item-info">
-        <div class="item-name">${agent.name}</div>
-        <div class="item-status">
-          <div class="status-dot ${isConfigured ? '' : 'offline'}"></div>
-          <span>${isConfigured ? 'Connecté' : 'Non configuré'}</span>
+    try {
+      const agent = AGENTS.find(a => a.id === agentId);
+      if (!agent) return;
+      
+      const isConfigured = isAgentConfigured(agentId);
+      const item = document.createElement('button');
+      item.className = `adopted-agent-item ${state.activeDashboardAgentId === agentId ? 'active' : ''}`;
+      item.innerHTML = `
+        <span class="item-avatar">${agent.avatar}</span>
+        <div class="item-info">
+          <div class="item-name">${agent.name}</div>
+          <div class="item-status">
+            <div class="status-dot ${isConfigured ? '' : 'offline'}"></div>
+            <span>${isConfigured ? 'Connecté' : 'Non configuré'}</span>
+          </div>
         </div>
-      </div>
-    `;
-    
-    item.addEventListener('click', () => selectDashboardAgent(agentId));
-    sidebarList.appendChild(item);
+      `;
+      
+      item.addEventListener('click', () => selectDashboardAgent(agentId));
+      sidebarList.appendChild(item);
+    } catch (err) {
+      logDebug(`[renderDashboardSidebar] Erreur de rendu pour l'agent ${agentId}: ${err.message}`);
+      console.error(`Error rendering agent ${agentId} in sidebar:`, err);
+    }
   });
 }
 
 function isAgentConfigured(agentId) {
-  const data = state.connectorsData[agentId];
-  if (!data) return false;
-  
-  // Check if at least one field has been entered
-  return Object.values(data).some(connData => {
-    return Object.values(connData).some(val => val.trim().length > 0);
-  });
+  try {
+    const data = state.connectorsData[agentId];
+    if (!data) return false;
+    
+    // Check if at least one field has been entered
+    return Object.values(data).some(connData => {
+      if (!connData) return false;
+      return Object.values(connData).some(val => {
+        if (val === null || val === undefined) return false;
+        const strVal = String(val).trim();
+        return strVal.length > 0;
+      });
+    });
+  } catch (e) {
+    console.error("Error in isAgentConfigured:", e);
+    return false;
+  }
 }
 
 function selectDashboardAgent(agentId) {
