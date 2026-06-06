@@ -355,6 +355,7 @@ function initApp() {
     setupAdminTools();
     setupBilling();
     setupModals();
+    setupAccountPage();
     setupInvoiceModal();
     initOnboardingTour();
     updateUI();
@@ -412,19 +413,59 @@ async function checkOauthCallback() {
 function setupRoutes() {
   document.querySelectorAll('.nav-link').forEach(link => {
     link.addEventListener('click', (e) => {
-      e.preventDefault();
       const route = link.getAttribute('data-route');
+      if (!route) return;
+      e.preventDefault();
       
-      // Access control: dashboard and billing require user to be logged in (unless active tour is running)
-      if ((route === 'dashboard' || route === 'billing') && !state.currentUser && !state.tourActive) {
+      // Access control rules
+      if (route === 'dashboard' && !state.tourActive) {
+        if (!state.currentUser) {
+          showToast("Veuillez d'abord vous connecter ou créer un compte.", "warning");
+          openAuthModal('Connexion requise');
+          return;
+        }
+        if (!state.currentUser.isAdmin) {
+          showToast("Accès restreint aux administrateurs.", "error");
+          navigateTo('home');
+          return;
+        }
+      }
+
+      if (route === 'admin') {
+        if (!state.currentUser || !state.currentUser.isAdmin) {
+          showToast("Accès restreint aux administrateurs.", "error");
+          navigateTo('home');
+          return;
+        }
+      }
+
+      if ((route === 'billing' || route === 'account') && !state.currentUser) {
         showToast("Veuillez d'abord vous connecter ou créer un compte.", "warning");
-        openAuthModal(route === 'dashboard' ? 'Inscription requise pour le Dashboard' : 'Inscription requise pour la Facturation');
+        openAuthModal('Connexion requise');
         return;
       }
       
       navigateTo(route);
     });
   });
+
+  // Explain scroll navigation
+  const explainLink = document.getElementById('nav-explain-link');
+  if (explainLink) {
+    explainLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (state.activeRoute !== 'home') {
+        navigateTo('home');
+        setTimeout(() => {
+          const section = document.getElementById('comment-ca-marche-section');
+          if (section) section.scrollIntoView({ behavior: 'smooth' });
+        }, 150);
+      } else {
+        const section = document.getElementById('comment-ca-marche-section');
+        if (section) section.scrollIntoView({ behavior: 'smooth' });
+      }
+    });
+  }
 
   // Logo home navigation
   document.getElementById('logo-home').addEventListener('click', (e) => {
@@ -445,6 +486,44 @@ function setupRoutes() {
       showToast("Choisissez un agent, liez vos comptes de services, et laissez l'IA travailler !");
     }
   });
+
+  // Zeus contact trigger on homepage
+  const zeusContactBtn = document.getElementById('btn-zeus-contact');
+  if (zeusContactBtn) {
+    zeusContactBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      document.getElementById('contact-modal').showModal();
+    });
+  }
+
+  // Zeus contact form submit
+  const contactForm = document.getElementById('form-zeus-contact');
+  if (contactForm) {
+    contactForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = document.getElementById('contact-name').value;
+      showToast(`Merci ${name} ! Votre demande de contact pour Zeus a été envoyée. Nos experts vous contacteront sous 24h.`, "success");
+      document.getElementById('contact-modal').close();
+      contactForm.reset();
+    });
+  }
+
+  // Homepage category filters redirection
+  document.querySelectorAll('#homepage-filters .filter-tab').forEach(tab => {
+    tab.addEventListener('click', (e) => {
+      e.preventDefault();
+      const cat = tab.getAttribute('data-category');
+      if (cat === 'all') return;
+      
+      // Select corresponding tab in catalog
+      const catTab = document.querySelector(`#catalog-filters .filter-tab[data-category="${cat}"]`);
+      if (catTab) {
+        catTab.click();
+      }
+      navigateTo('catalog');
+    });
+  });
 }
 
 function navigateTo(route) {
@@ -452,6 +531,21 @@ function navigateTo(route) {
   const initialStyle = document.getElementById('initial-route-style');
   if (initialStyle) {
     initialStyle.remove();
+  }
+
+  // Double check access controls on routing level
+  if (route === 'dashboard' && !state.tourActive) {
+    if (!state.currentUser || !state.currentUser.isAdmin) {
+      route = 'home';
+    }
+  }
+  if (route === 'admin') {
+    if (!state.currentUser || !state.currentUser.isAdmin) {
+      route = 'home';
+    }
+  }
+  if ((route === 'billing' || route === 'account') && !state.currentUser) {
+    route = 'home';
   }
 
   state.activeRoute = route;
@@ -486,6 +580,8 @@ function navigateTo(route) {
     initPricingCalculator();
   } else if (route === 'admin') {
     renderAdminPanel();
+  } else if (route === 'account') {
+    renderAccountPage();
   }
 }
 
@@ -1075,6 +1171,26 @@ function updateUI() {
   const authContainer = document.getElementById('auth-nav-container');
   const navLinks = document.querySelector('.nav-links');
   
+  // Dashboard Link
+  const dashboardLink = document.getElementById('nav-dashboard-link');
+  if (dashboardLink) {
+    if (state.currentUser && state.currentUser.isAdmin) {
+      dashboardLink.style.display = '';
+    } else {
+      dashboardLink.style.display = 'none';
+    }
+  }
+  
+  // Account Link
+  const accountLink = document.getElementById('nav-account-link');
+  if (accountLink) {
+    if (state.currentUser && !state.currentUser.isAdmin) {
+      accountLink.style.display = '';
+    } else {
+      accountLink.style.display = 'none';
+    }
+  }
+
   // Gérer l'affichage dynamique de l'onglet Administration
   let adminLink = document.getElementById('nav-admin-link');
   if (state.currentUser && state.currentUser.isAdmin) {
@@ -1092,7 +1208,12 @@ function updateUI() {
         navigateTo('admin');
       });
       
-      navLinks.appendChild(adminLink);
+      const billingLink = document.getElementById('nav-billing-link');
+      if (billingLink) {
+        navLinks.insertBefore(adminLink, billingLink);
+      } else {
+        navLinks.appendChild(adminLink);
+      }
     }
   } else {
     if (adminLink) {
@@ -1115,8 +1236,101 @@ function updateUI() {
   } else {
     authContainer.innerHTML = `
       <button class="btn btn-secondary btn-sm" id="btn-login-open">Se connecter</button>
-      <button class="btn btn-primary btn-sm" id="btn-signup-open">Créer un compte</button>
+      <button class="btn btn-primary btn-sm" id="btn-signup-open">Essai gratuit</button>
     `;
+  }
+}
+
+function setupAccountPage() {
+  const pwdForm = document.getElementById('form-change-password');
+  if (pwdForm) {
+    pwdForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const newPassword = document.getElementById('acc-new-password').value;
+      if (newPassword.length < 6) {
+        showToast("Le mot de passe doit faire au moins 6 caractères.", "error");
+        return;
+      }
+      
+      try {
+        if (supabase) {
+          const { error } = await supabase.auth.updateUser({ password: newPassword });
+          if (error) throw error;
+          showToast("Mot de passe mis à jour avec succès !", "success");
+          pwdForm.reset();
+        } else {
+          showToast("Mise à jour simulée du mot de passe réussie !", "success");
+          pwdForm.reset();
+        }
+      } catch (err) {
+        console.error("Error updating password:", err);
+        showToast(`Erreur : ${err.message}`, "error");
+      }
+    });
+  }
+}
+
+function renderAccountPage() {
+  if (!state.currentUser) return;
+  
+  const emailEl = document.getElementById('account-email');
+  const uidEl = document.getElementById('account-uid');
+  const createdEl = document.getElementById('account-created');
+  
+  if (emailEl) emailEl.innerText = state.currentUser.email || '-';
+  if (uidEl) uidEl.innerText = state.currentUser.uid || '-';
+  
+  // Format created_at date
+  let createdDate = "N/A";
+  if (state.currentUser.created_at) {
+    try {
+      createdDate = new Date(state.currentUser.created_at).toLocaleDateString('fr-FR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
+    } catch(e) {}
+  } else {
+    createdDate = new Date().toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+  }
+  if (createdEl) createdEl.innerText = createdDate;
+  
+  // Render adopted agents summary
+  const container = document.getElementById('account-adopted-agents-summary');
+  if (container) {
+    container.innerHTML = '';
+    const adoptedIds = getAdoptedAgentIds() || [];
+    
+    if (adoptedIds.length === 0) {
+      container.innerHTML = `
+        <div style="grid-column: 1 / -1; text-align: center; padding: 24px; color: var(--text-muted); background: rgba(0,0,0,0.15); border-radius: 8px; font-size: 0.9rem;">
+          Vous n'avez pas encore adopté d'agents. <a href="#" style="color: var(--accent-color); font-weight: 600; text-decoration: none;" onclick="navigateTo('catalog'); return false;">Parcourir le catalogue</a>.
+        </div>
+      `;
+    } else {
+      adoptedIds.forEach(id => {
+        const agent = AGENTS.find(a => a.id === id);
+        if (!agent) return;
+        
+        const card = document.createElement('div');
+        card.className = 'account-agent-summary-card';
+        card.innerHTML = `
+          <div style="font-size: 1.5rem; margin-right: 12px;">${agent.avatar}</div>
+          <div>
+            <div style="font-weight: 700; color: var(--text-primary);">${agent.name}</div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary);">${agent.title}</div>
+          </div>
+          <div style="margin-left: auto; font-size: 0.85rem; font-weight: 600; color: #10b981; background: rgba(16, 185, 129, 0.1); padding: 4px 8px; border-radius: 4px;">
+            Actif
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
   }
 }
 
@@ -1207,6 +1421,11 @@ function renderCatalog() {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const agentId = btn.getAttribute('data-agent-id');
+      
+      if (agentId === 'zeus') {
+        document.getElementById('contact-modal').showModal();
+        return;
+      }
       
       if (isAgentAdopted(agentId)) {
         showToast("Vous avez déjà adopté cet agent !", "info");
@@ -5411,6 +5630,42 @@ function initOnboardingTour() {
   startBtn.addEventListener('click', () => {
     startTour();
   });
+  
+  // Wire homepage guided tour triggers
+  const guidedTourBtn = document.getElementById('btn-start-guided-tour');
+  if (guidedTourBtn) {
+    guidedTourBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      startTour();
+    });
+  }
+
+  const stepChoose = document.getElementById('step-card-choose');
+  if (stepChoose) {
+    stepChoose.addEventListener('click', () => {
+      startTour();
+      currentTourStep = 1; // Step 1: Catalogue
+      renderTourStep();
+    });
+  }
+
+  const stepConnect = document.getElementById('step-card-connect');
+  if (stepConnect) {
+    stepConnect.addEventListener('click', () => {
+      startTour();
+      currentTourStep = 4; // Step 4: Connexions
+      renderTourStep();
+    });
+  }
+
+  const stepWork = document.getElementById('step-card-work');
+  if (stepWork) {
+    stepWork.addEventListener('click', () => {
+      startTour();
+      currentTourStep = 5; // Step 5: Activité & Diagnostics
+      renderTourStep();
+    });
+  }
   
   closeBtn.addEventListener('click', () => {
     endTour();

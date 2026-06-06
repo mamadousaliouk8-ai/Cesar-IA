@@ -1,22 +1,23 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cinzel+Display:wght@400;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 :root {
-  --bg-primary: #030303;
-  --bg-secondary: #0a0a0c;
-  --bg-card: rgba(18, 18, 22, 0.7);
-  --bg-card-hover: rgba(26, 26, 32, 0.8);
+  --bg-primary: #0B0B0F;
+  --bg-secondary: #0F1A14;
+  --bg-card: #1A1A1F;
+  --bg-card-hover: #222229;
   
-  --border-color: rgba(255, 255, 255, 0.06);
-  --border-color-hover: rgba(255, 255, 255, 0.15);
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-color-hover: rgba(212, 175, 55, 0.35);
   
-  --text-primary: #f4f4f7;
-  --text-secondary: #9496a1;
-  --text-muted: #5e616e;
+  --text-primary: #F2EFE7;
+  --text-secondary: #c8c6c0;
+  --text-muted: #7e808a;
   
-  --accent-color: #6366f1; /* Indigo default */
-  --accent-glow: rgba(99, 102, 241, 0.15);
+  --accent-color: #D4AF37;
+  --accent-glow: rgba(212, 175, 55, 0.12);
   
   --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-serif: 'Cinzel Display', serif;
   --font-mono: 'JetBrains Mono', monospace;
   
   --sidebar-width: 280px;
@@ -2766,4 +2767,238 @@ dialog.invoice-dialog::backdrop {
   }
 }
 
+/* --- PREMIUM HOME PAGE REDESIGN STYLES --- */
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(212, 175, 55, 0.08) !important;
+  color: var(--accent-color) !important;
+  border: 1px solid rgba(212, 175, 55, 0.2) !important;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
 
+.badge-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #10b981;
+  box-shadow: 0 0 8px #10b981;
+  display: inline-block;
+}
+
+.hero-section h1 {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  letter-spacing: 1px !important;
+  background: linear-gradient(135deg, #ffffff 30%, #c8c6c0 100%) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+}
+
+.hero-section h1 span {
+  background: linear-gradient(135deg, var(--accent-color), #0F1A14) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  text-shadow: 0 0 30px rgba(212, 175, 55, 0.1);
+}
+
+/* Steps Grid (Comment ça marche) */
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 30px;
+  margin-top: 40px;
+}
+
+.step-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 35px 30px;
+  text-align: center;
+  transition: var(--transition);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.step-card:hover {
+  transform: translateY(-5px);
+  border-color: var(--border-color-hover);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.step-number {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-color), #0F1A14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-serif);
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: var(--text-primary);
+  margin-bottom: 24px;
+  box-shadow: 0 4px 15px rgba(212, 175, 55, 0.25);
+}
+
+.step-card h3 {
+  font-family: var(--font-serif);
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--text-primary);
+}
+
+.step-card p {
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.step-interactive-badge {
+  margin-top: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent-color);
+  background: rgba(212, 175, 55, 0.08);
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(212, 175, 55, 0.15);
+  transition: var(--transition);
+  opacity: 0.8;
+}
+
+.step-card:hover .step-interactive-badge {
+  opacity: 1;
+  background: rgba(212, 175, 55, 0.15);
+}
+
+/* Reassurance Bar */
+.reassurance-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 30px;
+  border-top: 1px solid var(--border-color);
+  padding-top: 40px;
+}
+
+.reassurance-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  padding: 16px 20px;
+  border-radius: var(--radius-sm);
+}
+
+.reassurance-icon {
+  font-size: 1.8rem;
+}
+
+.reassurance-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.reassurance-text strong {
+  font-size: 0.92rem;
+  color: var(--text-primary);
+}
+
+.reassurance-text span {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* --- CLIENT ACCOUNT PAGE STYLES --- */
+.account-layout {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 30px;
+  margin-top: 20px;
+}
+
+@media (max-width: 768px) {
+  .account-layout {
+    grid-template-columns: 1fr;
+  }
+  .account-card {
+    grid-column: span 1 !important;
+  }
+}
+
+.account-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 30px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.account-card h3 {
+  font-family: var(--font-serif);
+  font-size: 1.35rem;
+  margin-bottom: 20px;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 12px;
+}
+
+.account-info-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+}
+
+.info-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.info-label {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.info-value {
+  font-size: 0.92rem;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.account-agents-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.account-agent-summary-card {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  transition: var(--transition);
+}
+
+.account-agent-summary-card:hover {
+  border-color: var(--border-color-hover);
+  background: rgba(255, 255, 255, 0.04);
+}

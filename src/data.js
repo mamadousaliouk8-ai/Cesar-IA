@@ -2,12 +2,12 @@ export const AGENTS = [
   {
     id: "sybil",
     name: "Sybil",
-    title: "Analyste de Données & BI",
+    title: "Analyste de données",
     tier: "Pro",
     price: 299,
     setupFee: 1500,
     category: "Données & Analytics",
-    desc: "Prédit les tendances de ventes, analyse les KPI métiers et génère des rapports SQL ou graphiques interactifs.",
+    desc: "Analyse vos bases SQL, génère des rapports automatiques et détecte les anomalies dans vos indicateurs.",
     capabilities: [
       "Requêtes SQL autonomes",
       "Génération de graphiques",
@@ -64,13 +64,13 @@ export const AGENTS = [
   },
   {
     id: "hermes",
-    name: "Hermes",
-    title: "Rédacteur Web & SEO",
+    name: "Hermès",
+    title: "Rédacteur web & référencement",
     tier: "Pro",
     price: 299,
     setupFee: 1500,
     category: "Contenu & SEO",
-    desc: "Rédige des articles optimisés pour les moteurs de recherche, recherche des mots-clés stratégiques et analyse la concurrence.",
+    desc: "Rédige, optimise et publie vos contenus web sur WordPress, Webflow ou Notion de façon autonome.",
     capabilities: [
       "Rédaction d'articles SEO de 2000 mots",
       "Recherche sémantique & mots-clés",
@@ -296,12 +296,12 @@ export const AGENTS = [
   {
     id: "zeus",
     name: "Zeus",
-    title: "Superviseur d'Agents (Manager)",
+    title: "Superviseur de flotte",
     tier: "Enterprise",
     price: 0,
     setupFee: 0,
     category: "Gestion de Projet",
-    desc: "Le chef d'orchestre ultime. Coordonne plusieurs autres agents IA pour résoudre des projets multi-étapes très complexes.",
+    desc: "Orchestre plusieurs agents simultanément et s'intègre sur mesure à vos systèmes d'information internes.",
     capabilities: [
       "Décomposition de tâches complexes",
       "Distribution des rôles aux sous-agents",

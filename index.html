@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel+Display:wght@400;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <title>César-IA - Plateforme SaaS d'Agents IA Connectés</title>
     <script>
       (function() {
@@ -28,18 +31,19 @@
       <!-- Top Navigation Bar -->
       <header class="navbar">
         <a href="#" class="logo-container" id="logo-home">
-          <div class="logo-icon">C</div>
+          <div class="logo-icon">CA</div>
           <span>César-IA</span>
         </a>
         <nav class="nav-links">
-          <a href="#" class="nav-link active" data-route="home">Accueil</a>
+          <a href="#comment-ca-marche" class="nav-link" id="nav-explain-link">Comment ça marche</a>
           <a href="#" class="nav-link" data-route="catalog">Catalogue</a>
-          <a href="#" class="nav-link" data-route="dashboard" id="nav-dashboard-link">Tableau de Bord</a>
-          <a href="#" class="nav-link" data-route="billing" id="nav-billing-link">Nos abonnements</a>
+          <a href="#" class="nav-link" data-route="dashboard" id="nav-dashboard-link" style="display: none;">Tableau de Bord</a>
+          <a href="#" class="nav-link" data-route="account" id="nav-account-link" style="display: none;">Mon Compte</a>
+          <a href="#" class="nav-link" data-route="billing" id="nav-billing-link">Tarifs</a>
         </nav>
         <div class="nav-auth" id="auth-nav-container">
           <button class="btn btn-secondary btn-sm" id="btn-login-open">Se connecter</button>
-          <button class="btn btn-primary btn-sm" id="btn-signup-open">Créer un compte</button>
+          <button class="btn btn-primary btn-sm" id="btn-signup-open">Essai gratuit</button>
         </div>
       </header>
 
@@ -48,111 +52,219 @@
         
         <!-- ================= HOME SECTION ================= -->
         <section id="route-home" class="route-section active">
+          <!-- Hero Section -->
           <div class="hero-section">
-            <div class="hero-badge">⚡ Agence d'Agents Autonomes & Connectés</div>
-            <h1>Déployez des <span>Agents IA</span> sur vos serveurs et logiciels</h1>
+            <div class="hero-badge">
+              <span class="badge-dot"></span>
+              Vos opérations, automatisées par l'IA
+            </div>
+            <h1>Des agents IA qui travaillent sur vos outils, en <span>autonomie</span></h1>
             <p class="hero-subtitle">
-              Adoptez parmi 15 agents IA spécialisés. Connectez-les à vos outils (Slack, SSH, SQL, Gmail) et laissez-les automatiser vos opérations complexes en toute autonomie.
+              Choisissez un agent spécialisé, connectez-le à Slack, SQL ou Gmail, et laissez-le gérer vos tâches répétitives — sans coder.
             </p>
             <div class="hero-ctas">
-              <button class="btn btn-primary btn-lg" id="btn-hero-catalog">Découvrir le Catalogue</button>
-              <button class="btn btn-secondary btn-lg" id="btn-hero-explain">Comment ça marche ?</button>
+              <button class="btn btn-primary btn-lg" id="btn-hero-catalog">Trouver mon agent <span style="margin-left:6px;">⮕</span></button>
+              <button class="btn btn-secondary btn-lg" id="btn-hero-explain">Voir une démo</button>
             </div>
           </div>
 
-          <!-- Feature Highlights -->
-          <div class="features-grid">
-            <div class="feature-card">
-              <div class="feature-icon">🔌</div>
-              <h3>Connectivité Universelle</h3>
-              <p>Chaque agent s'intègre à vos serveurs via SSH, vos bases de données via SQL, et vos applications professionnelles favorites via API.</p>
-            </div>
-            <div class="feature-card">
-              <div class="feature-icon">🔑</div>
-              <h3>Sécurité de Niveau Bancaire</h3>
-              <p>Vos clés d'API et identifiants de serveurs sont cryptés de bout en bout dans notre coffre-fort de sécurité AES-256.</p>
-            </div>
-            <div class="feature-card">
-              <div class="feature-icon">💳</div>
-              <h3>Facturation à l'Agent</h3>
-              <p>Pas de frais cachés. Adoptez un agent, configurez son accès, et payez un abonnement clair et ajustable selon son grade tarifaire.</p>
-            </div>
-          </div>
-
-          <!-- Témoignages -->
-          <div class="home-sub-section">
-            <h2 class="sub-section-title">Ce que disent nos clients</h2>
-            <p class="sub-section-desc">Découvrez comment nos agents IA transforment le quotidien des entreprises.</p>
+          <!-- Section Comment ça marche -->
+          <div class="home-sub-section" id="comment-ca-marche-section" style="margin-top: 40px; scroll-margin-top: 100px;">
+            <h2 class="sub-section-title" style="font-family: var(--font-serif); font-size: 2.2rem; color: var(--text-primary);">Comment ça marche</h2>
+            <p class="sub-section-desc">Prenez le contrôle de vos processus automatisés en trois étapes simples et interactives.</p>
             
-            <div class="testimonials-grid">
-              <div class="testimonial-card">
-                <div class="testimonial-header">
-                  <div class="testimonial-user-avatar" style="background-color: var(--accent-color);">JD</div>
-                  <div>
-                    <div class="testimonial-user-name">Jean Dupont</div>
-                    <div class="testimonial-user-title">CTO, WebGrow</div>
-                  </div>
+            <div class="steps-grid">
+              <div class="step-card" id="step-card-choose" style="cursor: pointer;">
+                <div class="step-number">1</div>
+                <h3>Choisissez un agent</h3>
+                <p>Parcourez 15 agents spécialisés selon votre métier — ventes, data, support, DevOps...</p>
+                <div class="step-interactive-badge">Essayer l'étape ⚡</div>
+              </div>
+              <div class="step-card" id="step-card-connect" style="cursor: pointer;">
+                <div class="step-number">2</div>
+                <h3>Connectez vos outils</h3>
+                <p>Donnez-lui accès à vos logiciels via API, SSH ou SQL. Chiffrement AES-256 de bout en bout.</p>
+                <div class="step-interactive-badge">Essayer l'étape ⚡</div>
+              </div>
+              <div class="step-card" id="step-card-work" style="cursor: pointer;">
+                <div class="step-number">3</div>
+                <h3>Il travaille pour vous</h3>
+                <p>L'agent exécute ses missions en autonomie et vous envoie des rapports dans votre interface.</p>
+                <div class="step-interactive-badge">Essayer l'étape ⚡</div>
+              </div>
+            </div>
+            
+            <div style="text-align: center; margin-top: 30px;">
+              <button class="btn btn-secondary btn-md" id="btn-start-guided-tour" style="border-color: var(--accent-color); color: var(--accent-color);">Lancer la visite guidée 🚀</button>
+            </div>
+          </div>
+
+          <!-- Section Quel est votre besoin -->
+          <div class="home-sub-section" style="margin-top: 80px;">
+            <h2 class="sub-section-title" style="font-family: var(--font-serif); font-size: 2.2rem; color: var(--text-primary);">Quel est votre besoin ?</h2>
+            <p class="sub-section-desc">Filtrez les agents selon votre métier ou vos priorités actuelles.</p>
+            
+            <!-- Homepage Category Filters -->
+            <div class="filter-tabs" id="homepage-filters" style="justify-content: center; margin-bottom: 40px;">
+              <button class="filter-tab active" data-category="all">Populaires</button>
+              <button class="filter-tab" data-category="Données & Analytics">Données & Analytics</button>
+              <button class="filter-tab" data-category="Ventes">Ventes & Prospection</button>
+              <button class="filter-tab" data-category="Relation Client">Support client</button>
+              <button class="filter-tab" data-category="Infrastructure">Dev & Infra</button>
+              <button class="filter-tab" data-category="Gestion de Projet">Gestion de projet</button>
+            </div>
+
+            <!-- 3 Main agents preview -->
+            <div class="catalog-grid" id="homepage-agents-preview" style="margin-bottom: 40px;">
+              <!-- Sybil Card -->
+              <div class="agent-card" style="--card-accent: hsl(210, 100%, 60%);">
+                <div class="agent-card-header">
+                  <div class="agent-avatar">📊</div>
+                  <span class="agent-badge-cat">Données & Analytics</span>
                 </div>
-                <p class="testimonial-text">"L'agent Atlas (DevOps) surveille nos serveurs Linux H24. Il a détecté une fuite mémoire et a relancé Docker avant que nos clients ne s'en rendent compte. Impressionnant !"</p>
+                <h3>Sybil</h3>
+                <div class="agent-card-title">Analyste de données</div>
+                <p class="agent-card-desc">Analyse vos bases SQL, génère des rapports automatiques et détecte les anomalies dans vos indicateurs.</p>
+                <div class="agent-specs">
+                  <div class="spec-item"><span class="spec-icon">✓</span> Requêtes SQL autonomes</div>
+                  <div class="spec-item"><span class="spec-icon">✓</span> Génération de graphiques</div>
+                </div>
+                <div class="agent-card-footer">
+                  <div class="agent-price">
+                    <span class="price-val">299 €</span>
+                    <span class="price-period">/ mois</span>
+                  </div>
+                  <button class="btn btn-primary btn-sm btn-adopt-trigger" data-agent-id="sybil">Adopter</button>
+                </div>
               </div>
 
-              <div class="testimonial-card">
-                <div class="testimonial-header">
-                  <div class="testimonial-user-avatar" style="background-color: hsl(280, 80%, 45%);">ML</div>
-                  <div>
-                    <div class="testimonial-user-name">Marie Laurent</div>
-                    <div class="testimonial-user-title">Dir. Client, NovaShop</div>
-                  </div>
+              <!-- Hermes Card -->
+              <div class="agent-card" style="--card-accent: hsl(45, 100%, 50%);">
+                <div class="agent-card-header">
+                  <div class="agent-avatar">✍️</div>
+                  <span class="agent-badge-cat">Contenu & SEO</span>
                 </div>
-                <p class="testimonial-text">"Hestia répond à 80% des demandes de support client Crisp et WhatsApp. Nos temps de réponse sont passés de 2 heures à 10 secondes !"</p>
+                <h3>Hermès</h3>
+                <div class="agent-card-title">Rédacteur web & référencement</div>
+                <p class="agent-card-desc">Rédige, optimise et publie vos contenus web sur WordPress, Webflow ou Notion de façon autonome.</p>
+                <div class="agent-specs">
+                  <div class="spec-item"><span class="spec-icon">✓</span> Rédaction d'articles SEO</div>
+                  <div class="spec-item"><span class="spec-icon">✓</span> Recherche sémantique</div>
+                </div>
+                <div class="agent-card-footer">
+                  <div class="agent-price">
+                    <span class="price-val">299 €</span>
+                    <span class="price-period">/ mois</span>
+                  </div>
+                  <button class="btn btn-primary btn-sm btn-adopt-trigger" data-agent-id="hermes">Adopter</button>
+                </div>
               </div>
 
-              <div class="testimonial-card">
-                <div class="testimonial-header">
-                  <div class="testimonial-user-avatar" style="background-color: hsl(150, 80%, 40%);">PM</div>
-                  <div>
-                    <div class="testimonial-user-name">Pierre Martin</div>
-                    <div class="testimonial-user-title">Fondateur, SalesForce-X</div>
-                  </div>
+              <!-- Zeus Card -->
+              <div class="agent-card" style="--card-accent: hsl(340, 100%, 50%);">
+                <div class="agent-card-header">
+                  <div class="agent-avatar">👑</div>
+                  <span class="agent-badge-cat">Gestion de Projet</span>
                 </div>
-                <p class="testimonial-text">"Vesta a configuré nos campagnes de prospection sur Lemlist. Nous avons obtenu 24 rendez-vous qualifiés en seulement deux semaines. Rentabilisé dès le premier jour."</p>
+                <h3>Zeus</h3>
+                <div class="agent-card-title">Superviseur de flotte</div>
+                <p class="agent-card-desc">Orchestre plusieurs agents simultanément et s'intègre sur mesure à vos systèmes d'information internes.</p>
+                <div class="agent-specs">
+                  <div class="spec-item"><span class="spec-icon">✓</span> Décomposition de tâches complexes</div>
+                  <div class="spec-item"><span class="spec-icon">✓</span> Distribution des rôles aux sous-agents</div>
+                </div>
+                <div class="agent-card-footer">
+                  <div class="agent-price">
+                    <span class="price-val">Sur devis</span>
+                    <span class="price-period">Tarif sur-mesure</span>
+                  </div>
+                  <button class="btn btn-secondary btn-sm" id="btn-zeus-contact">Nous contacter</button>
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- FAQ -->
-          <div class="home-sub-section" style="margin-bottom: 60px;">
-            <h2 class="sub-section-title">Foire Aux Questions</h2>
-            <p class="sub-section-desc">Tout ce que vous devez savoir sur la plateforme César-IA.</p>
+          <!-- Barre de reassurance -->
+          <div class="reassurance-bar" style="margin-top: 60px; margin-bottom: 60px;">
+            <div class="reassurance-item">
+              <span class="reassurance-icon">🔒</span>
+              <div class="reassurance-text">
+                <strong>Chiffrement AES-256</strong>
+                <span>Sécurité maximale</span>
+              </div>
+            </div>
+            <div class="reassurance-item">
+              <span class="reassurance-icon">🇪🇺</span>
+              <div class="reassurance-text">
+                <strong>Hébergement EU</strong>
+                <span>Conformité RGPD</span>
+              </div>
+            </div>
+            <div class="reassurance-item">
+              <span class="reassurance-icon">📄</span>
+              <div class="reassurance-text">
+                <strong>Sans engagement</strong>
+                <span>Annulation en un clic</span>
+              </div>
+            </div>
+            <div class="reassurance-item">
+              <span class="reassurance-icon">💬</span>
+              <div class="reassurance-text">
+                <strong>Support dédié inclus</strong>
+                <span>Assistance 24/7</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================= ACCOUNT SECTION ================= -->
+        <section id="route-account" class="route-section">
+          <div class="section-header">
+            <h2 style="font-family: var(--font-serif); font-size: 2.2rem; color: var(--text-primary);">Mon Compte</h2>
+            <p>Gérez vos informations personnelles, votre sécurité et suivez vos agents adoptés.</p>
+          </div>
+
+          <div class="account-layout">
+            <div class="account-card">
+              <h3>Informations du Profil</h3>
+              <div class="account-info-grid">
+                <div class="info-row">
+                  <span class="info-label">Adresse E-mail</span>
+                  <span class="info-value" id="account-email">-</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Identifiant Unique (UID)</span>
+                  <span class="info-value" id="account-uid" style="font-family: monospace; font-size: 0.85rem;">-</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Membre depuis</span>
+                  <span class="info-value" id="account-created">-</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="account-card">
+              <h3>Sécurité & Mot de passe</h3>
+              <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 20px;">
+                Mettez à jour votre mot de passe pour sécuriser votre compte.
+              </p>
+              <form id="form-change-password" style="display: flex; flex-direction: column; gap: 12px; max-width: 400px;">
+                <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
+                  <label for="acc-new-password" style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Nouveau mot de passe</label>
+                  <input type="password" id="acc-new-password" placeholder="Minimum 6 caractères" required style="width: 100%; height: 42px; padding: 0 14px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(0,0,0,0.2); color: var(--text-primary); outline: none; transition: var(--transition);" />
+                </div>
+                <button type="submit" class="btn btn-primary" style="align-self: flex-start; margin-top: 10px;">Mettre à jour</button>
+              </form>
+            </div>
             
-            <div class="faq-container">
-              <details class="faq-item">
-                <summary class="faq-question">Mes clés d'API et identifiants sont-ils sécurisés ?</summary>
-                <div class="faq-answer">
-                  <p>Oui, absolument. Toutes vos données sensibles (clés d'API, tokens, configurations de serveurs) sont cryptées de bout en bout à l'aide de l'algorithme de chiffrement industriel AES-256. Vos informations ne quittent jamais votre périmètre sécurisé.</p>
-                </div>
-              </details>
-
-              <details class="faq-item">
-                <summary class="faq-question">Comment fonctionne le diagnostic de connexion ?</summary>
-                <div class="faq-answer">
-                  <p>Lorsque vous configurez un connecteur, vous pouvez tester la liaison en temps réel. César-IA effectue une séquence de diagnostics sécurisés (pings, validation de jetons, handshake SSL) pour s'assurer que l'agent est opérationnel.</p>
-                </div>
-              </details>
-
-              <details class="faq-item">
-                <summary class="faq-question">Puis-je annuler l'adoption d'un agent à tout moment ?</summary>
-                <div class="faq-answer">
-                  <p>Oui. Tous nos abonnements sont sans engagement de durée. Vous pouvez suspendre ou résilier l'adoption de n'importe quel agent en un clic depuis votre espace "Nos abonnements", l'agent cessera de fonctionner immédiatement.</p>
-                </div>
-              </details>
-
-              <details class="faq-item">
-                <summary class="faq-question">De quelle manière les agents accèdent-ils à nos données ?</summary>
-                <div class="faq-answer">
-                  <p>Chaque agent est limité aux droits d'accès que vous configurez via les connecteurs. Par exemple, si vous donnez un accès en lecture seule à une table de base de données, l'agent ne pourra jamais effectuer de modification ou de suppression.</p>
-                </div>
-              </details>
+            <div class="account-card" style="grid-column: span 2;">
+              <h3>Vos abonnements actifs</h3>
+              <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 20px;">
+                Vous avez adopté les agents suivants. Pour modifier vos abonnements ou vos informations bancaires, veuillez visiter la page <a href="#" style="color: var(--accent-color); font-weight: bold; text-decoration: none;" onclick="navigateTo('billing'); return false;">Tarifs</a>.
+              </p>
+              <div id="account-adopted-agents-summary" class="account-agents-summary-grid">
+                <!-- Dynamically populated list of adopted agents -->
+              </div>
             </div>
           </div>
         </section>
@@ -957,6 +1069,61 @@
         <button class="btn btn-danger" id="btn-unsub-confirm" style="padding: 10px 16px; font-size: 0.85rem;">Confirmer la résiliation</button>
       </div>
     </dialog>
+
+    <!-- ================= ZEUS CONTACT MODAL ================= -->
+    <dialog id="contact-modal" class="adopt-dialog" closedby="any" aria-labelledby="contact-dialog-title" style="max-width: 500px; width: 90%;">
+      <div class="dialog-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 14px; margin-bottom: 18px;">
+        <h3 id="contact-dialog-title" style="font-family: var(--font-serif); font-size: 1.4rem; color: var(--text-primary); margin: 0;">Contacter César-IA</h3>
+        <button type="button" onclick="document.getElementById('contact-modal').close()" style="background: none; border: none; font-size: 1.5rem; color: var(--text-muted); cursor: pointer;">&times;</button>
+      </div>
+      
+      <p style="font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 20px;">
+        Vous souhaitez intégrer <strong>Zeus</strong>, le superviseur d'agents, à votre infrastructure interne ? Laissez-nous vos coordonnées et nos architectes de solutions vous contacteront sous 24 heures pour concevoir votre offre personnalisée.
+      </p>
+
+      <form id="form-zeus-contact" style="display: flex; flex-direction: column; gap: 14px;">
+        <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
+          <label for="contact-name" style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Nom complet</label>
+          <input type="text" id="contact-name" required placeholder="Votre nom" style="height: 42px; padding: 0 14px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(0,0,0,0.2); color: var(--text-primary); outline: none;" />
+        </div>
+        <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
+          <label for="contact-email" style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Email professionnel</label>
+          <input type="email" id="contact-email" required placeholder="name@company.com" style="height: 42px; padding: 0 14px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(0,0,0,0.2); color: var(--text-primary); outline: none;" />
+        </div>
+        <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
+          <label for="contact-message" style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Description de votre projet</label>
+          <textarea id="contact-message" rows="4" required placeholder="Besoins d'orchestration, volume de requêtes, serveurs cibles..." style="padding: 10px 14px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(0,0,0,0.2); color: var(--text-primary); outline: none; font-family: var(--font-sans); font-size: 0.9rem; resize: vertical;"></textarea>
+        </div>
+        
+        <div style="display: flex; gap: 10px; margin-top: 14px; justify-content: flex-end;">
+          <button type="button" class="btn btn-secondary" onclick="document.getElementById('contact-modal').close()">Annuler</button>
+          <button type="submit" class="btn btn-primary">Envoyer la demande</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- ================= ONBOARDING TOUR ELEMENTS ================= -->
+    <button id="btn-start-tour" style="display: none;"></button>
+    <div id="onboarding-tour-container" class="tour-overlay-container" style="display: none;">
+      <div id="tour-backdrop" class="tour-backdrop"></div>
+      <div id="tour-card" class="tour-card">
+        <div class="tour-card-header" style="display: flex; justify-content: space-between; align-items: center;">
+          <span class="tour-badge" id="tour-step-badge" style="font-size: 0.75rem; background: rgba(212,175,55,0.1); color: var(--accent-color); padding: 4px 10px; border-radius: 20px; font-weight: 700;">Étape 1/8</span>
+          <button id="tour-btn-close" class="tour-close-btn" style="background: none; border: none; font-size: 1.5rem; color: var(--text-muted); cursor: pointer;">&times;</button>
+        </div>
+        <div class="tour-card-body">
+          <h3 class="tour-card-title" id="tour-title" style="font-family: var(--font-serif); font-size: 1.2rem; color: var(--text-primary); margin-bottom: 8px;">Titre</h3>
+          <p class="tour-card-text" id="tour-text" style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.5;">Texte</p>
+        </div>
+        <div class="tour-progress-container" style="width: 100%; height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; margin-top: 10px;">
+          <div id="tour-progress" class="tour-progress-bar" style="width: 10%; height: 100%; background: var(--accent-color); transition: width 0.3s ease;"></div>
+        </div>
+        <div class="tour-card-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px;">
+          <button id="tour-btn-prev" class="btn btn-secondary btn-sm" style="visibility: hidden;">Retour</button>
+          <button id="tour-btn-next" class="btn btn-primary btn-sm">Suivant</button>
+        </div>
+      </div>
+    </div>
 
     <!-- Toast Notification -->
     <div class="toast" id="app-toast">
