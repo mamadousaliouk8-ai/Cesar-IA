@@ -3131,30 +3131,42 @@ async function setupStripeAdmin() {
     // Enregistrer sur Supabase
     if (!isMock) {
       try {
-        logDebug("Sauvegarde des liens Stripe sur Supabase...");
+        logDebug("Sauvegarde des liens Stripe sur Supabase (Optimisé)...");
         
-        // Parcourir tous les agents du catalogue
+        const activeRows = [];
+        const emptyAgentIds = [];
+        
         for (const agent of AGENTS) {
           const url = state.stripeLinks[agent.id] || '';
           if (url) {
-            await supabaseFetch('stripe_links', {
-              method: 'POST',
-              queryParams: `?on_conflict=agent_id`,
-              headers: {
-                Prefer: 'resolution=merge-duplicates'
-              },
-              body: { agent_id: agent.id, url: url }
-            });
+            activeRows.push({ agent_id: agent.id, url: url });
           } else {
-            // Supprimer de Supabase si vidé
-            try {
-              await supabaseFetch('stripe_links', {
-                method: 'DELETE',
-                queryParams: `?agent_id=eq.${agent.id}`
-              });
-            } catch (errDel) {
-              // ignorer si l'entrée n'existait pas
-            }
+            emptyAgentIds.push(agent.id);
+          }
+        }
+        
+        // 1. Sauvegarde groupée des liens actifs
+        if (activeRows.length > 0) {
+          await supabaseFetch('stripe_links', {
+            method: 'POST',
+            queryParams: `?on_conflict=agent_id`,
+            headers: {
+              Prefer: 'resolution=merge-duplicates'
+            },
+            body: activeRows
+          });
+        }
+        
+        // 2. Suppression groupée des liens vidés
+        if (emptyAgentIds.length > 0) {
+          try {
+            const idsList = emptyAgentIds.join(',');
+            await supabaseFetch('stripe_links', {
+              method: 'DELETE',
+              queryParams: `?agent_id=in.(${idsList})`
+            });
+          } catch (errDel) {
+            // ignorer si l'entrée n'existait pas
           }
         }
         
