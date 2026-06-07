@@ -18,11 +18,15 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { apiKey: clientApiKey } = req.body;
+    const { apiKey: clientApiKey, checkOnly } = req.body || {};
     
     // Déterminer la clé API : celle passée dans le corps ou configurée sur Vercel
     const apiKey = clientApiKey || process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
     
+    if (checkOnly) {
+      return res.status(200).json({ configured: !!apiKey });
+    }
+
     if (!apiKey) {
       return res.status(400).json({ error: { message: 'Clé API manquante.' } });
     }

@@ -428,11 +428,6 @@ function setupRoutes() {
           openAuthModal('Connexion requise');
           return;
         }
-        if (!state.currentUser.isAdmin) {
-          showToast("Accès restreint aux administrateurs.", "error");
-          navigateTo('home');
-          return;
-        }
       }
 
       if (route === 'admin') {
@@ -539,7 +534,7 @@ function navigateTo(route) {
 
   // Double check access controls on routing level
   if (route === 'dashboard' && !state.tourActive) {
-    if (!state.currentUser || !state.currentUser.isAdmin) {
+    if (!state.currentUser) {
       route = 'home';
     }
   }
@@ -1178,7 +1173,7 @@ function updateUI() {
   // Dashboard Link
   const dashboardLink = document.getElementById('nav-dashboard-link');
   if (dashboardLink) {
-    if (state.currentUser && state.currentUser.isAdmin) {
+    if (state.currentUser) {
       dashboardLink.style.display = '';
     } else {
       dashboardLink.style.display = 'none';
@@ -3057,7 +3052,7 @@ function setupGeminiAdmin() {
   });
 }
 
-function updateGeminiKeyStatus() {
+async function updateGeminiKeyStatus() {
   const statusEl = document.getElementById('gemini-key-status');
   if (!statusEl) return;
   
@@ -3066,11 +3061,33 @@ function updateGeminiKeyStatus() {
   
   if (localKey) {
     statusEl.innerHTML = `<span style="color: #10b981;">🟢 Clé API configurée via le stockage local (localStorage).</span>`;
-  } else if (envKey) {
-    statusEl.innerHTML = `<span style="color: #6366f1;">🔵 Clé API héritée du fichier d'environnement (.env).</span>`;
-  } else {
-    statusEl.innerHTML = `<span style="color: var(--text-secondary);">🟡 Aucune clé API configurée. Mode simulation actif.</span>`;
+    return;
   }
+  
+  if (envKey) {
+    statusEl.innerHTML = `<span style="color: #6366f1;">🔵 Clé API héritée du fichier d'environnement (.env).</span>`;
+    return;
+  }
+
+  // Tenter de détecter si le serveur possède une clé configurée
+  try {
+    const res = await fetch('/api/test-key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ checkOnly: true })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.configured) {
+        statusEl.innerHTML = `<span style="color: #6366f1;">🔵 Clé API configurée sur le serveur Vercel (Production).</span>`;
+        return;
+      }
+    }
+  } catch (err) {
+    console.warn("Échec de détection de clé serveur:", err);
+  }
+  
+  statusEl.innerHTML = `<span style="color: var(--text-secondary);">🟡 Aucune clé API configurée. Mode simulation actif.</span>`;
 }
 
 async function setupStripeAdmin() {
