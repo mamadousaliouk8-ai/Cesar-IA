@@ -5565,7 +5565,7 @@ const tourSteps = [
   {
     title: "Étape 3 : Discutez & Déléguez 💬",
     text: "C'est votre canal direct de communication. Posez des questions en langage naturel, confiez des tâches système ou demandez des comptes-rendus.",
-    target: "#tab-chat",
+    target: ".panel-tab[data-tab='chat']",
     action: () => {
       state.tourActive = true;
       navigateTo('dashboard');
@@ -5577,7 +5577,7 @@ const tourSteps = [
   {
     title: "Étape 4 : Connexions & Sécurité 🔑",
     text: "Sécurisez vos serveurs, bases SQL ou API en y associant vos accès chiffrés. L'agent utilisera ces identifiants pour exécuter ses missions en toute autonomie.",
-    target: "#tab-connectors",
+    target: ".panel-tab[data-tab='connectors']",
     action: () => {
       state.tourActive = true;
       navigateTo('dashboard');
@@ -5589,7 +5589,7 @@ const tourSteps = [
   {
     title: "Étape 5 : Activité & Diagnostic 📊",
     text: "Suivez le statut de l'agent, testez son ping et lisez le journal d'exécution (logs) en temps réel pour auditer chacune de ses actions système.",
-    target: "#tab-stats",
+    target: ".panel-tab[data-tab='stats']",
     action: () => {
       state.tourActive = true;
       navigateTo('dashboard');
@@ -5792,12 +5792,12 @@ function initOnboardingTour() {
         } else if (rect.bottom + cardHeight + 24 < viewportHeight) {
           // Place below element
           left = Math.max(16, Math.min(viewportWidth - cardWidth - 16, rect.left + (rect.width / 2) - (cardWidth / 2)));
-          top = rect.bottom + 16;
+          top = Math.max(16, Math.min(viewportHeight - cardHeight - 16, rect.bottom + 16));
           card.classList.add('arrow-top');
         } else {
           // Place above element
           left = Math.max(16, Math.min(viewportWidth - cardWidth - 16, rect.left + (rect.width / 2) - (cardWidth / 2)));
-          top = rect.top - cardHeight - 16;
+          top = Math.max(16, Math.min(viewportHeight - cardHeight - 16, rect.top - cardHeight - 16));
           card.classList.add('arrow-bottom');
         }
         
