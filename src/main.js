@@ -120,11 +120,15 @@ async function supabaseFetch(table, { method = 'GET', queryParams = '', body = n
         throw new Error(`HTTP ${res.status}: ${errorText}`);
       }
       
-      if (res.status === 204) {
+      const text = await res.text();
+      if (!text || res.status === 204) {
         return null;
       }
-      
-      return await res.json();
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        return text;
+      }
     } catch (err) {
       clearTimeout(timeoutId);
       throw err;
