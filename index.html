@@ -333,6 +333,7 @@
                   <div class="panel-tabs">
                     <button class="panel-tab active" data-tab="chat">Discussion</button>
                     <button class="panel-tab" data-tab="history" title="Historique des discussions">📋</button>
+                    <button class="panel-tab" data-tab="calendar" id="tab-btn-calendar" style="display: none;">Calendrier</button>
                     <button class="panel-tab" data-tab="connectors">Connecteurs & Logiciels</button>
                     <button class="panel-tab" data-tab="stats">Statistiques & Usage</button>
                   </div>
@@ -459,6 +460,69 @@
                       </div>
                       <div class="stats-logs-body console-terminal" id="stats-logs-container">
                         <!-- Logs injected dynamically -->
+                      </div>
+                  </div>
+                </div>
+
+                <!-- Calendar tab -->
+                <div class="tab-content" id="tab-calendar">
+                  <div class="calendar-layout" style="padding: 24px; display: flex; flex-direction: column; height: 100%;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                      <div>
+                        <h3 style="font-family: var(--font-serif); font-size: 1.5rem; color: var(--text-primary); margin: 0;">Calendrier de Publication Chronos</h3>
+                        <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 4px 0 0 0;">Visualisez, modifiez et validez votre planning éditorial multi-réseaux.</p>
+                      </div>
+                      <button class="btn btn-primary btn-sm" id="btn-calendar-add-post" style="height: 38px; display: flex; align-items: center; gap: 6px;">
+                        <span>+</span> Planifier un post
+                      </button>
+                    </div>
+
+                    <!-- Calendar Grid Wrapper -->
+                    <div class="calendar-weeks-grid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px; margin-bottom: 24px; flex: 1; min-height: 320px;">
+                      <!-- Monday -->
+                      <div class="calendar-day-col" data-day="monday" style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; display: flex; flex-direction: column; padding: 10px; min-height: 250px;">
+                        <div class="day-header" style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; text-align: center;">Lundi</div>
+                        <div class="day-events-container" id="day-events-monday" style="display: flex; flex-direction: column; gap: 8px; flex: 1;"></div>
+                      </div>
+                      <!-- Tuesday -->
+                      <div class="calendar-day-col" data-day="tuesday" style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; display: flex; flex-direction: column; padding: 10px; min-height: 250px;">
+                        <div class="day-header" style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; text-align: center;">Mardi</div>
+                        <div class="day-events-container" id="day-events-tuesday" style="display: flex; flex-direction: column; gap: 8px; flex: 1;"></div>
+                      </div>
+                      <!-- Wednesday -->
+                      <div class="calendar-day-col" data-day="wednesday" style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; display: flex; flex-direction: column; padding: 10px; min-height: 250px;">
+                        <div class="day-header" style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; text-align: center;">Mercredi</div>
+                        <div class="day-events-container" id="day-events-wednesday" style="display: flex; flex-direction: column; gap: 8px; flex: 1;"></div>
+                      </div>
+                      <!-- Thursday -->
+                      <div class="calendar-day-col" data-day="thursday" style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; display: flex; flex-direction: column; padding: 10px; min-height: 250px;">
+                        <div class="day-header" style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; text-align: center;">Jeudi</div>
+                        <div class="day-events-container" id="day-events-thursday" style="display: flex; flex-direction: column; gap: 8px; flex: 1;"></div>
+                      </div>
+                      <!-- Friday -->
+                      <div class="calendar-day-col" data-day="friday" style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; display: flex; flex-direction: column; padding: 10px; min-height: 250px;">
+                        <div class="day-header" style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; text-align: center;">Vendredi</div>
+                        <div class="day-events-container" id="day-events-friday" style="display: flex; flex-direction: column; gap: 8px; flex: 1;"></div>
+                      </div>
+                      <!-- Saturday -->
+                      <div class="calendar-day-col" data-day="saturday" style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; display: flex; flex-direction: column; padding: 10px; min-height: 250px;">
+                        <div class="day-header" style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; text-align: center;">Samedi</div>
+                        <div class="day-events-container" id="day-events-saturday" style="display: flex; flex-direction: column; gap: 8px; flex: 1;"></div>
+                      </div>
+                      <!-- Sunday -->
+                      <div class="calendar-day-col" data-day="sunday" style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 8px; display: flex; flex-direction: column; padding: 10px; min-height: 250px;">
+                        <div class="day-header" style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; text-align: center;">Dimanche</div>
+                        <div class="day-events-container" id="day-events-sunday" style="display: flex; flex-direction: column; gap: 8px; flex: 1;"></div>
+                      </div>
+                    </div>
+
+                    <!-- Drafts Queue / Unplanned Posts -->
+                    <div class="calendar-drafts-section" style="border-top: 1px solid var(--border-color); padding-top: 20px;">
+                      <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--text-primary); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+                        <span>📝</span> Brouillons en attente de validation
+                      </h4>
+                      <div class="drafts-queue-list" id="calendar-drafts-queue" style="display: flex; flex-direction: column; gap: 10px;">
+                        <!-- Drafts injected dynamically -->
                       </div>
                     </div>
                   </div>
@@ -851,6 +915,10 @@
         <div id="auth-debug-log" style="font-family: monospace; font-size: 0.8rem; background: #111; color: #00ff00; padding: 10px; margin-top: 12px; border: 1px solid #333; border-radius: 6px; max-height: 120px; overflow-y: auto; text-align: left;">[Système] Prêt à enregistrer les diagnostics...</div>
         
         <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 14px;" id="btn-auth-submit">Continuer</button>
+        
+        <button type="button" id="btn-instant-trial" class="btn btn-primary" style="width: 100%; margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 10px; background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); border: none; border-radius: 8px; padding: 12px; font-weight: 600; color: #fff; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.filter='brightness(1.1)'" onmouseout="this.style.filter='none'">
+          ⚡ Inscription Instantanée (Essai Gratuit)
+        </button>
       </form>
       
       <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin: 16px 0; color: var(--text-muted); font-size: 0.8rem;">

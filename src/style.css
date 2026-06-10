@@ -3002,3 +3002,136 @@ dialog.invoice-dialog::backdrop {
   border-color: var(--border-color-hover);
   background: rgba(255, 255, 255, 0.04);
 }
+
+/* ===================================================
+   CHRONOS EDITORIAL CALENDAR TAB STYLING
+   =================================================== */
+
+.calendar-layout {
+  animation: fadeIn 0.3s ease;
+}
+
+.calendar-weeks-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+  width: 100%;
+}
+
+.calendar-day-col {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  min-height: 380px;
+  transition: background 0.3s, border-color 0.3s;
+}
+
+.calendar-day-col:hover {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.day-header {
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 8px;
+  text-align: center;
+}
+
+.day-events-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.calendar-event-card {
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  font-size: 0.76rem;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.calendar-event-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+  width: 4px;
+}
+
+/* Platform-specific styles */
+.calendar-event-card.linkedin {
+  background: rgba(0, 119, 181, 0.04);
+  border: 1px solid rgba(0, 119, 181, 0.15);
+  color: var(--text-primary);
+}
+.calendar-event-card.linkedin::before {
+  background: #0077b5;
+}
+
+.calendar-event-card.twitter {
+  background: rgba(29, 161, 242, 0.04);
+  border: 1px solid rgba(29, 161, 242, 0.15);
+  color: var(--text-primary);
+}
+.calendar-event-card.twitter::before {
+  background: #1da1f2;
+}
+
+.calendar-event-card.facebook {
+  background: rgba(24, 119, 242, 0.04);
+  border: 1px solid rgba(24, 119, 242, 0.15);
+  color: var(--text-primary);
+}
+.calendar-event-card.facebook::before {
+  background: #1877f2;
+}
+
+.calendar-event-card.instagram {
+  background: rgba(225, 48, 108, 0.04);
+  border: 1px solid rgba(225, 48, 108, 0.15);
+  color: var(--text-primary);
+}
+.calendar-event-card.instagram::before {
+  background: #e1306c;
+}
+
+.calendar-event-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+}
+
+.calendar-drafts-section {
+  border-top: 1px solid var(--border-color);
+  padding-top: 24px;
+  margin-top: 10px;
+}
+
+.drafts-queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.calendar-layout button.btn-sm {
+  font-size: 0.78rem;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-weight: 600;
+  transition: var(--transition);
+}
