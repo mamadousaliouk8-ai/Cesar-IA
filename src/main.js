@@ -4190,57 +4190,160 @@ function renderCalendarTab() {
   const btnAddPost = document.getElementById('btn-calendar-add-post');
   if (btnAddPost && !btnAddPost.dataset.wired) {
     btnAddPost.dataset.wired = 'true';
-    btnAddPost.addEventListener('click', () => {
-      const text = prompt("Saisissez le texte du post à planifier :");
-      if (!text) return;
-      const platform = prompt("Réseau social (LinkedIn, Twitter, Facebook, Instagram) :", "LinkedIn");
-      if (!platform) return;
-      const day = prompt("Jour de la semaine (monday, tuesday, wednesday, thursday, friday, saturday, sunday) :", "monday");
-      if (!day) return;
-      const time = prompt("Heure de publication (ex: 09:00) :", "09:00");
-      if (!time) return;
-
-      const newEvt = {
-        id: "evt_" + Math.random().toString(36).substring(2, 9),
-        day: day.toLowerCase().trim(),
-        time: time.trim(),
-        platform: platform.trim(),
-        text: text.trim(),
-        status: "planned"
-      };
-
-      state.calendarEvents.push(newEvt);
-      saveMockState();
-      showToast("Publication ajoutée avec succès au planning !", "success");
-      renderCalendarTab();
-    });
+    btnAddPost.addEventListener('click', openCalendarAddModal);
   }
 }
 
-function showCalendarEventActions(evt) {
-  const dayLabel = evt.day.charAt(0).toUpperCase() + evt.day.slice(1);
-  const statusLabel = evt.status === 'published' ? 'Déjà publié' : (evt.status === 'planned' ? 'Planifié' : 'Brouillon');
+function openCalendarAddModal() {
+  const modal = document.getElementById('calendar-modal');
+  if (!modal) return;
+
+  // Reset form fields
+  document.getElementById('cal-post-id').value = '';
+  document.getElementById('cal-post-text').value = '';
+  document.getElementById('cal-post-platform').value = 'LinkedIn';
+  document.getElementById('cal-post-day').value = 'monday';
+  document.getElementById('cal-post-time').value = '09:00';
+  document.getElementById('cal-post-status').value = 'planned';
   
-  const opt = confirm(`Publication ${evt.platform} (${dayLabel} à ${evt.time} - ${statusLabel}) :\n\n"${evt.text}"\n\nAppuyez sur OK pour modifier ou supprimer.`);
-  if (!opt) return;
+  document.getElementById('calendar-modal-title').innerText = "Planifier une publication";
+  document.getElementById('btn-calendar-modal-delete').style.display = 'none';
 
-  const action = prompt(`Tapez :\n"PUBLIER" pour forcer la publication en direct\n"SUPPRIMER" pour retirer cette publication`);
-  if (!action) return;
+  setupCalendarModalListeners();
+  modal.showModal();
+}
 
-  const choice = action.trim().toUpperCase();
-  if (choice === 'PUBLIER') {
-    evt.status = 'published';
+function openCalendarEditModal(evt) {
+  const modal = document.getElementById('calendar-modal');
+  if (!modal) return;
+
+  // Fill form fields
+  document.getElementById('cal-post-id').value = evt.id;
+  document.getElementById('cal-post-text').value = evt.text;
+  document.getElementById('cal-post-platform').value = evt.platform;
+  document.getElementById('cal-post-day').value = evt.day;
+  document.getElementById('cal-post-time').value = evt.time;
+  document.getElementById('cal-post-status').value = evt.status;
+  
+  document.getElementById('calendar-modal-title').innerText = "Modifier la publication";
+  document.getElementById('btn-calendar-modal-delete').style.display = 'block';
+
+  setupCalendarModalListeners();
+  modal.showModal();
+}
+
+let isCalendarModalWired = false;
+
+function setupCalendarModalListeners() {
+  if (isCalendarModalWired) return;
+  isCalendarModalWired = true;
+
+  const modal = document.getElementById('calendar-modal');
+  const form = document.getElementById('form-calendar-post');
+  const btnClose = document.getElementById('btn-calendar-modal-close');
+  const btnCancel = document.getElementById('btn-calendar-modal-cancel');
+  const btnDelete = document.getElementById('btn-calendar-modal-delete');
+
+  const closeHandler = () => {
+    modal.close();
+  };
+
+  btnClose.addEventListener('click', closeHandler);
+  if (btnCancel) btnCancel.addEventListener('click', closeHandler);
+
+  btnDelete.addEventListener('click', () => {
+    const id = document.getElementById('cal-post-id').value;
+    if (id) {
+      state.calendarEvents = state.calendarEvents.filter(e => e.id !== id);
+      saveMockState();
+      showToast("Publication retirée du planning.", "info");
+      renderCalendarTab();
+      modal.close();
+    }
+  });
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const id = document.getElementById('cal-post-id').value;
+    const text = document.getElementById('cal-post-text').value.trim();
+    const platform = document.getElementById('cal-post-platform').value;
+    const day = document.getElementById('cal-post-day').value;
+    const time = document.getElementById('cal-post-time').value.trim();
+    const status = document.getElementById('cal-post-status').value;
+
+    if (!text || !time) return;
+
+    if (id) {
+      // Edit existing post
+      const evt = state.calendarEvents.find(e => e.id === id);
+      if (evt) {
+        evt.text = text;
+        evt.platform = platform;
+        evt.day = day;
+        evt.time = time;
+        evt.status = status;
+        showToast("Publication mise à jour !", "success");
+      }
+    } else {
+      // Add new post
+      const newEvt = {
+        id: "evt_" + Math.random().toString(36).substring(2, 9),
+        day,
+        time,
+        platform,
+        text,
+        status
+      };
+      state.calendarEvents.push(newEvt);
+      showToast("Publication ajoutée au planning !", "success");
+    }
+
     saveMockState();
-    showToast("Publication effectuée en direct !", "success");
     renderCalendarTab();
-  } else if (choice === 'SUPPRIMER') {
-    state.calendarEvents = state.calendarEvents.filter(e => e.id !== evt.id);
-    saveMockState();
-    showToast("Publication retirée du planning.", "info");
-    renderCalendarTab();
-  } else {
-    showToast("Action annulée ou invalide.", "info");
-  }
+    modal.close();
+  });
+}
+
+function showCalendarEventActions(evt) {
+  openCalendarEditModal(evt);
+}
+
+function detectAndAddChronosDraftToCalendar(text) {
+  if (!text || typeof text !== 'string') return;
+  if (!text.includes("Brouillon rédigé avec succès")) return;
+  
+  // Extract subject
+  const subjectMatch = text.match(/Brouillon rédigé avec succès \(([^)]+)\)/);
+  const subject = subjectMatch ? subjectMatch[1] : "LinkedIn";
+  
+  // Extract draft content (between --- and ---)
+  const parts = text.split("---");
+  if (parts.length < 3) return;
+  const draftText = parts[1].trim();
+  
+  // Determine platform
+  const platform = subject.toLowerCase().includes("twitter") || subject.toLowerCase().includes("tweet") ? "Twitter" : "LinkedIn";
+  
+  // Choose random day and time for scheduling
+  const days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+  const randomDay = days[Math.floor(Math.random() * 5)]; // Mon-Fri
+  const time = "10:00";
+  
+  // Check if it already exists to avoid duplicates
+  const exists = state.calendarEvents.some(e => e.text === draftText);
+  if (exists) return;
+  
+  const newEvt = {
+    id: "evt_" + Math.random().toString(36).substring(2, 9),
+    day: randomDay,
+    time: time,
+    platform: platform,
+    text: draftText,
+    status: "draft" // Draft status by default!
+  };
+  
+  state.calendarEvents.push(newEvt);
+  saveMockState();
 }
 
 async function sendChatMessage() {
@@ -4379,6 +4482,9 @@ async function sendChatMessage() {
         logDebug(`[Gemini API] Attention: La génération s'est arrêtée avec le motif: ${finishReason}`);
       }
       chatHistories[agentId].push({ sender: 'agent', text: replyText, executionLogs: executionLogs });
+      if (agentId === 'chronos') {
+        detectAndAddChronosDraftToCalendar(replyText);
+      }
       renderChatMessages();
       saveChatMessage(agentId, 'agent', replyText, executionLogs);
     } else {
@@ -4444,6 +4550,9 @@ async function sendChatMessage() {
         }
         
         chatHistories[agentId].push({ sender: 'agent', text: finalReplyText, executionLogs: simulatedLogs });
+        if (agentId === 'chronos') {
+          detectAndAddChronosDraftToCalendar(finalReplyText);
+        }
         renderChatMessages();
         saveChatMessage(agentId, 'agent', finalReplyText, simulatedLogs);
         return;

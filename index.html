@@ -1176,6 +1176,69 @@
       </form>
     </dialog>
 
+    <!-- ================= CALENDAR POST MODAL ================= -->
+    <dialog id="calendar-modal" class="adopt-dialog" closedby="any" style="max-width: 500px; width: 90%;">
+      <div class="dialog-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 14px; margin-bottom: 18px;">
+        <h3 id="calendar-modal-title" style="font-family: var(--font-serif); font-size: 1.4rem; color: var(--text-primary); margin: 0;">Planifier une publication</h3>
+        <button type="button" id="btn-calendar-modal-close" style="background: none; border: none; font-size: 1.5rem; color: var(--text-muted); cursor: pointer;">&times;</button>
+      </div>
+      <form id="form-calendar-post" style="display: flex; flex-direction: column; gap: 14px;">
+        <input type="hidden" id="cal-post-id" />
+        
+        <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
+          <label for="cal-post-text" style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Contenu de la publication (Copywriting)</label>
+          <textarea id="cal-post-text" placeholder="Rédigez le texte de votre publication..." required rows="4" style="width: 100%; padding: 12px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(0,0,0,0.2); color: var(--text-primary); font-family: inherit; font-size: 0.9rem; outline: none; resize: vertical; min-height: 100px;"></textarea>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
+            <label for="cal-post-platform" style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Réseau Social</label>
+            <select id="cal-post-platform" style="width: 100%; height: 42px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(0,0,0,0.2); color: var(--text-primary); padding: 0 10px; font-size: 0.88rem; outline: none; -webkit-appearance: none;">
+              <option value="LinkedIn">LinkedIn</option>
+              <option value="Twitter">X / Twitter</option>
+              <option value="Facebook">Facebook</option>
+              <option value="Instagram">Instagram</option>
+            </select>
+          </div>
+          
+          <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
+            <label for="cal-post-day" style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Jour de publication</label>
+            <select id="cal-post-day" style="width: 100%; height: 42px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(0,0,0,0.2); color: var(--text-primary); padding: 0 10px; font-size: 0.88rem; outline: none; -webkit-appearance: none;">
+              <option value="monday">Lundi</option>
+              <option value="tuesday">Mardi</option>
+              <option value="wednesday">Mercredi</option>
+              <option value="thursday">Jeudi</option>
+              <option value="friday">Vendredi</option>
+              <option value="saturday">Samedi</option>
+              <option value="sunday">Dimanche</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: center;">
+          <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
+            <label for="cal-post-time" style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Heure (ex: 09:00)</label>
+            <input type="text" id="cal-post-time" value="09:00" placeholder="09:00" required style="width: 100%; height: 42px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(0,0,0,0.2); color: var(--text-primary); padding: 0 12px; font-size: 0.88rem; outline: none;" />
+          </div>
+
+          <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
+            <label for="cal-post-status" style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Statut</label>
+            <select id="cal-post-status" style="width: 100%; height: 42px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(0,0,0,0.2); color: var(--text-primary); padding: 0 10px; font-size: 0.88rem; outline: none; -webkit-appearance: none;">
+              <option value="planned">Planifié</option>
+              <option value="draft">Brouillon</option>
+              <option value="published">Déjà publié</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 14px; justify-content: flex-end;">
+          <button type="button" class="btn btn-secondary" id="btn-calendar-modal-delete" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #ef4444; display: none;">Supprimer</button>
+          <button type="button" class="btn btn-secondary" id="btn-calendar-modal-cancel">Annuler</button>
+          <button type="submit" class="btn btn-primary" id="btn-calendar-modal-submit">Enregistrer</button>
+        </div>
+      </form>
+    </dialog>
+
     <!-- ================= ONBOARDING TOUR ELEMENTS ================= -->
     <button id="btn-start-tour" style="display: none;"></button>
     <div id="onboarding-tour-container" class="tour-overlay-container" style="display: none;">
