@@ -1,6 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 
 const OAUTH_PROVIDERS = {
+  canva: {
+    tokenUrl: 'https://api.canva.com/rest/v1/oauth/token',
+    clientIdEnv: 'CANVA_CLIENT_ID',
+    clientSecretEnv: 'CANVA_CLIENT_SECRET',
+  },
   google: {
     tokenUrl: 'https://oauth2.googleapis.com/token',
     clientIdEnv: 'GOOGLE_CLIENT_ID',
@@ -265,8 +270,9 @@ export default async function handler(req, res) {
 
     const isNotion = providerKey === 'notion';
     const isAirtable = providerKey === 'airtable';
+    const isCanva = providerKey === 'canva';
 
-    if (isNotion || isAirtable) {
+    if (isNotion || isAirtable || isCanva) {
       const authHeader = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
       headers['Authorization'] = `Basic ${authHeader}`;
       

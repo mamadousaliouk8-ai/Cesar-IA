@@ -22,6 +22,12 @@ function generatePkce() {
 }
 
 const PROVIDERS_AUTH = {
+  canva: {
+    authUrl: 'https://www.canva.com/api/oauth/v1/authorize',
+    clientIdEnv: 'CANVA_CLIENT_ID',
+    scopes: 'design:content:read design:content:write profile:read',
+    pkce: true
+  },
   google: {
     authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
     clientIdEnv: 'GOOGLE_CLIENT_ID',
