@@ -1994,11 +1994,7 @@ function setupDashboard() {
   // Tabs navigation
   document.querySelectorAll('.panel-tabs .panel-tab').forEach(tab => {
     tab.addEventListener('click', () => {
-      document.querySelectorAll('.panel-tabs .panel-tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      
-      state.activeDashboardTab = tab.getAttribute('data-tab');
-      renderDashboardTabContent();
+      switchDashboardTab(tab.getAttribute('data-tab'));
     });
   });
 
@@ -2173,6 +2169,18 @@ function renderDashboardPanel() {
   });
   state.activeDashboardTab = 'chat';
   
+  renderDashboardTabContent();
+}
+
+function switchDashboardTab(tabName) {
+  state.activeDashboardTab = tabName;
+  document.querySelectorAll('.panel-tabs .panel-tab').forEach(t => {
+    if (t.getAttribute('data-tab') === tabName) {
+      t.classList.add('active');
+    } else {
+      t.classList.remove('active');
+    }
+  });
   renderDashboardTabContent();
 }
 
@@ -4351,6 +4359,19 @@ async function sendChatMessage() {
   const text = input.value.trim();
   if (!text) return;
   
+  // Intercept redirection commands
+  const lowerText = text.toLowerCase();
+  if (lowerText.includes('voir mes connecteurs') || lowerText === 'connecteurs' || lowerText === 'connecteur') {
+    switchDashboardTab('connectors');
+    input.value = '';
+    return;
+  }
+  if (lowerText.includes('voir mon calendrier') || lowerText === 'calendrier') {
+    switchDashboardTab('calendar');
+    input.value = '';
+    return;
+  }
+  
   const agentId = state.activeDashboardAgentId;
   const agent = AGENTS.find(a => a.id === agentId);
   
@@ -4604,6 +4625,22 @@ function getSimulatedAgentResponse(agent, userMessage) {
       
     case 'chronos':
       // Simulated interactive co-creation flow (matching user instructions)
+      
+      if (msg.includes('canva') || msg.includes('visuel') || msg.includes('design') || msg.includes('banniere')) {
+        return {
+          text: `🎨 **Intégration Canva API activée** :
+          
+J'ai détecté votre demande concernant les visuels. Grâce au connecteur **Canva API**, je peux synchroniser vos chartes graphiques et récupérer des modèles de design pour accompagner vos publications réseaux sociaux.
+
+Voici ce que je peux faire :
+1. 🔄 **Synchroniser vos dossiers Canva** pour importer vos logos, polices et couleurs de marque.
+2. 🖼️ **Générer des déclinaisons de visuels** à partir de votre identifiant de design Canva existant.
+3. 📥 **Associer un visuel Canva** à l'une de vos publications planifiées.
+
+*Pour commencer, veuillez connecter votre compte Canva dans l'onglet **"Connecteurs & Logiciels"**.*`,
+          quickActions: ['Voir mes connecteurs', 'Créer un post']
+        };
+      }
       
       // If user requests a publication to be posted
       if (msg.includes('publie') || msg.includes('envoie') || msg.includes('valide') || msg.includes('go') || msg.includes('c\'est bon')) {
