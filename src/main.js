@@ -396,20 +396,6 @@ async function checkOauthCallback() {
     
     if (status === 'success') {
       showToast(`Connexion officielle réussie avec ${connector} ! 🚀`, "success");
-      
-      // Si on est en mode simulation, enregistrer de faux identifiants pour que l'interface affiche "Connecté"
-      if (isMock) {
-        if (!state.connectorsData[agentId]) {
-          state.connectorsData[agentId] = {};
-        }
-        state.connectorsData[agentId][connector] = {
-          token: `mock_oauth_token_${Math.random().toString(36).substring(2, 10)}`,
-          connected_at: new Date().toISOString()
-        };
-        const email = state.currentUser ? state.currentUser.email.toLowerCase() : 'essai-gratuit@cesar-ia.com';
-        localStorage.setItem(`cesar_ia_mock_connectors_${email}`, JSON.stringify(state.connectorsData));
-      }
-      
       // Sélectionner l'agent et ouvrir l'onglet connecteurs
       state.activeDashboardAgentId = agentId;
       state.activeDashboardTab = 'connectors';
@@ -424,12 +410,6 @@ async function checkOauthCallback() {
       renderDashboardTabContent();
     } else {
       showToast(`Échec de la connexion officielle avec ${connector}.`, "error");
-      
-      // Sélectionner l'agent et ouvrir l'onglet connecteurs même en cas d'annulation/échec
-      state.activeDashboardAgentId = agentId;
-      state.activeDashboardTab = 'connectors';
-      navigateTo('dashboard');
-      renderDashboardTabContent();
     }
   }
 }
@@ -6937,7 +6917,8 @@ async function initiateRealOauth(agentId, connector, domainValue = null) {
     }
   } catch (err) {
     console.error("OAuth error:", err);
-    showConfigHelpModal(connector, `Impossible de contacter le point d'intégration API (/api/get-oauth-url).\nErreur : ${err.message}\n\nSi vous êtes en local ou en mode démonstration, utilisez le bouton ci-dessus pour simuler la redirection.`);
+    showToast("Une erreur est survenue lors de l'initialisation de la liaison.", "error");
+    closeOauthSimulation();
   }
 }
 
@@ -6967,35 +6948,27 @@ function showConfigHelpModal(connector, message) {
     <div class="glass-modal" style="width: 100%; max-width: 500px; background: rgba(22, 22, 28, 0.9); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.6); overflow: hidden; display: flex; flex-direction: column; animation: modalFadeIn 0.3s ease-out;">
       <div style="display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid rgba(255,255,255,0.06);">
         <h3 style="font-size: 1.1rem; font-weight: 700; margin: 0; color: #f43f5e; display: flex; align-items: center; gap: 8px;">
-          ⚠️ Configuration Vercel / API Requise
+          ⚠️ Configuration Vercel Requise
         </h3>
         <button onclick="closeOauthSimulation()" style="background: transparent; border: none; color: var(--text-muted); font-size: 1.5rem; cursor: pointer; line-height: 1;">&times;</button>
       </div>
       <div style="padding: 24px; text-align: left; font-size: 0.88rem; line-height: 1.5;">
-        <div style="background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.2); padding: 16px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(168, 85, 247, 0.05);">
-          <p style="margin: 0 0 8px 0; font-weight: 700; color: #c084fc; font-size: 0.88rem; display: flex; align-items: center; gap: 6px;">
-            💡 Mode Démo César-IA Actif
-          </p>
-          <p style="margin: 0 0 14px 0; font-size: 0.78rem; color: var(--text-secondary); line-height: 1.45;">
-            Vous pouvez tester l'expérience utilisateur complète de la <strong>redirection OAuth</strong> de manière 100% simulée. Cela redirigera votre navigateur vers un écran d'autorisation Canva puis retournera sur votre tableau de bord.
-          </p>
-          <button onclick="startMockOauthRedirection('${connector}')" class="btn" style="width: 100%; background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%); color: #fff; border: none; font-weight: 700; padding: 12px; border-radius: 8px; font-size: 0.82rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 4px 15px rgba(168, 85, 247, 0.25);" onmouseover="this.style.transform='scale(1.015)';" onmouseout="this.style.transform='scale(1)';">
-            ⚡ Lancer la redirection simulée (Canva OAuth)
-          </button>
-        </div>
-
-        <p style="margin-top: 0; color: #f43f5e; font-weight: 600; font-size: 0.82rem;">Liaison officielle en production (Vercel) :</p>
-        <p style="color: var(--text-secondary); margin-bottom: 12px; font-size: 0.8rem; line-height: 1.4;">
-          Pour activer le connecteur avec vos propres identifiants Canva de production, configurez cette variable sur votre projet Vercel :
+        <p style="margin-top: 0; color: #f43f5e; font-weight: 600;">Liaison officielle échouée : Clés d'API manquantes.</p>
+        <p style="color: var(--text-secondary); margin-bottom: 20px;">
+          Pour activer l'authentification officielle réelle avec <strong>${connector}</strong>, vous devez configurer la variable d'environnement sur votre tableau de bord Vercel :
         </p>
         
-        <div style="background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.06); padding: 10px 14px; border-radius: 8px; font-family: var(--font-mono); font-size: 0.78rem; color: #f43f5e; margin-bottom: 20px; word-break: break-all;">
+        <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.06); padding: 14px; border-radius: 8px; font-family: var(--font-mono); font-size: 0.8rem; color: #c084fc; margin-bottom: 20px; word-break: break-all;">
           ${message}
         </div>
         
-        <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 16px;">
-          <button onclick="closeOauthSimulation()" class="btn" style="background: rgba(255,255,255,0.05); color: #fff; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none; font-size: 0.82rem;">Fermer</button>
-          <a href="https://vercel.com" target="_blank" class="btn" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); color: #fff; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; font-size: 0.82rem;">Configuration Vercel</a>
+        <p style="color: var(--text-secondary); margin-bottom: 24px;">
+          Une fois la clé configurée, redéployez le projet sur Vercel pour rendre la liaison active.
+        </p>
+        
+        <div style="display: flex; justify-content: flex-end; gap: 12px;">
+          <button onclick="closeOauthSimulation()" class="btn" style="background: rgba(255,255,255,0.05); color: #fff; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none;">Fermer</button>
+          <a href="https://vercel.com" target="_blank" class="btn" style="background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%); color: #fff; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center;">Aller sur Vercel</a>
         </div>
       </div>
     </div>
@@ -7003,50 +6976,6 @@ function showConfigHelpModal(connector, message) {
   if (!overlay.parentElement) {
     document.body.appendChild(overlay);
   }
-}
-
-window.startMockOauthRedirection = function(connector) {
-  const agentId = state.activeDashboardAgentId || 'chronos';
-  const userId = state.currentUser ? state.currentUser.uid || state.currentUser.email : 'guest';
-  const appUrl = window.location.origin;
-  const redirectUri = `/mock-oauth.html?connector=${encodeURIComponent(connector)}&agent_id=${encodeURIComponent(agentId)}&user_id=${encodeURIComponent(userId)}&redirect_uri=${encodeURIComponent(appUrl)}`;
-  
-  // Show premium loading screen
-  const modalOverlay = document.querySelector('.oauth-modal-overlay') || document.createElement('div');
-  modalOverlay.className = 'oauth-modal-overlay';
-  modalOverlay.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(9, 9, 11, 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    z-index: 100000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-    color: #fff;
-  `;
-  modalOverlay.innerHTML = `
-    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px;">
-      <span class="spinner" style="width: 44px; height: 44px; border: 3px solid rgba(255,255,255,0.1); border-top-color: #a855f7; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px;"></span>
-      <h4 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 8px; color: #fff;">Initialisation du bac à sable OAuth...</h4>
-      <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0; max-width: 320px; line-height: 1.4;">Redirection vers l'environnement d'autorisation simulé de ${connector}.</p>
-    </div>
-    <style>
-      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    </style>
-  `;
-  if (!modalOverlay.parentElement) {
-    document.body.appendChild(modalOverlay);
-  }
-  
-  setTimeout(() => {
-    window.location.href = redirectUri;
-  }, 1200);
 }
 
 // RUN INITIALIZER
