@@ -23,7 +23,7 @@ function generatePkce() {
 
 const PROVIDERS_AUTH = {
   canva: {
-    authUrl: 'https://www.canva.com/api/oauth/v1/authorize',
+    authUrl: 'https://www.canva.com/api/oauth/authorize',
     clientIdEnv: 'CANVA_CLIENT_ID',
     scopes: 'design:content:read design:content:write profile:read',
     pkce: true
