@@ -1,0 +1,28 @@
+{
+  "uid": "cesar-ia-app",
+  "type": "app",
+  "config": {
+    "distribution": "private",
+    "name": "Cesar IA App",
+    "description": "Application de connexion pour la plateforme Cesar IA.",
+    "permittedUrls": {
+      "fetch": [
+        "https://plateforme-agents-ia.vercel.app"
+      ],
+      "iframe": [],
+      "img": []
+    },
+    "auth": {
+      "type": "oauth",
+      "redirectUrls": [
+        "https://plateforme-agents-ia.vercel.app/api/oauth-callback"
+      ],
+      "requiredScopes": [
+        "crm.objects.contacts.read",
+        "crm.objects.contacts.write",
+        "crm.objects.deals.read",
+        "crm.objects.deals.write"
+      ]
+    }
+  }
+}

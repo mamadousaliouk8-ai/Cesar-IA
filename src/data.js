@@ -56,7 +56,7 @@ export const AGENTS = [
       "Veille thématique sectorielle",
       "Rapports d'engagement hebdomadaires"
     ],
-    connectors: ["LinkedIn API", "X/Twitter API", "Instagram/Facebook API", "TikTok API", "YouTube API", "Pinterest API", "Threads API", "Buffer/Hootsuite", "WhatsApp Business API", "Canva API", "Mailchimp API", "Brevo API", "Slack", "Microsoft Teams", "Webhook Personnalisé"],
+    connectors: ["LinkedIn API", "X/Twitter API", "Instagram/Facebook API", "TikTok API", "YouTube API", "Pinterest API", "Threads API", "Buffer/Hootsuite", "WhatsApp", "Canva API", "Mailchimp API", "Brevo API", "Slack", "Microsoft Teams", "Webhook Personnalisé"],
     avatar: "🕒",
     color: "hsl(330, 95%, 60%)", // Pink
     welcome: "Hello ! Je suis Chronos. Je m'occupe d'amplifier votre présence sur les réseaux sociaux. Connectez vos comptes pour démarrer.",

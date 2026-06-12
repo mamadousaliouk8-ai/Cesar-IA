@@ -227,7 +227,8 @@ const state = {
   cardDetailsSaved: false,
   stripeLinks: {}, // { agentId: url }
   tourActive: false,
-  calendarEvents: [] // List of planned posts / drafts for Chronos
+  calendarEvents: [], // List of planned posts / drafts for Chronos
+  chatAttachedFile: null // Selected file for chat attachment { data, name, type, size }
 };
 
 const PACKS = {
@@ -377,6 +378,13 @@ function initApp() {
 
     // Vérifier le retour d'une authentification OAuth
     checkOauthCallback();
+
+    // Vérifier périodiquement les brouillons WhatsApp toutes les 10 secondes
+    setInterval(() => {
+      if (state.currentUser) {
+        checkWhatsAppDrafts();
+      }
+    }, 10000);
   } catch (error) {
     alert("Erreur d'initialisation de l'application :\n" + error.name + ": " + error.message + "\n\nStack:\n" + error.stack);
     console.error("Initialization error:", error);
@@ -1246,6 +1254,9 @@ async function loadUserData() {
       });
       logDebug("Connecteurs chargés avec succès.");
       
+      // Vérifier les brouillons de WhatsApp
+      checkWhatsAppDrafts();
+      
       logDebug("Chargement de l'historique des factures...");
       let invoices = [];
       try {
@@ -1313,6 +1324,9 @@ function loadMockState() {
     
     if (connectors) state.connectorsData = JSON.parse(connectors);
     else state.connectorsData = {};
+    
+    // Vérifier les brouillons de WhatsApp
+    checkWhatsAppDrafts();
     
     if (cancelledAgents) state.cancelledAgents = JSON.parse(cancelledAgents);
     else state.cancelledAgents = [];
@@ -2004,6 +2018,75 @@ function setupDashboard() {
     if (e.key === 'Enter') sendChatMessage();
   });
 
+  // Gestion des pièces jointes de discussion
+  const attachBtn = document.getElementById('btn-chat-attach');
+  const fileInput = document.getElementById('chat-file-input');
+  const removeFileBtn = document.getElementById('btn-remove-chat-file');
+  const uploadPreview = document.getElementById('chat-upload-preview');
+  const mediaContainer = document.getElementById('chat-preview-media-container');
+  const filenameSpan = document.getElementById('chat-preview-filename');
+  const filesizeSpan = document.getElementById('chat-preview-filesize');
+
+  if (attachBtn && fileInput) {
+    attachBtn.addEventListener('click', () => {
+      fileInput.click();
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const isImg = file.type.startsWith('image/');
+      const isVid = file.type === 'video/mp4';
+
+      if (!isImg && !isVid) {
+        showToast("Seules les images et les vidéos MP4 sont supportées.", "warning");
+        fileInput.value = '';
+        return;
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        showToast("Le fichier ne doit pas dépasser 10 Mo.", "warning");
+        fileInput.value = '';
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        state.chatAttachedFile = {
+          data: event.target.result,
+          name: file.name,
+          type: file.type,
+          size: file.size
+        };
+
+        if (mediaContainer) {
+          mediaContainer.innerHTML = '';
+          if (isImg) {
+            mediaContainer.innerHTML = `<img src="${event.target.result}" style="width: 100%; height: 100%; object-fit: cover;" />`;
+          } else {
+            mediaContainer.innerHTML = `<div style="font-size: 1.5rem;">📹</div>`;
+          }
+        }
+        if (filenameSpan) filenameSpan.innerText = file.name;
+        if (filesizeSpan) {
+          const sizeKb = (file.size / 1024).toFixed(1);
+          filesizeSpan.innerText = sizeKb > 1024 ? (sizeKb / 1024).toFixed(1) + ' MB' : sizeKb + ' KB';
+        }
+        if (uploadPreview) uploadPreview.style.display = 'flex';
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  if (removeFileBtn) {
+    removeFileBtn.addEventListener('click', () => {
+      state.chatAttachedFile = null;
+      if (fileInput) fileInput.value = '';
+      if (uploadPreview) uploadPreview.style.display = 'none';
+    });
+  }
+
   // Save connectors button
   document.getElementById('btn-save-connectors').addEventListener('click', saveConnectors);
   
@@ -2160,6 +2243,19 @@ function renderDashboardPanel() {
   const btnCalendar = document.getElementById('tab-btn-calendar');
   if (btnCalendar) {
     btnCalendar.style.display = agent.id === 'chronos' ? '' : 'none';
+  }
+
+  // Show/Hide Attachment button and clean attachment preview if switching from Chronos
+  const attachBtn = document.getElementById('btn-chat-attach');
+  if (attachBtn) {
+    attachBtn.style.display = agent.id === 'chronos' ? '' : 'none';
+  }
+  if (agent.id !== 'chronos') {
+    state.chatAttachedFile = null;
+    const fileInput = document.getElementById('chat-file-input');
+    const uploadPreview = document.getElementById('chat-upload-preview');
+    if (fileInput) fileInput.value = '';
+    if (uploadPreview) uploadPreview.style.display = 'none';
   }
 
   // Set tab back to chat by default
@@ -2696,19 +2792,37 @@ const chatHistories = {};
 
 // Extraction des journaux d'exécution masqués sous forme de commentaire HTML JSON
 function extractMessageLogs(rawText) {
-  const regex = /<!-- EXECUTION_LOGS_JSON: ([\s\S]*?) -->/;
+  const logsRegex = /<!-- EXECUTION_LOGS_JSON: ([\s\S]*?) -->/;
+  const extraRegex = /<!-- CHRONOS_EXTRA_JSON: ([\s\S]*?) -->/;
+  
   let executionLogs = [];
+  let mediaUrl = null;
+  let isChronosDraft = false;
   let text = rawText || '';
-  const match = text.match(regex);
-  if (match) {
+  
+  const logsMatch = text.match(logsRegex);
+  if (logsMatch) {
     try {
-      executionLogs = JSON.parse(match[1]);
-      text = text.replace(regex, '').trim();
+      executionLogs = JSON.parse(logsMatch[1]);
+      text = text.replace(logsRegex, '').trim();
     } catch (e) {
-      logDebug(`[extractMessageLogs] Erreur de parsing JSON: ${e.message}`);
+      logDebug(`[extractMessageLogs] Erreur de parsing logs: ${e.message}`);
     }
   }
-  return { text, executionLogs };
+  
+  const extraMatch = text.match(extraRegex);
+  if (extraMatch) {
+    try {
+      const extra = JSON.parse(extraMatch[1]);
+      mediaUrl = extra.mediaUrl || null;
+      isChronosDraft = extra.isChronosDraft || false;
+      text = text.replace(extraRegex, '').trim();
+    } catch (e) {
+      logDebug(`[extractMessageLogs] Erreur de parsing extra: ${e.message}`);
+    }
+  }
+  
+  return { text, executionLogs, mediaUrl, isChronosDraft };
 }
 
 // Charger l'historique de discussion pour un agent spécifique (Supabase avec repli local)
@@ -2742,7 +2856,9 @@ async function loadChatHistory(agentId) {
           return {
             sender: msg.sender,
             text: parsed.text,
-            executionLogs: msg.executionLogs || parsed.executionLogs
+            executionLogs: msg.executionLogs || parsed.executionLogs,
+            mediaUrl: msg.mediaUrl || parsed.mediaUrl,
+            isChronosDraft: msg.isChronosDraft !== undefined ? msg.isChronosDraft : parsed.isChronosDraft
           };
         });
       } catch (e) {
@@ -2762,7 +2878,9 @@ async function loadChatHistory(agentId) {
           return {
             sender: msg.sender,
             text: parsed.text,
-            executionLogs: parsed.executionLogs
+            executionLogs: parsed.executionLogs,
+            mediaUrl: parsed.mediaUrl,
+            isChronosDraft: parsed.isChronosDraft
           };
         });
         logDebug(`[loadChatHistory] ${data.length} messages chargés depuis Supabase.`);
@@ -2778,7 +2896,9 @@ async function loadChatHistory(agentId) {
               return {
                 sender: msg.sender,
                 text: parsed.text,
-                executionLogs: msg.executionLogs || parsed.executionLogs
+                executionLogs: msg.executionLogs || parsed.executionLogs,
+                mediaUrl: msg.mediaUrl || parsed.mediaUrl,
+                isChronosDraft: msg.isChronosDraft !== undefined ? msg.isChronosDraft : parsed.isChronosDraft
               };
             });
             logDebug(`[loadChatHistory] Historique vide dans Supabase, chargement du repli localStorage.`);
@@ -2808,7 +2928,7 @@ async function loadChatHistory(agentId) {
 }
 
 // Sauvegarder un message dans l'historique (Supabase avec repli local)
-async function saveChatMessage(agentId, sender, text, executionLogs = []) {
+async function saveChatMessage(agentId, sender, text, executionLogs = [], mediaUrl = null, isChronosDraft = false) {
   const uid = state.currentUser ? state.currentUser.uid : null;
   if (!uid && !isMock) return;
 
@@ -2816,6 +2936,12 @@ async function saveChatMessage(agentId, sender, text, executionLogs = []) {
   let dbText = text;
   if (executionLogs && executionLogs.length > 0) {
     dbText = text + "\n\n<!-- EXECUTION_LOGS_JSON: " + JSON.stringify(executionLogs) + " -->";
+  }
+  const extraObj = {};
+  if (mediaUrl) extraObj.mediaUrl = mediaUrl;
+  if (isChronosDraft) extraObj.isChronosDraft = isChronosDraft;
+  if (Object.keys(extraObj).length > 0) {
+    dbText += "\n\n<!-- CHRONOS_EXTRA_JSON: " + JSON.stringify(extraObj) + " -->";
   }
 
   if (isMock) {
@@ -3870,14 +3996,130 @@ function renderChatMessages() {
     
     const bubble = document.createElement('div');
     bubble.className = `message ${msg.sender}`;
+    
+    let mediaHtml = '';
+    if (msg.mediaUrl) {
+      if (msg.mediaType === 'video') {
+        mediaHtml = `<div style="margin-top: 8px; border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,0.08); max-width: 320px; line-height: 0;"><video src="${msg.mediaUrl}" controls style="width: 100%; max-height: 240px;"></video></div>`;
+      } else {
+        mediaHtml = `<div style="margin-top: 8px; border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,0.08); max-width: 320px; line-height: 0;"><img src="${msg.mediaUrl}" style="width: 100%; max-height: 240px; object-fit: contain;" /></div>`;
+      }
+    }
+
+    let widgetHtml = '';
+    if (msg.isChronosDraft) {
+      const daysList = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+      const tomorrowIndex = (new Date().getDay() + 1) % 7;
+      const defaultDay = daysList[tomorrowIndex];
+      
+      widgetHtml = `
+        <div class="chronos-scheduling-card" style="margin-top: 14px; background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.08); padding: 16px; border-radius: 10px; display: flex; flex-direction: column; gap: 12px; max-width: 100%;">
+          <h4 style="margin: 0; font-size: 0.88rem; color: var(--accent-color); font-weight: 700; display: flex; align-items: center; gap: 6px;">
+            📅 Planifier la publication
+          </h4>
+          
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <label style="font-size: 0.72rem; color: var(--text-secondary); font-weight: bold; text-transform: uppercase;">Texte de la publication</label>
+            <textarea class="widget-post-text" style="width: 100%; height: 90px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: #fff; font-size: 0.85rem; padding: 8px; resize: none; font-family: inherit; line-height: 1.4;">${parsedData.text}</textarea>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <label style="font-size: 0.72rem; color: var(--text-secondary); font-weight: bold; text-transform: uppercase;">Jour</label>
+              <select class="widget-post-day" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: #fff; padding: 8px; font-size: 0.85rem;">
+                <option value="monday" ${defaultDay === 'monday' ? 'selected' : ''}>Lundi</option>
+                <option value="tuesday" ${defaultDay === 'tuesday' ? 'selected' : ''}>Mardi</option>
+                <option value="wednesday" ${defaultDay === 'wednesday' ? 'selected' : ''}>Mercredi</option>
+                <option value="thursday" ${defaultDay === 'thursday' ? 'selected' : ''}>Jeudi</option>
+                <option value="friday" ${defaultDay === 'friday' ? 'selected' : ''}>Vendredi</option>
+                <option value="saturday" ${defaultDay === 'saturday' ? 'selected' : ''}>Samedi</option>
+                <option value="sunday" ${defaultDay === 'sunday' ? 'selected' : ''}>Dimanche</option>
+              </select>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <label style="font-size: 0.72rem; color: var(--text-secondary); font-weight: bold; text-transform: uppercase;">Heure</label>
+              <input type="time" class="widget-post-time" value="10:00" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: #fff; padding: 8px; font-size: 0.85rem; height: 37px;" />
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <label style="font-size: 0.72rem; color: var(--text-secondary); font-weight: bold; text-transform: uppercase;">Plateformes</label>
+            <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 4px;">
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; cursor: pointer;">
+                <input type="checkbox" class="widget-platform" value="LinkedIn" checked /> LinkedIn
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; cursor: pointer;">
+                <input type="checkbox" class="widget-platform" value="Twitter" /> X/Twitter
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; cursor: pointer;">
+                <input type="checkbox" class="widget-platform" value="Instagram" /> Instagram
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; cursor: pointer;">
+                <input type="checkbox" class="widget-platform" value="Facebook" /> Facebook
+              </label>
+            </div>
+          </div>
+
+          <button type="button" class="btn btn-primary btn-widget-save" style="background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%); border: none; font-weight: 600; font-size: 0.8rem; padding: 10px; margin-top: 4px; color: #fff;">
+            💾 Valider & Planifier
+          </button>
+        </div>
+      `;
+    }
+
     bubble.innerHTML = `
       <div class="msg-avatar">${msg.sender === 'agent' ? agent.avatar : '👤'}</div>
       <div class="msg-bubble">
         ${parseMarkdown(parsedData.text)}
+        ${mediaHtml}
+        ${widgetHtml}
         ${renderExecutionLogsMarkup(msg.executionLogs)}
       </div>
     `;
     container.appendChild(bubble);
+
+    if (msg.isChronosDraft) {
+      const btnSave = bubble.querySelector('.btn-widget-save');
+      if (btnSave) {
+        btnSave.addEventListener('click', () => {
+          const textVal = bubble.querySelector('.widget-post-text').value.trim();
+          const dayVal = bubble.querySelector('.widget-post-day').value;
+          const timeVal = bubble.querySelector('.widget-post-time').value;
+          
+          const platforms = Array.from(bubble.querySelectorAll('.widget-platform:checked')).map(cb => cb.value);
+          if (platforms.length === 0) {
+            showToast("Veuillez sélectionner au moins une plateforme.", "warning");
+            return;
+          }
+          
+          if (!textVal || !timeVal) return;
+          
+          platforms.forEach(platform => {
+            const newEvt = {
+              id: "evt_" + Math.random().toString(36).substring(2, 9),
+              day: dayVal,
+              time: timeVal,
+              platform: platform,
+              text: textVal,
+              status: "planned",
+              mediaUrl: msg.mediaUrl || null,
+              mediaType: msg.mediaType || 'image'
+            };
+            if (!state.calendarEvents) state.calendarEvents = [];
+            state.calendarEvents.push(newEvt);
+          });
+          
+          saveMockState();
+          showToast("Publication planifiée avec succès ! 🚀", "success");
+          
+          msg.isChronosDraft = false;
+          msg.text = `Publication planifiée pour ${dayVal} à ${timeVal} sur ${platforms.join(', ')}.\n\nTexte :\n${textVal}`;
+          
+          saveChatMessage(agentId, 'agent', msg.text, [], msg.mediaUrl, false);
+          renderChatMessages();
+        });
+      }
+    }
     
     if (showSuggestions && parsedData.suggestions.length > 0) {
       const suggContainer = document.createElement('div');
@@ -4356,8 +4598,13 @@ function detectAndAddChronosDraftToCalendar(text) {
 
 async function sendChatMessage() {
   const input = document.getElementById('chat-user-input');
-  const text = input.value.trim();
-  if (!text) return;
+  let text = input.value.trim();
+  const fileAttached = state.chatAttachedFile;
+  
+  if (!text && !fileAttached) return;
+  if (!text && fileAttached) {
+    text = "Rédige un post inspirant à partir de ce média";
+  }
   
   // Intercept redirection commands
   const lowerText = text.toLowerCase();
@@ -4376,12 +4623,23 @@ async function sendChatMessage() {
   const agent = AGENTS.find(a => a.id === agentId);
   
   // Save user message
-  chatHistories[agentId].push({ sender: 'user', text: text, executionLogs: [] });
+  const userMsg = { sender: 'user', text: text, executionLogs: [] };
+  if (fileAttached) {
+    userMsg.mediaUrl = fileAttached.data;
+    userMsg.mediaType = fileAttached.type.startsWith('video/') ? 'video' : 'image';
+  }
+  chatHistories[agentId].push(userMsg);
   renderChatMessages();
   input.value = '';
   
   // Persist user message
-  saveChatMessage(agentId, 'user', text, []);
+  saveChatMessage(agentId, 'user', text, [], userMsg.mediaUrl, false);
+
+  // Clean file inputs in DOM
+  const fileInput = document.getElementById('chat-file-input');
+  const uploadPreview = document.getElementById('chat-upload-preview');
+  if (fileInput) fileInput.value = '';
+  if (uploadPreview) uploadPreview.style.display = 'none';
   
   // Show Agent Typing Indicator
   const container = document.getElementById('chat-messages-container');
@@ -4403,12 +4661,72 @@ async function sendChatMessage() {
   const envKey = import.meta.env.VITE_GEMINI_API_KEY;
   const apiKey = localKey || envKey;
   
+  // Reset state variable
+  state.chatAttachedFile = null;
+
   try {
-    const systemInstruction = getGeminiSystemInstruction(agent);
-    const contents = formatChatHistoryForGemini(agentId);
-    
     let res;
     let data;
+
+    if (fileAttached && agentId === 'chronos') {
+      logDebug("[Gemini Chat] Pièce jointe détectée, envoi à /api/upload-media...");
+      
+      let token = null;
+      if (supabase) {
+        try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          token = sessionData?.session?.access_token;
+        } catch (e) {}
+      }
+
+      res = await fetch('/api/upload-media', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          fileData: fileAttached.data,
+          mimeType: fileAttached.type,
+          message: text
+        })
+      });
+      data = await res.json();
+
+      typingMsg.remove();
+
+      if (res.ok && data.text) {
+        const replyText = data.text;
+        const mediaUrl = data.mediaUrl || fileAttached.data;
+        const mediaType = fileAttached.type.startsWith('video/') ? 'video' : 'image';
+        
+        chatHistories[agentId].push({
+          sender: 'agent',
+          text: replyText,
+          executionLogs: [],
+          mediaUrl: mediaUrl,
+          mediaType: mediaType,
+          isChronosDraft: true
+        });
+
+        renderChatMessages();
+
+        // Persist
+        saveChatMessage(agentId, 'agent', replyText, [], mediaUrl, true);
+      } else {
+        const errMsg = data.error || "Une erreur est survenue lors de l'analyse.";
+        chatHistories[agentId].push({
+          sender: 'agent',
+          text: `⚠️ Erreur lors de la rédaction par l'IA : ${errMsg}`,
+          executionLogs: []
+        });
+        renderChatMessages();
+      }
+      return;
+    }
+
+    const systemInstruction = getGeminiSystemInstruction(agent);
+    const contents = formatChatHistoryForGemini(agentId);
     
     // 1. Tenter d'utiliser la route Serverless Vercel sécurisée
     try {
@@ -6548,6 +6866,11 @@ window.startOauthSimulation = async function(agentId, connector) {
   // Prevent body overflow
   document.body.style.overflow = 'hidden';
   
+  if (connector === 'WhatsApp') {
+    showWhatsAppCredentialsModal(agentId, connector);
+    return;
+  }
+  
   const connLower = connector.toLowerCase();
   
   // 1. Check if it's a technical connector (SSH, databases)
@@ -6975,6 +7298,180 @@ function showConfigHelpModal(connector, message) {
   `;
   if (!overlay.parentElement) {
     document.body.appendChild(overlay);
+  }
+}
+
+function showWhatsAppCredentialsModal(agentId, connector) {
+  const savedData = state.connectorsData[agentId] || {};
+  const currentPhone = savedData[connector]?.phone || '';
+  
+  const contentHtml = `
+    <form id="oauth-whatsapp-form" style="text-align: left;">
+      <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.45;">
+        Configurez votre numéro de téléphone WhatsApp pour que Chronos puisse identifier vos messages entrants et rédiger vos brouillons automatiquement.
+      </p>
+      
+      <div class="form-group">
+        <label>Votre Numéro WhatsApp (Format international sans + ou 00)</label>
+        <input type="text" id="whatsapp-phone-input" value="${currentPhone}" placeholder="ex: 33612345678" style="width: 100%; padding: 10px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: #fff; font-size: 0.85rem;" required />
+      </div>
+
+      <div style="margin-top: 14px; background: rgba(212, 175, 55, 0.04); border: 1px solid rgba(212, 175, 55, 0.15); padding: 12px; border-radius: 8px; font-size: 0.76rem; color: var(--accent-color); line-height: 1.4;">
+        <strong style="display: block; margin-bottom: 4px;">📲 Comment lier votre WhatsApp :</strong>
+        Une fois enregistré, vous pourrez envoyer des messages, photos ou vidéos à notre numéro WhatsApp d'agent. L'agent détectera votre numéro, générera un post à partir de votre média et vous proposera un aperçu interactif de planification.
+      </div>
+      
+      <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+        <button type="button" onclick="closeOauthSimulation()" class="btn" style="background: rgba(255,255,255,0.05); color: #fff; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none;">Annuler</button>
+        <button type="submit" class="btn" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #fff; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none;">Lier mon Numéro 🔒</button>
+      </div>
+    </form>
+  `;
+
+  createModalOverlay(`Liaison WhatsApp Chronos`, contentHtml);
+
+  document.getElementById('oauth-whatsapp-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const phoneVal = document.getElementById('whatsapp-phone-input').value.trim();
+    if (!phoneVal) return;
+
+    if (!state.connectorsData[agentId]) state.connectorsData[agentId] = {};
+    if (!state.connectorsData[agentId][connector]) state.connectorsData[agentId][connector] = {};
+    
+    state.connectorsData[agentId][connector].phone = phoneVal;
+    if (!state.connectorsData[agentId][connector].drafts) {
+      state.connectorsData[agentId][connector].drafts = [];
+    }
+    
+    closeOauthSimulation();
+    
+    await saveWhatsAppConnector(agentId, connector, phoneVal);
+  });
+}
+
+async function saveWhatsAppConnector(agentId, connector, phone) {
+  saveMockState();
+  
+  if (!isMock) {
+    try {
+      const uid = state.currentUser ? state.currentUser.uid : null;
+      if (uid) {
+        const data = await supabaseFetch('connectors', {
+          queryParams: `?user_id=eq.${uid}&agent_id=eq.${agentId}&connector_name=eq.${connector}`
+        });
+        
+        const credentials = { phone: phone, drafts: [] };
+        
+        if (data && data.length > 0) {
+          const connectorId = data[0].id;
+          await supabaseFetch(`connectors?id=eq.${connectorId}`, {
+            method: 'PATCH',
+            body: { credentials: credentials }
+          });
+        } else {
+          await supabaseFetch('connectors', {
+            method: 'POST',
+            body: {
+              user_id: uid,
+              agent_id: agentId,
+              connector_name: connector,
+              credentials: credentials
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Error saving WhatsApp connector to Supabase:", e);
+    }
+  }
+  
+  showToast("Numéro WhatsApp enregistré avec succès ! 🚀", "success");
+  renderConnectorsForm();
+}
+
+async function checkWhatsAppDrafts() {
+  const chronosConnectors = state.connectorsData['chronos'];
+  if (!chronosConnectors || !chronosConnectors['WhatsApp']) return;
+  
+  const whatsappConfig = chronosConnectors['WhatsApp'];
+  if (!whatsappConfig.drafts || !Array.isArray(whatsappConfig.drafts) || whatsappConfig.drafts.length === 0) return;
+  
+  logDebug(`[checkWhatsAppDrafts] ${whatsappConfig.drafts.length} brouillons WhatsApp trouvés.`);
+  
+  const drafts = [...whatsappConfig.drafts];
+  whatsappConfig.drafts = [];
+  
+  for (const draft of drafts) {
+    const newEvt = {
+      id: "evt_" + Math.random().toString(36).substring(2, 9),
+      day: draft.day || "monday",
+      time: draft.time || "10:00",
+      platform: draft.platform || "LinkedIn",
+      text: draft.text,
+      status: "draft",
+      mediaUrl: draft.mediaUrl || null,
+      mediaType: draft.mediaType || 'image'
+    };
+    if (!state.calendarEvents) state.calendarEvents = [];
+    state.calendarEvents.push(newEvt);
+    
+    if (!chatHistories['chronos']) {
+      chatHistories['chronos'] = [
+        { sender: 'agent', text: "Bonjour, je suis Chronos.", executionLogs: [] }
+      ];
+    }
+    
+    chatHistories['chronos'].push({
+      sender: 'agent',
+      text: `📱 **Nouveau contenu reçu via WhatsApp !**\n\nJ'ai généré ce projet de publication pour vous. Veuillez l'examiner et le planifier à l'aide de l'outil ci-dessous :`,
+      executionLogs: []
+    });
+
+    chatHistories['chronos'].push({
+      sender: 'agent',
+      text: draft.text,
+      executionLogs: [],
+      mediaUrl: draft.mediaUrl || null,
+      mediaType: draft.mediaType || 'image',
+      isChronosDraft: true
+    });
+
+    await saveChatMessage('chronos', 'agent', `📱 Nouveau contenu reçu via WhatsApp :\n${draft.text}`, [], draft.mediaUrl || null, true);
+  }
+  
+  saveMockState();
+  
+  if (!isMock) {
+    try {
+      const uid = state.currentUser ? state.currentUser.uid : null;
+      if (uid) {
+        const data = await supabaseFetch('connectors', {
+          queryParams: `?user_id=eq.${uid}&agent_id=eq.chronos&connector_name=eq.WhatsApp`
+        });
+        if (data && data.length > 0) {
+          const connectorId = data[0].id;
+          await supabaseFetch(`connectors?id=eq.${connectorId}`, {
+            method: 'PATCH',
+            body: {
+              credentials: {
+                ...whatsappConfig,
+                drafts: []
+              }
+            }
+          });
+        }
+      }
+    } catch (e) {
+      logDebug(`[checkWhatsAppDrafts] Erreur lors de la mise à jour Supabase: ${e.message}`);
+    }
+  }
+  
+  if (state.activeDashboardAgentId === 'chronos') {
+    if (state.activeDashboardTab === 'chat') {
+      renderChatMessages();
+    } else if (state.activeDashboardTab === 'calendar') {
+      renderCalendar();
+    }
   }
 }
 

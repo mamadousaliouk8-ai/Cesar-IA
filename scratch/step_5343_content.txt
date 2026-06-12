@@ -1,0 +1,62 @@
+Created At: 2026-06-02T11:15:30Z
+Completed At: 2026-06-02T11:15:33Z
+File Path: `file:///Users/manelcheraiti/saliou/plateforme-agents-ia/src/main.js`
+Total Lines: 5821
+Total Bytes: 267338
+Showing lines 5300 to 5820
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+5300:       e.preventDefault();
+5301:       let credentials = {};
+5302:       if (connLower.includes('sql') || connLower.includes('postgres') || connLower.includes('mysql') || connLower.includes('mongodb') || connLower.includes('database') || connLower.includes('snowflake') || connLower.includes('bigquery')) {
+5303:         credentials = {
+5304:           uri: `postgresql://cesar_managed_${Math.random().toString(36).substring(2, 7)}:pq_secret_pwd_739281@cesar-ia-dedicated-db.cloud:5432/db_analytics`
+5305:         };
+5306:       } else if (connLower.includes('ssh') || connLower.includes('server') || connLower.includes('serveur')) {
+5307:         const generatedUserId = state.currentUser?.email ? state.currentUser.email.split('@')[0] : 'admin';
+5308:         credentials = { host: "192.168.1.100", user: generatedUserId, secret: `auto_injected_rsa_key_${Math.random().toString(36).substring(2, 9)}` };
+5309:       } else {
+5310:         credentials = { token: `wa_paired_token_${Math.random().toString(36).substring(2, 10)}` };
+5311:       }
+5312:       if (!state.connectorsData[agentId]) state.connectorsData[agentId] = {};
+5313:       state.connectorsData[agentId][connector] = credentials;
+5314:       closeModal();
+5315:       await saveConnectors(true, `Connexion simulée établie pour ${connector} ! 🧪`);
+5316:     });
+5317:     
+5318:     modalOverlay.querySelector('#modal-btn-cancel').addEventListener('click', (e) => {
+5319:       e.preventDefault();
+5320:       closeModal();
+5321:     });
+5322:     
+5323:   } else {
+5324:     // =====================================
+<truncated 30630 bytes>
+umn; align-items:center; justify-content:center; text-align:center; box-sizing:border-box; color:#e3e3e3; font-family:Roboto, Arial, sans-serif;">
+5794:             <div style="width: 52px; height: 52px; background: rgba(16, 185, 129, 0.1); border: 2px solid #10b981; color: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; margin-bottom: 20px; box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);">✓</div>
+5795:             <h4 style="font-size: 1.15rem; font-weight: 500; color: #fff; margin-bottom: 8px; font-family:'Google Sans', Roboto, sans-serif;">LIAISON COMPLÉTÉE !</h4>
+5796:             <p style="font-size: 0.85rem; color: #9aa0a6; margin-bottom: 24px; line-height: 1.45;">
+5797:               Votre compte <strong>${emailVal}</strong> sur <strong>${connector}</strong> a été lié avec succès pour l'agent <strong>${agentName}</strong>.
+5798:             </p>
+5799:             <button onclick="closeOauthSimulation(); showToast('Connexion express établie en direct avec ${connector} pour le compte ${emailVal} !', 'success');" class="google-btn" style="padding: 11px 26px; background: #10b981; border: none; border-radius: 8px; color: #fff; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: opacity 0.2s;">
+5800:               Retourner au Tableau de bord
+5801:             </button>
+5802:           </div>
+5803:         `;
+5804:       });
+5805:     }
+5806:   }
+5807: };
+5808: 
+5809: window.closeOauthSimulation = function() {
+5810:   document.body.style.overflow = '';
+5811:   const styles = document.getElementById('oauth-mockup-styles');
+5812:   if (styles) styles.remove();
+5813:   
+5814:   const overlay = document.querySelector('.oauth-modal-overlay');
+5815:   if (overlay) {
+5816:     overlay.remove();
+5817:   }
+5818: };
+5819: // RUN INITIALIZER
+5820: initApp();
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
