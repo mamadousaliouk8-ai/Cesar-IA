@@ -816,11 +816,18 @@ async function runFacebookInstagram(connectors, text, imageUrl = null) {
 
 async function runWhatsApp(connectors, to, text, mediaUrl = null) {
   const info = getConnectorInfo(connectors, "WhatsApp");
-  if (!info || !info.token) {
-    return { error: "Erreur: Le connecteur WhatsApp Business API n'est pas configuré. Veuillez insérer votre jeton d'accès ou token." };
+  if (!info) {
+    return { error: "Erreur: Le connecteur WhatsApp n'est pas configuré. Veuillez lier votre numéro de téléphone dans l'onglet 'Connecteurs & Logiciels'." };
   }
-  const token = info.token.trim();
-  if (token.startsWith("mock_") || token.startsWith("oauth_") || token.startsWith("wa_")) {
+
+  // Utiliser le token global Vercel par défaut pour l'agent
+  const envToken = process.env.WHATSAPP_ACCESS_TOKEN;
+  const envPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+  const token = (info.token || envToken || '').trim();
+  const phoneId = (info.phoneId || envPhoneId || 'me').trim();
+
+  if (!token || token.startsWith("mock_") || token.startsWith("oauth_") || token.startsWith("wa_") || token === 'cesar_verify_token_default') {
     return {
       success: true,
       message: `Message WhatsApp simulé avec succès pour le destinataire ${to} !`,
@@ -830,7 +837,6 @@ async function runWhatsApp(connectors, to, text, mediaUrl = null) {
     };
   }
   try {
-    const phoneId = info.phoneId || "me";
     const body = {
       messaging_product: "whatsapp",
       to: to,
@@ -1089,7 +1095,7 @@ export default async function handler(req, res) {
           const { data, error } = await supabase
             .from('connectors')
             .select('*')
-            .eq('connector_name', 'WhatsApp Business API');
+            .in('connector_name', ['WhatsApp', 'WhatsApp Business API']);
             
           if (!error && data) {
             const matched = data.find(c => {
