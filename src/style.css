@@ -2899,7 +2899,15 @@ dialog.invoice-dialog::backdrop {
 }
 
 .reassurance-icon {
-  font-size: 1.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(212, 175, 55, 0.08);
+  border: 1px solid rgba(212, 175, 55, 0.15);
+  flex-shrink: 0;
 }
 
 .reassurance-text {
