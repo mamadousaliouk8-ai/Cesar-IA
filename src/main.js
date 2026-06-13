@@ -379,10 +379,11 @@ function initApp() {
     // Vérifier le retour d'une authentification OAuth
     checkOauthCallback();
 
-    // Vérifier périodiquement les brouillons WhatsApp toutes les 3 secondes pour un affichage en direct
+    // Vérifier périodiquement les brouillons WhatsApp et synchroniser les discussions toutes les 3 secondes pour un affichage en direct
     setInterval(() => {
       if (state.currentUser) {
         checkWhatsAppDrafts();
+        syncLiveChatHistory();
       }
     }, 3000);
   } catch (error) {
@@ -2897,8 +2898,8 @@ async function loadChatHistory(agentId) {
   const agent = AGENTS.find(a => a.id === agentId);
   if (!agent) return;
 
-  // Si déjà chargé en mémoire avec plus que le message de bienvenue, on ne recharge pas
-  if (chatHistories[agentId] && chatHistories[agentId].length > 1) {
+  // Si déjà chargé en mémoire avec plus que le message de bienvenue, on ne recharge pas (uniquement en mode simulation)
+  if (isMock && chatHistories[agentId] && chatHistories[agentId].length > 1) {
     return;
   }
 
@@ -7615,6 +7616,46 @@ async function checkWhatsAppDrafts() {
     } else if (state.activeDashboardTab === 'calendar') {
       renderCalendarTab();
     }
+  }
+}
+
+// Synchroniser l'historique des discussions en direct pour le travail collaboratif (multi-appareils / multi-utilisateurs)
+async function syncLiveChatHistory() {
+  if (isMock || !state.currentUser) return;
+  const agentId = state.activeDashboardAgentId;
+  if (!agentId || state.activeDashboardTab !== 'chat') return;
+  
+  const uid = state.currentUser.uid;
+  try {
+    const data = await supabaseFetch('chat_messages', {
+      queryParams: `?user_id=eq.${uid}&agent_id=eq.${agentId}&order=created_at.asc`
+    });
+    
+    if (data) {
+      const newLength = data.length + 1; // +1 pour le message d'accueil
+      const currentLength = chatHistories[agentId] ? chatHistories[agentId].length : 0;
+      
+      if (newLength !== currentLength) {
+        logDebug(`[syncLiveChatHistory] Nouveaux messages de collaboration détectés en base (${newLength} vs ${currentLength}).`);
+        const agent = AGENTS.find(a => a.id === agentId);
+        chatHistories[agentId] = [
+          { sender: 'agent', text: agent ? agent.welcome : "Bonjour.", executionLogs: [] },
+          ...data.map(msg => {
+            const parsed = extractMessageLogs(msg.text);
+            return {
+              sender: msg.sender,
+              text: parsed.text,
+              executionLogs: parsed.executionLogs,
+              mediaUrl: parsed.mediaUrl,
+              isChronosDraft: parsed.isChronosDraft
+            };
+          })
+        ];
+        renderChatMessages();
+      }
+    }
+  } catch (e) {
+    // Échec silencieux
   }
 }
 
