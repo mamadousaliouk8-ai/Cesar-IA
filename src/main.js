@@ -5428,6 +5428,31 @@ function renderConnectorsForm() {
           <input type="text" data-conn="${connector}" data-field="uri" value="${connectorData.uri || ''}" placeholder="postgresql://user:password@localhost:5432/db" />
         </div>
       `;
+    } else if (connector === 'WhatsApp') {
+      fieldsHtml = `
+        <div class="form-group">
+          <label>Votre Numéro de Téléphone WhatsApp (Format international)</label>
+          <input type="text" data-conn="WhatsApp" data-field="phone" value="${connectorData.phone || ''}" placeholder="ex: 33612345678" />
+        </div>
+        <div style="margin-top: 10px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); padding: 12px; border-radius: 6px; font-size: 0.75rem; color: var(--text-secondary); line-height: 1.4;">
+          <strong style="color: #fff; display: block; margin-bottom: 4px;">ℹ️ Comment lier votre WhatsApp :</strong>
+          1. Configurez votre numéro ci-dessus pour que Chronos puisse identifier vos messages.<br>
+          2. Envoyez une photo ou vidéo sur WhatsApp au numéro configuré sur Vercel.<br>
+          3. Chronos rédigera automatiquement le post et vous renverra un aperçu interactif ici !
+        </div>
+      `;
+    } else if (connector.includes('Canva')) {
+      fieldsHtml = `
+        <div class="form-group">
+          <label>Jeton d'Accès Canva (OAuth Token)</label>
+          <input type="password" data-conn="${connector}" data-field="token" value="${connectorData.token || ''}" placeholder="oauth_••••••••••••••••" />
+        </div>
+        <div style="margin-top: 10px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); padding: 12px; border-radius: 6px; font-size: 0.75rem; color: var(--text-secondary); line-height: 1.4;">
+          <strong style="color: #fff; display: block; margin-bottom: 4px;">🎨 Configuration Canva en production :</strong>
+          1. Utilisez la <strong>Connexion Express 1-Clic</strong> ci-dessus pour vous lier à Canva.<br>
+          2. Si vos clés Vercel ne sont pas encore configurées, utilisez le bouton d'aide pour démarrer le mode démo.
+        </div>
+      `;
     } else {
       // Default: API Token, Webhook or SaaS credentials
       const needsUrl = ['Zendesk', 'Jira', 'WordPress', 'Shopify', 'Webflow', 'Crisp', 'Freshdesk', 'WooCommerce', 'PrestaShop', 'ClickUp', 'Linear', 'Crowdin', 'Phrase', 'Sellsy', 'Axonaut', 'Qonto', 'Spendesk', 'GitBook', 'SharePoint', 'Grafana', 'GitHub', 'Notion', 'Airtable'].some(term => connector.includes(term));
@@ -7289,9 +7314,12 @@ function showConfigHelpModal(connector, message) {
           Une fois la clé configurée, redéployez le projet sur Vercel pour rendre la liaison active.
         </p>
         
-        <div style="display: flex; justify-content: flex-end; gap: 12px;">
-          <button onclick="closeOauthSimulation()" class="btn" style="background: rgba(255,255,255,0.05); color: #fff; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none;">Fermer</button>
-          <a href="https://vercel.com" target="_blank" class="btn" style="background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%); color: #fff; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center;">Aller sur Vercel</a>
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+          <button onclick="activateCanvaDemoMode('${state.activeDashboardAgentId || 'chronos'}', '${connector.replace(/'/g, "\\'")}')" class="btn" style="background: rgba(212, 175, 55, 0.12); color: var(--accent-color); border: 1px solid rgba(212, 175, 55, 0.25); padding: 10px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: var(--transition);" onmouseover="this.style.background='rgba(212, 175, 55, 0.2)'" onmouseout="this.style.background='rgba(212, 175, 55, 0.12)'">⚡ Activer en mode Démo</button>
+          <div style="display: flex; gap: 12px;">
+            <button onclick="closeOauthSimulation()" class="btn" style="background: rgba(255,255,255,0.05); color: #fff; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none;">Fermer</button>
+            <a href="https://vercel.com" target="_blank" class="btn" style="background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%); color: #fff; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center;">Aller sur Vercel</a>
+          </div>
         </div>
       </div>
     </div>
@@ -7300,6 +7328,54 @@ function showConfigHelpModal(connector, message) {
     document.body.appendChild(overlay);
   }
 }
+
+function activateCanvaDemoMode(agentId, connector) {
+  closeOauthSimulation();
+  
+  if (!state.connectorsData[agentId]) state.connectorsData[agentId] = {};
+  state.connectorsData[agentId][connector] = { token: 'mock_canva_demo_token_12345' };
+  
+  saveMockState();
+  
+  // Exécuter l'enregistrement local ou distant en arrière-plan
+  const uid = state.currentUser ? state.currentUser.uid : null;
+  if (uid) {
+    supabaseFetch('connectors', {
+      queryParams: `?user_id=eq.${uid}&agent_id=eq.${agentId}&connector_name=eq.${encodeURIComponent(connector)}`
+    }).then(data => {
+      const credentials = { token: 'mock_canva_demo_token_12345' };
+      if (data && data.length > 0) {
+        const connectorId = data[0].id;
+        supabaseFetch(`connectors?id=eq.${connectorId}`, {
+          method: 'PATCH',
+          body: { credentials: credentials }
+        }).then(() => {
+          renderConnectorsForm();
+        });
+      } else {
+        supabaseFetch('connectors', {
+          method: 'POST',
+          body: {
+            user_id: uid,
+            agent_id: agentId,
+            connector_name: connector,
+            credentials: credentials
+          }
+        }).then(() => {
+          renderConnectorsForm();
+        });
+      }
+    }).catch(e => {
+      console.error("Error saving mock Canva connector:", e);
+    });
+  }
+  
+  showToast(`[Mode Démo] Liaison ${connector} activée avec succès ! 🎨`, "success");
+  renderConnectorsForm();
+}
+
+window.activateCanvaDemoMode = activateCanvaDemoMode;
+
 
 function showWhatsAppCredentialsModal(agentId, connector) {
   const savedData = state.connectorsData[agentId] || {};
@@ -7475,5 +7551,105 @@ async function checkWhatsAppDrafts() {
   }
 }
 
+// GLOBAL PASSWORD VISIBILITY TOGGLE (EYE ICON)
+function enablePasswordToggles() {
+  const passwordInputs = document.querySelectorAll('input[type="password"]');
+  passwordInputs.forEach(input => {
+    // Check if already processed
+    if (input.dataset.passwordToggled === 'true') return;
+    input.dataset.passwordToggled = 'true';
+    
+    // Create wrapper
+    const wrapper = document.createElement('div');
+    wrapper.className = 'password-input-wrapper';
+    wrapper.style.position = 'relative';
+    wrapper.style.display = 'flex';
+    wrapper.style.alignItems = 'center';
+    wrapper.style.width = '100%';
+    
+    // Copy margins/alignment from the input to the wrapper if needed
+    const margin = window.getComputedStyle(input).margin;
+    if (margin && margin !== '0px') {
+      wrapper.style.margin = margin;
+      input.style.margin = '0px';
+    }
+    
+    // Insert wrapper before input
+    input.parentNode.insertBefore(wrapper, input);
+    
+    // Move input inside wrapper
+    wrapper.appendChild(input);
+    
+    // Adjust input style for toggle space
+    input.style.paddingRight = '40px';
+    input.style.width = '100%';
+    input.style.boxSizing = 'border-box';
+    
+    // Create toggle button
+    const toggleBtn = document.createElement('button');
+    toggleBtn.type = 'button';
+    toggleBtn.className = 'btn-toggle-password';
+    toggleBtn.style.cssText = `
+      position: absolute;
+      right: 12px;
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 1.1rem;
+      padding: 4px;
+      line-height: 1;
+      outline: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      transition: opacity 0.2s;
+    `;
+    toggleBtn.innerHTML = '👁️';
+    
+    toggleBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (input.type === 'password') {
+        input.type = 'text';
+        toggleBtn.innerHTML = '🙈';
+      } else {
+        input.type = 'password';
+        toggleBtn.innerHTML = '👁️';
+      }
+    });
+    
+    wrapper.appendChild(toggleBtn);
+  });
+}
+
+// Automatically observe the DOM to trigger toggles when password fields appear (e.g. modals, connector tabs)
+const passwordFieldsObserver = new MutationObserver((mutations) => {
+  let hasPasswordInput = false;
+  for (const mutation of mutations) {
+    if (mutation.addedNodes.length > 0) {
+      for (const node of mutation.addedNodes) {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          if (node.querySelector('input[type="password"]') || (node.tagName === 'INPUT' && node.type === 'password')) {
+            hasPasswordInput = true;
+            break;
+          }
+        }
+      }
+    }
+  }
+  if (hasPasswordInput) {
+    enablePasswordToggles();
+  }
+});
+passwordFieldsObserver.observe(document.body, { childList: true, subtree: true });
+
+// Initial run
+document.addEventListener('DOMContentLoaded', enablePasswordToggles);
+window.addEventListener('load', enablePasswordToggles);
+
 // RUN INITIALIZER
 initApp();
+enablePasswordToggles();
+
