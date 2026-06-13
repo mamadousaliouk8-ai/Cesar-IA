@@ -305,8 +305,8 @@ function getAdoptedAgentIds() {
     ];
   }
 
-  // Pour l'agent spécial Zeus : s'il est adopté, on affiche uniquement Zeus dans le dashboard, aucun autre agent
-  if (state.adoptedAgents.includes('zeus')) {
+  // Pour l'agent spécial Zeus : s'il est le seul adopté, on n'affiche que lui. Sinon, on affiche tous les agents adoptés.
+  if (state.adoptedAgents.includes('zeus') && state.adoptedAgents.length === 1) {
     return ['zeus'];
   }
 
