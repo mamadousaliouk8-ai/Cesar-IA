@@ -1221,12 +1221,13 @@ async function loadUserData() {
       
       state.adoptedAgents = adopted.map(a => a.agent_id);
       
-      // Si l'utilisateur est admin ou contact@cesar-ia.com, on lui pré-adopte TOUS les 15 agents par défaut et on les synchronise
+      // Si l'utilisateur est admin, contact@cesar-ia.com, ou s'il s'agit d'un nouveau compte sans aucun agent, on lui pré-adopte TOUS les 15 agents par défaut pour lui éviter un tableau de bord vide.
       const isAdminUser = state.currentUser.isAdmin || isAdminEmail(state.currentUser.email);
-      logDebug(`[loadUserData] Évaluation de l'administration globale : ${isAdminUser}. Email : ${state.currentUser.email}, isAdmin : ${state.currentUser.isAdmin}`);
+      const isNewUserEmpty = state.adoptedAgents.length === 0;
+      logDebug(`[loadUserData] Évaluation de l'auto-adoption : Admin=${isAdminUser}, Nouveau/Vide=${isNewUserEmpty}`);
       
-      if (isAdminUser) {
-        logDebug(`[loadUserData] L'utilisateur est Admin. Attribution forcée des 15 agents.`);
+      if (isAdminUser || isNewUserEmpty) {
+        logDebug(`[loadUserData] Attribution des 15 agents par défaut.`);
         const allAgentIds = [
           'sybil', 'atlas', 'chronos', 'hermes', 'hestia',
           'vesta', 'ares', 'athena', 'hephaestus', 'iris',
@@ -1237,7 +1238,7 @@ async function loadUserData() {
         // On lance la synchronisation de tous les agents en arrière-plan vers Supabase
         setTimeout(async () => {
           try {
-            console.log(`loadUserData: Auto-adoption complète pour l'admin UID ${state.currentUser.uid} dans Supabase...`);
+            console.log(`loadUserData: Auto-adoption complète pour l'utilisateur UID ${state.currentUser.uid} dans Supabase...`);
             for (const agentId of allAgentIds) {
               const { error: errAdopt } = await supabase
                 .from('adopted_agents')
