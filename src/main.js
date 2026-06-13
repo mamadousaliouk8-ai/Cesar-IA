@@ -379,12 +379,12 @@ function initApp() {
     // Vérifier le retour d'une authentification OAuth
     checkOauthCallback();
 
-    // Vérifier périodiquement les brouillons WhatsApp toutes les 10 secondes
+    // Vérifier périodiquement les brouillons WhatsApp toutes les 3 secondes pour un affichage en direct
     setInterval(() => {
       if (state.currentUser) {
         checkWhatsAppDrafts();
       }
-    }, 10000);
+    }, 3000);
   } catch (error) {
     alert("Erreur d'initialisation de l'application :\n" + error.name + ": " + error.message + "\n\nStack:\n" + error.stack);
     console.error("Initialization error:", error);
@@ -7613,7 +7613,7 @@ async function checkWhatsAppDrafts() {
     if (state.activeDashboardTab === 'chat') {
       renderChatMessages();
     } else if (state.activeDashboardTab === 'calendar') {
-      renderCalendar();
+      renderCalendarTab();
     }
   }
 }
