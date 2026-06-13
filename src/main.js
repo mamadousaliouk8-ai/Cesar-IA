@@ -976,8 +976,9 @@ async function handleLogout() {
       window.location.reload();
     }, 500);
   } else {
-    const { error } = await supabase.auth.signOut();
+    localStorage.removeItem('cesar_ia_mock_user');
     localStorage.removeItem('cesar_ia_force_mock');
+    const { error } = await supabase.auth.signOut();
     if (error) {
       showToast(error.message, "error");
     } else {
@@ -1474,13 +1475,28 @@ function setupAccountPage() {
       }
       
       try {
-        if (supabase) {
+        const forceMock = localStorage.getItem('cesar_ia_force_mock') === 'true';
+        if (supabase && !forceMock) {
           const { error } = await supabase.auth.updateUser({ password: newPassword });
           if (error) throw error;
           showToast("Mot de passe mis à jour avec succès !", "success");
           pwdForm.reset();
         } else {
-          showToast("Mise à jour simulée du mot de passe réussie !", "success");
+          // Mise à jour de l'utilisateur fictif dans localStorage
+          let mockUsers = [];
+          try {
+            const savedUsers = localStorage.getItem('cesar_ia_mock_users');
+            if (savedUsers) mockUsers = JSON.parse(savedUsers);
+          } catch (errLocal) {}
+          
+          const index = mockUsers.findIndex(u => u.uid === state.currentUser.uid);
+          if (index !== -1) {
+            mockUsers[index].password = newPassword;
+            localStorage.setItem('cesar_ia_mock_users', JSON.stringify(mockUsers));
+            localStorage.setItem('cesar_ia_mock_user', JSON.stringify(mockUsers[index]));
+            state.currentUser.password = newPassword;
+          }
+          showToast("Mot de passe mis à jour avec succès (Simulé) !", "success");
           pwdForm.reset();
         }
       } catch (err) {
@@ -1497,9 +1513,19 @@ function renderAccountPage() {
   const emailEl = document.getElementById('account-email');
   const uidEl = document.getElementById('account-uid');
   const createdEl = document.getElementById('account-created');
+  const sessionTypeEl = document.getElementById('account-session-type');
   
   if (emailEl) emailEl.innerText = state.currentUser.email || '-';
   if (uidEl) uidEl.innerText = state.currentUser.uid || '-';
+  
+  if (sessionTypeEl) {
+    const forceMock = localStorage.getItem('cesar_ia_force_mock') === 'true';
+    if (forceMock || isMock) {
+      sessionTypeEl.innerHTML = `<span style="color: #fbbf24; font-weight: bold; display: inline-flex; align-items: center; gap: 4px;">⚡ Compte d'Essai (Simulé)</span>`;
+    } else {
+      sessionTypeEl.innerHTML = `<span style="color: #10b981; font-weight: bold; display: inline-flex; align-items: center; gap: 4px;">🟢 Compte Officiel (Production)</span>`;
+    }
+  }
   
   // Format created_at date
   let createdDate = "N/A";

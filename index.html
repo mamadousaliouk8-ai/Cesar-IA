@@ -241,10 +241,15 @@
                   <span class="info-value" id="account-uid" style="font-family: monospace; font-size: 0.85rem;">-</span>
                 </div>
                 <div class="info-row">
+                  <span class="info-label">Type de Session</span>
+                  <span class="info-value" id="account-session-type">-</span>
+                </div>
+                <div class="info-row">
                   <span class="info-label">Membre depuis</span>
                   <span class="info-value" id="account-created">-</span>
                 </div>
               </div>
+              <button onclick="handleLogout()" class="btn btn-secondary" style="width: 100%; margin-top: 20px; background: rgba(239, 68, 68, 0.08); border: 1px dashed rgba(239, 68, 68, 0.25); color: #f87171; height: 38px; font-size: 0.82rem; font-weight: 700; border-radius: 6px; cursor: pointer; transition: var(--transition);" onmouseover="this.style.background='rgba(239, 68, 68, 0.15)'" onmouseout="this.style.background='rgba(239, 68, 68, 0.08)'">Déconnexion</button>
             </div>
 
             <div class="account-card">
