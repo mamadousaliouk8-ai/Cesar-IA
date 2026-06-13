@@ -752,8 +752,6 @@ async function handleAuthSubmit(e) {
   }
   
   if (isSignupMode) {
-    logDebug(`Tentative d'inscription locale pour l'email: ${email}`);
-    
     if (!email || password.length < 6) {
       const minLengthMsg = "Le mot de passe doit comporter au moins 6 caractères.";
       if (errEl) {
@@ -763,6 +761,48 @@ async function handleAuthSubmit(e) {
       showToast(minLengthMsg, "error");
       return;
     }
+
+    // Tenter d'abord l'inscription réelle via Supabase si configuré
+    if (!isMock) {
+      const btnSubmit = document.getElementById('btn-auth-submit');
+      const originalText = btnSubmit.innerText;
+      btnSubmit.disabled = true;
+      btnSubmit.innerHTML = `<span class="spinner"></span> Inscription...`;
+      
+      try {
+        logDebug("Tentative d'inscription réelle via Supabase...");
+        localStorage.removeItem('cesar_ia_force_mock');
+        
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password
+        });
+        
+        logDebug(`Inscription Supabase retournée. Erreur: ${error ? error.message : "aucune"}`);
+        if (error) throw error;
+        
+        localStorage.removeItem('cesar_ia_mock_user');
+        
+        if (data.session) {
+          showToast("Inscription réussie !", "success");
+          document.getElementById('auth-modal').close();
+          updateUI();
+          navigateTo('catalog');
+          return;
+        } else {
+          showToast("Compte créé ! Veuillez vérifier vos e-mails de confirmation.", "success");
+          document.getElementById('auth-modal').close();
+          return;
+        }
+      } catch (err) {
+        logDebug(`Échec inscription réelle Supabase : ${err.message}. Passage au mode simulation.`);
+      } finally {
+        btnSubmit.disabled = false;
+        btnSubmit.innerText = originalText;
+      }
+    }
+
+    logDebug(`Tentative d'inscription locale pour l'email: ${email}`);
     
     // Récupérer la liste des utilisateurs fictifs existants
     let mockUsers = [];
