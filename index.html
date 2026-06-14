@@ -360,7 +360,6 @@
                   </div>
                   <div class="panel-tabs">
                     <button class="panel-tab active" data-tab="chat">Discussion</button>
-                    <button class="panel-tab" data-tab="history" title="Historique des discussions">📋</button>
                     <button class="panel-tab" data-tab="calendar" id="tab-btn-calendar" style="display: none;">Calendrier</button>
                     <button class="panel-tab" data-tab="connectors">Connecteurs & Logiciels</button>
                     <button class="panel-tab" data-tab="stats">Statistiques & Usage</button>
@@ -407,27 +406,6 @@
                   </div>
                 </div>
 
-                <!-- History tab -->
-                <div class="tab-content" id="tab-history">
-                  <div class="history-layout" style="padding: 24px; display: flex; flex-direction: column; height: 100%;">
-                    <h3>Historique des Discussions</h3>
-                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 20px;">
-                      Recherchez et explorez la mémoire des discussions passées avec cet agent.
-                    </p>
-                    
-                    <div class="history-search-bar" style="display: flex; gap: 12px; margin-bottom: 20px; align-items: center;">
-                      <div style="position: relative; flex: 1; display: flex; align-items: center;">
-                        <span style="position: absolute; left: 14px; color: var(--text-secondary); font-size: 0.9rem;">🔍</span>
-                        <input type="text" id="history-search-input" placeholder="Rechercher des mots-clés dans les messages..." style="width: 100%; height: 42px; padding: 0 16px 0 40px; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(0,0,0,0.25); color: var(--text-primary); outline: none; font-size: 0.88rem;" />
-                      </div>
-                      <button class="btn btn-secondary" id="btn-clear-history-search" style="height: 42px; font-size: 0.85rem; padding: 0 16px; border-radius: 8px;">Effacer</button>
-                    </div>
-
-                    <div class="history-messages-list" id="history-messages-container" style="flex: 1; min-height: 250px; max-height: 450px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; background: rgba(0, 0, 0, 0.15); padding: 16px; display: flex; flex-direction: column; gap: 12px;">
-                      <!-- Messages injectés dynamiquement -->
-                    </div>
-                  </div>
-                </div>
 
                 <!-- Connectors tab -->
                 <div class="tab-content" id="tab-connectors">

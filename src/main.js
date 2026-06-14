@@ -2185,24 +2185,7 @@ function setupDashboard() {
         showToast(`Rapport hebdomadaire désactivé pour ${agentName}.`, "info");
       }
     });
-  }
-
-  // Événements de recherche dans l'historique
-  const historySearch = document.getElementById('history-search-input');
-  if (historySearch) {
-    historySearch.addEventListener('input', () => {
-      renderHistoryTab();
-    });
-  }
-
-  const clearHistorySearch = document.getElementById('btn-clear-history-search');
-  if (clearHistorySearch) {
-    clearHistorySearch.addEventListener('click', () => {
-      if (historySearch) historySearch.value = '';
-      renderHistoryTab();
-    });
-  }
-}
+  }}
 
 function renderDashboardSidebar() {
   const sidebarList = document.getElementById('sidebar-adopted-list');
@@ -2275,14 +2258,11 @@ function selectDashboardAgent(agentId) {
   renderDashboardSidebar();
   renderDashboardPanel();
 
-  // Chargement asynchrone de l'historique et rafraîchissement des messages
   loadChatHistory(agentId).then(() => {
     if (state.activeDashboardAgentId === agentId) {
       if (state.activeDashboardTab === 'chat') {
         renderThreadsSidebar();
         renderChatMessages();
-      } else if (state.activeDashboardTab === 'history') {
-        renderHistoryTab();
       }
     }
   });
@@ -2352,14 +2332,12 @@ function switchDashboardTab(tabName) {
 
 function renderDashboardTabContent() {
   const tabChat = document.getElementById('tab-chat');
-  const tabHistory = document.getElementById('tab-history');
   const tabConnectors = document.getElementById('tab-connectors');
   const tabStats = document.getElementById('tab-stats');
   const tabCalendar = document.getElementById('tab-calendar');
   
   // Masquer tous les onglets par défaut
   tabChat.classList.remove('active');
-  if (tabHistory) tabHistory.classList.remove('active');
   tabConnectors.classList.remove('active');
   tabStats.classList.remove('active');
   if (tabCalendar) tabCalendar.classList.remove('active');
@@ -2368,11 +2346,6 @@ function renderDashboardTabContent() {
     tabChat.classList.add('active');
     renderThreadsSidebar();
     renderChatMessages();
-  } else if (state.activeDashboardTab === 'history') {
-    if (tabHistory) {
-      tabHistory.classList.add('active');
-      renderHistoryTab();
-    }
   } else if (state.activeDashboardTab === 'connectors') {
     tabConnectors.classList.add('active');
     renderConnectorsForm();
@@ -4564,65 +4537,6 @@ function renderChatMessages() {
   container.scrollTop = container.scrollHeight;
 }
 
-function renderHistoryTab() {
-  const container = document.getElementById('history-messages-container');
-  if (!container) return;
-  container.innerHTML = '';
-
-  const agentId = state.activeDashboardAgentId;
-  const agent = AGENTS.find(a => a.id === agentId);
-  if (!agent) return;
-
-  const messages = chatHistories[agentId] || [];
-  const searchInput = document.getElementById('history-search-input');
-  const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
-
-  // Filtrer les messages par mot-clé
-  const filtered = query
-    ? messages.filter(msg => msg.text.toLowerCase().includes(query))
-    : messages;
-
-  if (filtered.length === 0) {
-    container.innerHTML = `
-      <div style="text-align: center; padding: 36px; color: var(--text-muted); font-size: 0.9rem;">
-        Aucun message trouvé ${query ? 'pour cette recherche' : "dans l'historique"}.
-      </div>
-    `;
-    return;
-  }
-
-  filtered.forEach(msg => {
-    const isUser = msg.sender === 'user';
-    const messageCard = document.createElement('div');
-    messageCard.className = `history-message-card ${msg.sender}`;
-    messageCard.style.cssText = `
-      display: flex;
-      gap: 12px;
-      padding: 14px 18px;
-      border-radius: 8px;
-      background: ${isUser ? 'rgba(99, 102, 241, 0.08)' : 'rgba(255, 255, 255, 0.02)'};
-      border: 1px solid ${isUser ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255, 255, 255, 0.05)'};
-    `;
-    
-    let contentHtml = parseMarkdown(msg.text);
-    
-    messageCard.innerHTML = `
-      <div class="msg-avatar" style="font-size: 1.1rem; width: 28px; height: 28px; min-width: 28px; border-radius: 6px; background: ${isUser ? 'var(--accent-color)' : 'rgba(255,255,255,0.04)'}; color: white; display: flex; align-items: center; justify-content: center; border: 1px solid ${isUser ? 'transparent' : 'var(--border-color)'};">
-        ${isUser ? '👤' : agent.avatar}
-      </div>
-      <div style="flex: 1;">
-        <div style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 5px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.3px;">
-          ${isUser ? 'Vous (Client)' : agent.name}
-        </div>
-        <div class="history-msg-body" style="font-size: 0.9rem; color: var(--text-primary); line-height: 1.5; word-break: break-word;">
-          ${contentHtml}
-        </div>
-        ${renderExecutionLogsMarkup(msg.executionLogs)}
-      </div>
-    `;
-    container.appendChild(messageCard);
-  });
-}
 
 function getSeededCalendarEvents() {
   return [
