@@ -7236,6 +7236,10 @@ function showSubdomainOrRepoModal(agentId, connector) {
 }
 
 async function initiateRealOauth(agentId, connector, domainValue = null) {
+  if (isMock) {
+    activateCanvaDemoMode(agentId, connector, domainValue);
+    return;
+  }
   // Show premium loading screen
   const modalOverlay = document.querySelector('.oauth-modal-overlay') || document.createElement('div');
   modalOverlay.className = 'oauth-modal-overlay';
@@ -7397,12 +7401,17 @@ function showConfigHelpModal(connector, message) {
   }
 }
 
-function activateCanvaDemoMode(agentId, connector) {
+function activateCanvaDemoMode(agentId, connector, domainValue = null) {
   closeOauthSimulation();
   
   if (!state.connectorsData[agentId]) state.connectorsData[agentId] = {};
-  state.connectorsData[agentId][connector] = { token: 'mock_canva_demo_token_12345' };
   
+  const credentials = { token: 'mock_' + connector.toLowerCase().replace(/[^a-z0-9]/g, '') + '_token_' + Math.random().toString(36).substring(2, 8) };
+  if (domainValue) {
+    credentials.domain = domainValue;
+  }
+  
+  state.connectorsData[agentId][connector] = credentials;
   saveMockState();
   
   // Exécuter l'enregistrement local ou distant en arrière-plan
@@ -7411,7 +7420,6 @@ function activateCanvaDemoMode(agentId, connector) {
     supabaseFetch('connectors', {
       queryParams: `?user_id=eq.${uid}&agent_id=eq.${agentId}&connector_name=eq.${encodeURIComponent(connector)}`
     }).then(data => {
-      const credentials = { token: 'mock_canva_demo_token_12345' };
       if (data && data.length > 0) {
         const connectorId = data[0].id;
         supabaseFetch(`connectors?id=eq.${connectorId}`, {
@@ -7434,12 +7442,14 @@ function activateCanvaDemoMode(agentId, connector) {
         });
       }
     }).catch(e => {
-      console.error("Error saving mock Canva connector:", e);
+      console.warn("Error saving mock connector:", e);
+      renderConnectorsForm();
     });
+  } else {
+    renderConnectorsForm();
   }
   
-  showToast(`[Mode Démo] Liaison ${connector} activée avec succès ! 🎨`, "success");
-  renderConnectorsForm();
+  showToast(`[Mode Démo] Liaison ${connector} activée avec succès ! ⚡`, "success");
 }
 
 window.activateCanvaDemoMode = activateCanvaDemoMode;
