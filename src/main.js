@@ -4129,11 +4129,15 @@ function getAgentThreads(agentId) {
         id: currentThreadId,
         title: currentThreadTitle,
         created_at: msg.created_at || new Date().toISOString(),
-        messages: []
+        messages: [],
+        firstUserMessage: ""
       };
     }
     
     threads[currentThreadId].messages.push(msg);
+    if (msg.sender === 'user' && !threads[currentThreadId].firstUserMessage) {
+      threads[currentThreadId].firstUserMessage = msg.text;
+    }
   });
   
   // Renvoyer les threads par ordre chronologique (du plus ancien au plus récent)
@@ -4175,7 +4179,154 @@ function renderThreadsSidebar() {
     });
     
     container.appendChild(item);
+
+    // Déclencher l'optimisation asynchrone en arrière-plan si le titre est ancien ou générique
+    const isGeneric = ["Discussion", "Discussion générale", "Nouvelle discussion"].includes(thread.title);
+    const isOldStyle = /^[A-Z][a-zà-ÿ0-9]+(\s[A-Z][a-zà-ÿ0-9]+){1,3}$/.test(thread.title);
+    if ((isGeneric || isOldStyle) && thread.firstUserMessage) {
+      asyncUpdateThreadTitle(agentId, thread.id, thread.firstUserMessage);
+    }
   });
+}
+
+async function asyncUpdateThreadTitle(agentId, threadId, firstMessageText) {
+  if (!firstMessageText) return;
+  if (!state.optimizedThreads) state.optimizedThreads = new Set();
+  if (state.optimizedThreads.has(threadId)) return;
+  state.optimizedThreads.add(threadId);
+  
+  logDebug(`[asyncUpdateThreadTitle] Début de la génération de titre IA pour le thread: ${threadId}`);
+  
+  const localKey = localStorage.getItem('cesar_ia_gemini_api_key');
+  const envKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const apiKey = localKey || envKey;
+  
+  const prompt = `Résume le message de discussion suivant sous la forme d'un titre court, lisible et percutant de 2 à 4 mots maximum, en français, décrivant précisément le sujet.
+IMPORTANT:
+- Renvoie uniquement le titre en lettres normales.
+- Pas de guillemets, pas de formule de politesse ("Voici le titre", etc.), pas de conclusion.
+- Sans point final.
+- Commence par une lettre majuscule.
+
+Exemples :
+"Bonjour pouvez vous connecter mon compte canva ?" -> "Connexion Compte Canva"
+"Je veux lier mon whatsapp pour programmer des posts" -> "Intégration WhatsApp"
+"Rédige un post inspirant à partir de ce média" -> "Rédaction de Post Visuel"
+
+Message : "${firstMessageText}"`;
+
+  try {
+    let title = "";
+    let token = null;
+    if (supabase) {
+      try {
+        const { data } = await supabase.auth.getSession();
+        token = data?.session?.access_token;
+      } catch (e) {}
+    }
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          systemInstruction: "Tu es un assistant de discussion. Tu génères un titre de discussion de 2 à 4 mots max, décrivant le message.",
+          apiKey: localKey,
+          agentName: "Chronos",
+          agentId: agentId
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
+        title = data.candidates[0].content.parts[0].text.trim();
+      }
+    } catch (e) {
+      logDebug(`[asyncUpdateThreadTitle] Échec backend: ${e.message}. Tentative directe client.`);
+      if (apiKey) {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.1, maxOutputTokens: 20 }
+          })
+        });
+        const data = await res.json();
+        if (res.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
+          title = data.candidates[0].content.parts[0].text.trim();
+        }
+      }
+    }
+
+    if (title && title.length > 2 && title.length < 50) {
+      title = title.replace(/^["'«“]|["'»”]$/g, '').trim();
+      
+      logDebug(`[asyncUpdateThreadTitle] Titre IA généré avec succès: "${title}"`);
+      
+      let updatedCount = 0;
+      if (chatHistories[agentId]) {
+        chatHistories[agentId].forEach(msg => {
+          if (msg.threadId === threadId) {
+            msg.threadTitle = title;
+            updatedCount++;
+          }
+        });
+      }
+      
+      const uid = state.currentUser ? state.currentUser.uid : null;
+      if (!isMock && uid && supabase) {
+        try {
+          const data = await supabaseFetch('chat_messages', {
+            queryParams: `?user_id=eq.${uid}&agent_id=eq.${agentId}&order=created_at.asc`
+          });
+          if (data && data.length > 0) {
+            for (const msg of data) {
+              const parsed = extractMessageLogs(msg.text);
+              if (parsed.threadId === threadId) {
+                const extra = {
+                  mediaUrl: parsed.mediaUrl,
+                  isChronosDraft: parsed.isChronosDraft,
+                  threadId: threadId,
+                  threadTitle: title
+                };
+                
+                let newRawText = parsed.text;
+                if (parsed.executionLogs && parsed.executionLogs.length > 0) {
+                  newRawText += `\n<!-- EXECUTION_LOGS_JSON: ${JSON.stringify(parsed.executionLogs)} -->`;
+                }
+                newRawText += `\n<!-- CHRONOS_EXTRA_JSON: ${JSON.stringify(extra)} -->`;
+                
+                await supabaseFetch(`chat_messages?id=eq.${msg.id}`, {
+                  method: 'PATCH',
+                  body: { text: newRawText }
+                });
+              }
+            }
+          }
+        } catch (err) {
+          logDebug(`[asyncUpdateThreadTitle] Erreur de mise à jour Supabase: ${err.message}`);
+        }
+      }
+      
+      if (uid) {
+        const fallbackKey = `cesar_ia_supabase_fallback_chat_history_${uid}_${agentId}`;
+        const currentHistory = chatHistories[agentId] || [];
+        localStorage.setItem(fallbackKey, JSON.stringify(currentHistory));
+      }
+      
+      saveMockState();
+
+      if (state.activeDashboardAgentId === agentId && state.activeDashboardTab === 'chat') {
+        renderThreadsSidebar();
+      }
+    }
+  } catch (err) {
+    logDebug(`[asyncUpdateThreadTitle] Erreur globale: ${err.message}`);
+  }
 }
 
 function createNewThread() {
@@ -4887,8 +5038,11 @@ async function sendChatMessage() {
   const threads = getAgentThreads(agentId);
   const currentThread = threads.find(t => t.id === activeThreadId);
   let threadTitle = currentThread ? currentThread.title : "Discussion";
-  if (!currentThread || threadTitle === "Discussion générale" || threadTitle === "Discussion" || threadTitle === "Nouvelle discussion") {
-    threadTitle = generateThreadTitle(text);
+  
+  const isNewThread = !currentThread || threadTitle === "Discussion générale" || threadTitle === "Discussion" || threadTitle === "Nouvelle discussion";
+  if (isNewThread) {
+    threadTitle = generateThreadTitle(text); // titre temporaire immédiat
+    asyncUpdateThreadTitle(agentId, activeThreadId, text); // génération asynchrone par l'IA
   }
   
   // Save user message
