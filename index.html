@@ -368,28 +368,41 @@
                 </div>
 
                 <!-- Chat tab -->
-                <div class="tab-content active" id="tab-chat">
-                  <div class="chat-messages" id="chat-messages-container">
-                    <!-- Messages injected dynamically -->
-                  </div>
-                  <div class="chat-input-bar-container" style="display: flex; flex-direction: column; width: 100%; border-top: 1px solid var(--border-color); background: rgba(0, 0, 0, 0.1);">
-                    <!-- Upload Preview -->
-                    <div id="chat-upload-preview" style="display: none; align-items: center; gap: 12px; padding: 10px 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); background: rgba(255, 255, 255, 0.01);">
-                      <div id="chat-preview-media-container" style="position: relative; width: 44px; height: 44px; border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center;">
-                        <!-- dynamic img or video preview -->
-                      </div>
-                      <div style="display: flex; flex-direction: column; gap: 2px;">
-                        <span id="chat-preview-filename" style="font-size: 0.8rem; font-weight: 600; color: var(--text-primary); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">filename.jpg</span>
-                        <span id="chat-preview-filesize" style="font-size: 0.7rem; color: var(--text-muted);">1.2 MB</span>
-                      </div>
-                      <button id="btn-remove-chat-file" style="margin-left: auto; background: transparent; border: none; color: #f43f5e; font-size: 1.3rem; cursor: pointer; padding: 4px; line-height: 1;">&times;</button>
+                <div class="tab-content active" id="tab-chat" style="display: flex; flex-direction: row; height: 100%;">
+                  <!-- Collapsible Sidebar for discussion sessions -->
+                  <div class="chat-threads-sidebar" id="chat-threads-sidebar">
+                    <button class="btn btn-primary btn-sm" id="btn-new-thread" style="width: 100%; height: 38px; font-weight: 600; font-size: 0.8rem; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                      <span>+</span> Nouvelle discussion
+                    </button>
+                    <div class="threads-list-container" id="threads-list-container">
+                      <!-- Thread items injected dynamically -->
                     </div>
-                    
-                    <div class="chat-input-bar" style="border-top: none; padding: 12px 24px;">
-                      <button id="btn-chat-attach" type="button" class="btn btn-secondary" style="padding: 0; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: rgba(255,255,255,0.02); cursor: pointer;" title="Joindre une photo ou vidéo">📎</button>
-                      <input type="file" id="chat-file-input" accept="image/*,video/mp4" style="display: none;" />
-                      <input type="text" id="chat-user-input" placeholder="Envoyer un message à l'agent..." />
-                      <button class="btn btn-primary" id="btn-chat-send">Envoyer</button>
+                  </div>
+
+                  <!-- Chat area -->
+                  <div class="chat-main-area">
+                    <div class="chat-messages" id="chat-messages-container">
+                      <!-- Messages injected dynamically -->
+                    </div>
+                    <div class="chat-input-bar-container" style="display: flex; flex-direction: column; width: 100%; border-top: 1px solid var(--border-color); background: rgba(0, 0, 0, 0.1);">
+                      <!-- Upload Preview -->
+                      <div id="chat-upload-preview" style="display: none; align-items: center; gap: 12px; padding: 10px 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); background: rgba(255, 255, 255, 0.01);">
+                        <div id="chat-preview-media-container" style="position: relative; width: 44px; height: 44px; border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center;">
+                          <!-- dynamic img or video preview -->
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 2px;">
+                          <span id="chat-preview-filename" style="font-size: 0.8rem; font-weight: 600; color: var(--text-primary); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">filename.jpg</span>
+                          <span id="chat-preview-filesize" style="font-size: 0.7rem; color: var(--text-muted);">1.2 MB</span>
+                        </div>
+                        <button id="btn-remove-chat-file" style="margin-left: auto; background: transparent; border: none; color: #f43f5e; font-size: 1.3rem; cursor: pointer; padding: 4px; line-height: 1;">&times;</button>
+                      </div>
+                      
+                      <div class="chat-input-bar" style="border-top: none; padding: 12px 24px;">
+                        <button id="btn-chat-attach" type="button" class="btn btn-secondary" style="padding: 0; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: rgba(255,255,255,0.02); cursor: pointer;" title="Joindre une photo ou vidéo">📎</button>
+                        <input type="file" id="chat-file-input" accept="image/*,video/mp4" style="display: none;" />
+                        <input type="text" id="chat-user-input" placeholder="Envoyer un message à l'agent..." />
+                        <button class="btn btn-primary" id="btn-chat-send">Envoyer</button>
+                      </div>
                     </div>
                   </div>
                 </div>

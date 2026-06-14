@@ -2080,6 +2080,12 @@ function setupDashboard() {
     if (e.key === 'Enter') sendChatMessage();
   });
 
+  // New thread event
+  const newThreadBtn = document.getElementById('btn-new-thread');
+  if (newThreadBtn) {
+    newThreadBtn.addEventListener('click', createNewThread);
+  }
+
   // Gestion des pièces jointes de discussion
   const attachBtn = document.getElementById('btn-chat-attach');
   const fileInput = document.getElementById('chat-file-input');
@@ -2265,6 +2271,7 @@ function isAgentConfigured(agentId) {
 
 function selectDashboardAgent(agentId) {
   state.activeDashboardAgentId = agentId;
+  state.activeThreadId = null; // Réinitialiser le thread actif au changement d'agent
   renderDashboardSidebar();
   renderDashboardPanel();
 
@@ -2272,6 +2279,7 @@ function selectDashboardAgent(agentId) {
   loadChatHistory(agentId).then(() => {
     if (state.activeDashboardAgentId === agentId) {
       if (state.activeDashboardTab === 'chat') {
+        renderThreadsSidebar();
         renderChatMessages();
       } else if (state.activeDashboardTab === 'history') {
         renderHistoryTab();
@@ -2358,6 +2366,7 @@ function renderDashboardTabContent() {
   
   if (state.activeDashboardTab === 'chat') {
     tabChat.classList.add('active');
+    renderThreadsSidebar();
     renderChatMessages();
   } else if (state.activeDashboardTab === 'history') {
     if (tabHistory) {
@@ -2851,7 +2860,6 @@ function renderConsoleLogs(agent, getSeededRandom, isConfig) {
 // CHAT TAB IN DASHBOARD
 // Store chat history by agentId: { agentId: [{ sender: 'agent'|'user', text: '', executionLogs: [] }] }
 const chatHistories = {};
-
 // Extraction des journaux d'exécution masqués sous forme de commentaire HTML JSON
 function extractMessageLogs(rawText) {
   const logsRegex = /<!-- EXECUTION_LOGS_JSON: ([\s\S]*?) -->/;
@@ -2860,6 +2868,8 @@ function extractMessageLogs(rawText) {
   let executionLogs = [];
   let mediaUrl = null;
   let isChronosDraft = false;
+  let threadId = null;
+  let threadTitle = null;
   let text = rawText || '';
   
   const logsMatch = text.match(logsRegex);
@@ -2878,15 +2888,16 @@ function extractMessageLogs(rawText) {
       const extra = JSON.parse(extraMatch[1]);
       mediaUrl = extra.mediaUrl || null;
       isChronosDraft = extra.isChronosDraft || false;
+      threadId = extra.threadId || null;
+      threadTitle = extra.threadTitle || null;
       text = text.replace(extraRegex, '').trim();
     } catch (e) {
       logDebug(`[extractMessageLogs] Erreur de parsing extra: ${e.message}`);
     }
   }
   
-  return { text, executionLogs, mediaUrl, isChronosDraft };
+  return { text, executionLogs, mediaUrl, isChronosDraft, threadId, threadTitle };
 }
-
 // Charger l'historique de discussion pour un agent spécifique (Supabase avec repli local)
 async function loadChatHistory(agentId) {
   const agent = AGENTS.find(a => a.id === agentId);
@@ -2920,7 +2931,10 @@ async function loadChatHistory(agentId) {
             text: parsed.text,
             executionLogs: msg.executionLogs || parsed.executionLogs,
             mediaUrl: msg.mediaUrl || parsed.mediaUrl,
-            isChronosDraft: msg.isChronosDraft !== undefined ? msg.isChronosDraft : parsed.isChronosDraft
+            isChronosDraft: msg.isChronosDraft !== undefined ? msg.isChronosDraft : parsed.isChronosDraft,
+            threadId: msg.threadId || parsed.threadId,
+            threadTitle: msg.threadTitle || parsed.threadTitle,
+            created_at: msg.created_at || new Date().toISOString()
           };
         });
       } catch (e) {
@@ -2942,7 +2956,10 @@ async function loadChatHistory(agentId) {
             text: parsed.text,
             executionLogs: parsed.executionLogs,
             mediaUrl: parsed.mediaUrl,
-            isChronosDraft: parsed.isChronosDraft
+            isChronosDraft: parsed.isChronosDraft,
+            threadId: parsed.threadId,
+            threadTitle: parsed.threadTitle,
+            created_at: msg.created_at || new Date().toISOString()
           };
         });
         logDebug(`[loadChatHistory] ${data.length} messages chargés depuis Supabase.`);
@@ -2960,7 +2977,10 @@ async function loadChatHistory(agentId) {
                 text: parsed.text,
                 executionLogs: msg.executionLogs || parsed.executionLogs,
                 mediaUrl: msg.mediaUrl || parsed.mediaUrl,
-                isChronosDraft: msg.isChronosDraft !== undefined ? msg.isChronosDraft : parsed.isChronosDraft
+                isChronosDraft: msg.isChronosDraft !== undefined ? msg.isChronosDraft : parsed.isChronosDraft,
+                threadId: msg.threadId || parsed.threadId,
+                threadTitle: msg.threadTitle || parsed.threadTitle,
+                created_at: msg.created_at || new Date().toISOString()
               };
             });
             logDebug(`[loadChatHistory] Historique vide dans Supabase, chargement du repli localStorage.`);
@@ -2980,7 +3000,10 @@ async function loadChatHistory(agentId) {
             return {
               sender: msg.sender,
               text: parsed.text,
-              executionLogs: msg.executionLogs || parsed.executionLogs
+              executionLogs: msg.executionLogs || parsed.executionLogs,
+              threadId: msg.threadId || parsed.threadId,
+              threadTitle: msg.threadTitle || parsed.threadTitle,
+              created_at: msg.created_at || new Date().toISOString()
             };
           });
         } catch (e) {}
@@ -2990,7 +3013,7 @@ async function loadChatHistory(agentId) {
 }
 
 // Sauvegarder un message dans l'historique (Supabase avec repli local)
-async function saveChatMessage(agentId, sender, text, executionLogs = [], mediaUrl = null, isChronosDraft = false) {
+async function saveChatMessage(agentId, sender, text, executionLogs = [], mediaUrl = null, isChronosDraft = false, threadId = null, threadTitle = null) {
   const uid = state.currentUser ? state.currentUser.uid : null;
   if (!uid && !isMock) return;
 
@@ -3002,6 +3025,10 @@ async function saveChatMessage(agentId, sender, text, executionLogs = [], mediaU
   const extraObj = {};
   if (mediaUrl) extraObj.mediaUrl = mediaUrl;
   if (isChronosDraft) extraObj.isChronosDraft = isChronosDraft;
+  if (threadId) {
+    extraObj.threadId = threadId;
+    extraObj.threadTitle = threadTitle;
+  }
   if (Object.keys(extraObj).length > 0) {
     dbText += "\n\n<!-- CHRONOS_EXTRA_JSON: " + JSON.stringify(extraObj) + " -->";
   }
@@ -4033,6 +4060,154 @@ function extractSuggestions(text) {
   };
 }
 
+// Générateur de titre de discussion par mots-clés
+function generateThreadTitle(text) {
+  if (!text) return "Discussion générale";
+  const stopWords = new Set([
+    "je", "tu", "il", "elle", "nous", "vous", "ils", "elles", "le", "la", "les", "un", "une", "des",
+    "du", "de", "la", "d'", "l'", "au", "aux", "en", "dans", "par", "pour", "avec", "sans", "sous",
+    "sur", "chez", "et", "ou", "mais", "donc", "car", "ni", "si", "que", "qui", "ce", "cet", "cette",
+    "ces", "mon", "ton", "son", "ma", "ta", "sa", "mes", "tes", "ses", "nos", "vos", "leurs", "leur",
+    "est", "es", "suis", "sommes", "etes", "sont", "ai", "as", "a", "avons", "avez", "ont", "faire",
+    "veux", "peux", "dois", "sais", "salut", "bonjour", "hello", "bonsoir", "comment", "pourquoi"
+  ]);
+  
+  const words = text
+    .toLowerCase()
+    .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, " ")
+    .split(/\s+/)
+    .filter(w => w.length > 2 && !stopWords.has(w));
+    
+  if (words.length === 0) {
+    return text.substring(0, 25) + "...";
+  }
+  
+  const keywords = words.slice(0, 3).map(w => w.charAt(0).toUpperCase() + w.slice(1));
+  return keywords.join(" ");
+}
+
+function getAgentThreads(agentId) {
+  const history = chatHistories[agentId] || [];
+  const threads = {};
+  
+  let currentThreadId = null;
+  let currentThreadTitle = "Discussion générale";
+  let lastUserMsgTime = null;
+  
+  history.forEach((msg) => {
+    if (msg.threadId) {
+      currentThreadId = msg.threadId;
+      currentThreadTitle = msg.threadTitle || "Discussion";
+    } else {
+      const msgTime = msg.created_at ? new Date(msg.created_at) : new Date();
+      const timeGap = lastUserMsgTime ? (msgTime - lastUserMsgTime) / (1000 * 60 * 60) : 999;
+      
+      if (timeGap > 2 || !currentThreadId || msg.text.includes("Bienvenue sur chronos") || msg.text.includes("Bonjour ! Je suis")) {
+        currentThreadId = `thread_${agentId}_${msgTime.getTime()}`;
+        currentThreadTitle = msg.sender === 'user' ? generateThreadTitle(msg.text) : "Discussion générale";
+      }
+      
+      msg.threadId = currentThreadId;
+      msg.threadTitle = currentThreadTitle;
+      msg.created_at = msg.created_at || msgTime.toISOString();
+    }
+    
+    if (msg.sender === 'user') {
+      lastUserMsgTime = msg.created_at ? new Date(msg.created_at) : new Date();
+      if (currentThreadTitle === "Discussion générale" || currentThreadTitle === "Discussion") {
+        currentThreadTitle = generateThreadTitle(msg.text);
+        msg.threadTitle = currentThreadTitle;
+        if (threads[currentThreadId]) {
+          threads[currentThreadId].title = currentThreadTitle;
+          threads[currentThreadId].messages.forEach(m => m.threadTitle = currentThreadTitle);
+        }
+      }
+    }
+    
+    if (!threads[currentThreadId]) {
+      threads[currentThreadId] = {
+        id: currentThreadId,
+        title: currentThreadTitle,
+        created_at: msg.created_at || new Date().toISOString(),
+        messages: []
+      };
+    }
+    
+    threads[currentThreadId].messages.push(msg);
+  });
+  
+  // Renvoyer les threads par ordre chronologique (du plus ancien au plus récent)
+  return Object.values(threads).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+}
+
+function renderThreadsSidebar() {
+  const agentId = state.activeDashboardAgentId;
+  if (!agentId) return;
+  
+  const container = document.getElementById('threads-list-container');
+  if (!container) return;
+  
+  container.innerHTML = '';
+  
+  const threads = getAgentThreads(agentId);
+  
+  // Si aucun thread n'est sélectionné, charger le plus récent par défaut
+  if (!state.activeThreadId && threads.length > 0) {
+    state.activeThreadId = threads[threads.length - 1].id;
+  }
+  
+  threads.forEach(thread => {
+    const item = document.createElement('div');
+    item.className = `thread-item ${state.activeThreadId === thread.id ? 'active' : ''}`;
+    
+    const date = new Date(thread.created_at);
+    const dateStr = date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    
+    item.innerHTML = `
+      <div class="thread-title">${thread.title}</div>
+      <div class="thread-date">${dateStr}</div>
+    `;
+    
+    item.addEventListener('click', () => {
+      state.activeThreadId = thread.id;
+      renderThreadsSidebar();
+      renderChatMessages();
+    });
+    
+    container.appendChild(item);
+  });
+}
+
+function createNewThread() {
+  const agentId = state.activeDashboardAgentId;
+  const agent = AGENTS.find(a => a.id === agentId);
+  if (!agent) return;
+  
+  const newThreadId = `thread_${agentId}_${Date.now()}`;
+  state.activeThreadId = newThreadId;
+  
+  // Ajouter un nouveau message d'accueil pour ce thread
+  const welcomeMsg = {
+    sender: 'agent',
+    text: agent.welcome,
+    executionLogs: [],
+    threadId: newThreadId,
+    threadTitle: "Nouvelle discussion",
+    created_at: new Date().toISOString()
+  };
+  
+  if (!chatHistories[agentId]) {
+    chatHistories[agentId] = [];
+  }
+  chatHistories[agentId].push(welcomeMsg);
+  
+  // Persister le message d'accueil initial
+  saveChatMessage(agentId, 'agent', agent.welcome, [], null, false, newThreadId, "Nouvelle discussion");
+  
+  renderThreadsSidebar();
+  renderChatMessages();
+}
+
 function renderChatMessages() {
   const container = document.getElementById('chat-messages-container');
   container.innerHTML = '';
@@ -4043,11 +4218,31 @@ function renderChatMessages() {
   if (!chatHistories[agentId]) {
     // Initial welcome message
     chatHistories[agentId] = [
-      { sender: 'agent', text: agent.welcome, executionLogs: [] }
+      { sender: 'agent', text: agent.welcome, executionLogs: [], threadId: `thread_${agentId}_default`, threadTitle: "Discussion générale", created_at: new Date().toISOString() }
     ];
   }
   
-  const history = chatHistories[agentId];
+  const threads = getAgentThreads(agentId);
+  if (!state.activeThreadId && threads.length > 0) {
+    state.activeThreadId = threads[threads.length - 1].id;
+  }
+  
+  const activeThreadId = state.activeThreadId || `thread_${agentId}_default`;
+  state.activeThreadId = activeThreadId;
+  
+  let history = chatHistories[agentId].filter(msg => msg.threadId === activeThreadId);
+  if (history.length === 0) {
+    const welcomeMsg = { 
+      sender: 'agent', 
+      text: agent.welcome, 
+      executionLogs: [], 
+      threadId: activeThreadId, 
+      threadTitle: "Nouvelle discussion", 
+      created_at: new Date().toISOString() 
+    };
+    chatHistories[agentId].push(welcomeMsg);
+    history = [welcomeMsg];
+  }
   
   history.forEach((msg, index) => {
     const isLastMessage = index === history.length - 1;
@@ -4683,19 +4878,43 @@ async function sendChatMessage() {
   
   const agentId = state.activeDashboardAgentId;
   const agent = AGENTS.find(a => a.id === agentId);
+
+  // Gérer/Créer le thread ID actif
+  const activeThreadId = state.activeThreadId || `thread_${agentId}_${Date.now()}`;
+  state.activeThreadId = activeThreadId;
+
+  // Déterminer ou mettre à jour le titre du thread
+  const threads = getAgentThreads(agentId);
+  const currentThread = threads.find(t => t.id === activeThreadId);
+  let threadTitle = currentThread ? currentThread.title : "Discussion";
+  if (!currentThread || threadTitle === "Discussion générale" || threadTitle === "Discussion" || threadTitle === "Nouvelle discussion") {
+    threadTitle = generateThreadTitle(text);
+  }
   
   // Save user message
-  const userMsg = { sender: 'user', text: text, executionLogs: [] };
+  const userMsg = { 
+    sender: 'user', 
+    text: text, 
+    executionLogs: [],
+    threadId: activeThreadId,
+    threadTitle: threadTitle
+  };
   if (fileAttached) {
     userMsg.mediaUrl = fileAttached.data;
     userMsg.mediaType = fileAttached.type.startsWith('video/') ? 'video' : 'image';
   }
+  
+  if (!chatHistories[agentId]) {
+    chatHistories[agentId] = [];
+  }
   chatHistories[agentId].push(userMsg);
+  
+  renderThreadsSidebar(); // Mettre à jour la barre latérale des threads
   renderChatMessages();
   input.value = '';
   
   // Persist user message
-  saveChatMessage(agentId, 'user', text, [], userMsg.mediaUrl, false);
+  saveChatMessage(agentId, 'user', text, [], userMsg.mediaUrl, false, activeThreadId, threadTitle);
 
   // Clean file inputs in DOM
   const fileInput = document.getElementById('chat-file-input');
@@ -4768,19 +4987,23 @@ async function sendChatMessage() {
           executionLogs: [],
           mediaUrl: mediaUrl,
           mediaType: mediaType,
-          isChronosDraft: true
+          isChronosDraft: true,
+          threadId: activeThreadId,
+          threadTitle: threadTitle
         });
 
         renderChatMessages();
 
         // Persist
-        saveChatMessage(agentId, 'agent', replyText, [], mediaUrl, true);
+        saveChatMessage(agentId, 'agent', replyText, [], mediaUrl, true, activeThreadId, threadTitle);
       } else {
         const errMsg = data.error || "Une erreur est survenue lors de l'analyse.";
         chatHistories[agentId].push({
           sender: 'agent',
           text: `⚠️ Erreur lors de la rédaction par l'IA : ${errMsg}`,
-          executionLogs: []
+          executionLogs: [],
+          threadId: activeThreadId,
+          threadTitle: threadTitle
         });
         renderChatMessages();
       }
@@ -4882,12 +5105,18 @@ async function sendChatMessage() {
       if (finishReason && finishReason !== 'STOP') {
         logDebug(`[Gemini API] Attention: La génération s'est arrêtée avec le motif: ${finishReason}`);
       }
-      chatHistories[agentId].push({ sender: 'agent', text: replyText, executionLogs: executionLogs });
+      chatHistories[agentId].push({ 
+        sender: 'agent', 
+        text: replyText, 
+        executionLogs: executionLogs,
+        threadId: activeThreadId,
+        threadTitle: threadTitle
+      });
       if (agentId === 'chronos') {
         detectAndAddChronosDraftToCalendar(replyText);
       }
       renderChatMessages();
-      saveChatMessage(agentId, 'agent', replyText, executionLogs);
+      saveChatMessage(agentId, 'agent', replyText, executionLogs, null, false, activeThreadId, threadTitle);
     } else {
       const errorMsg = data.error?.message || "Erreur de réponse API";
       logDebug(`[Gemini API] Échec de l'appel API: ${errorMsg}. Repli sur la simulation.`);
@@ -4950,12 +5179,18 @@ async function sendChatMessage() {
           });
         }
         
-        chatHistories[agentId].push({ sender: 'agent', text: finalReplyText, executionLogs: simulatedLogs });
+        chatHistories[agentId].push({ 
+          sender: 'agent', 
+          text: finalReplyText, 
+          executionLogs: simulatedLogs,
+          threadId: activeThreadId,
+          threadTitle: threadTitle
+        });
         if (agentId === 'chronos') {
           detectAndAddChronosDraftToCalendar(finalReplyText);
         }
         renderChatMessages();
-        saveChatMessage(agentId, 'agent', finalReplyText, simulatedLogs);
+        saveChatMessage(agentId, 'agent', finalReplyText, simulatedLogs, null, false, activeThreadId, threadTitle);
         return;
       }
     } catch (simErr) {
@@ -4967,10 +5202,12 @@ async function sendChatMessage() {
     chatHistories[agentId].push({ 
       sender: 'agent', 
       text: errMsg,
-      executionLogs: []
+      executionLogs: [],
+      threadId: activeThreadId,
+      threadTitle: threadTitle
     });
     renderChatMessages();
-    saveChatMessage(agentId, 'agent', errMsg, []);
+    saveChatMessage(agentId, 'agent', errMsg, [], null, false, activeThreadId, threadTitle);
   }
 }
 
@@ -7643,7 +7880,7 @@ async function syncLiveChatHistory() {
         logDebug(`[syncLiveChatHistory] Nouveaux messages de collaboration détectés en base (${newLength} vs ${currentLength}).`);
         const agent = AGENTS.find(a => a.id === agentId);
         chatHistories[agentId] = [
-          { sender: 'agent', text: agent ? agent.welcome : "Bonjour.", executionLogs: [] },
+          { sender: 'agent', text: agent ? agent.welcome : "Bonjour.", executionLogs: [], threadId: `thread_${agentId}_default`, threadTitle: "Discussion générale", created_at: new Date(data[0]?.created_at || Date.now()).toISOString() },
           ...data.map(msg => {
             const parsed = extractMessageLogs(msg.text);
             return {
@@ -7651,7 +7888,10 @@ async function syncLiveChatHistory() {
               text: parsed.text,
               executionLogs: parsed.executionLogs,
               mediaUrl: parsed.mediaUrl,
-              isChronosDraft: parsed.isChronosDraft
+              isChronosDraft: parsed.isChronosDraft,
+              threadId: parsed.threadId,
+              threadTitle: parsed.threadTitle,
+              created_at: msg.created_at || new Date().toISOString()
             };
           })
         ];
