@@ -4067,17 +4067,32 @@ function getAgentThreads(agentId) {
   let currentThreadTitle = "Discussion générale";
   let lastUserMsgTime = null;
   
+  const TITLE_RESTORATIONS = {
+    "Peut Commencer Aimerais": "Posts LinkedIn Chronos",
+    "Connecter Compte Canva": "Connexion Compte Canva",
+    "Pourrions Relier Notre": "Liaison WhatsApp Photos"
+  };
+  
   history.forEach((msg) => {
     if (msg.threadId) {
       currentThreadId = msg.threadId;
-      currentThreadTitle = msg.threadTitle || "Discussion";
+      let title = msg.threadTitle || "Discussion";
+      if (TITLE_RESTORATIONS[title]) {
+        title = TITLE_RESTORATIONS[title];
+        msg.threadTitle = title;
+      }
+      currentThreadTitle = title;
     } else {
       const msgTime = msg.created_at ? new Date(msg.created_at) : new Date();
       const timeGap = lastUserMsgTime ? (msgTime - lastUserMsgTime) / (1000 * 60 * 60) : 999;
       
       if (timeGap > 2 || !currentThreadId || msg.text.includes("Bienvenue sur chronos") || msg.text.includes("Bonjour ! Je suis")) {
         currentThreadId = `thread_${agentId}_${msgTime.getTime()}`;
-        currentThreadTitle = msg.sender === 'user' ? generateThreadTitle(msg.text) : "Discussion générale";
+        let rawTitle = msg.sender === 'user' ? generateThreadTitle(msg.text) : "Discussion générale";
+        if (TITLE_RESTORATIONS[rawTitle]) {
+          rawTitle = TITLE_RESTORATIONS[rawTitle];
+        }
+        currentThreadTitle = rawTitle;
       }
       
       msg.threadId = currentThreadId;
@@ -4088,7 +4103,11 @@ function getAgentThreads(agentId) {
     if (msg.sender === 'user') {
       lastUserMsgTime = msg.created_at ? new Date(msg.created_at) : new Date();
       if (currentThreadTitle === "Discussion générale" || currentThreadTitle === "Discussion") {
-        currentThreadTitle = generateThreadTitle(msg.text);
+        let rawTitle = generateThreadTitle(msg.text);
+        if (TITLE_RESTORATIONS[rawTitle]) {
+          rawTitle = TITLE_RESTORATIONS[rawTitle];
+        }
+        currentThreadTitle = rawTitle;
         msg.threadTitle = currentThreadTitle;
         if (threads[currentThreadId]) {
           threads[currentThreadId].title = currentThreadTitle;
@@ -4153,10 +4172,9 @@ function renderThreadsSidebar() {
     
     container.appendChild(item);
 
-    // Déclencher l'optimisation asynchrone en arrière-plan si le titre est ancien ou générique
+    // Déclencher l'optimisation asynchrone en arrière-plan si le titre est générique
     const isGeneric = ["Discussion", "Discussion générale", "Nouvelle discussion"].includes(thread.title);
-    const isOldStyle = /^[A-Z][a-zà-ÿ0-9]+(\s[A-Z][a-zà-ÿ0-9]+){1,3}$/.test(thread.title);
-    if ((isGeneric || isOldStyle) && thread.firstUserMessage) {
+    if (isGeneric && thread.firstUserMessage) {
       asyncUpdateThreadTitle(agentId, thread.id, thread.firstUserMessage);
     }
   });
