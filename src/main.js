@@ -3419,7 +3419,7 @@ function setupGeminiAdmin() {
           return;
         }
         
-        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${keyToTest}`, {
+        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${keyToTest}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -3435,7 +3435,7 @@ function setupGeminiAdmin() {
       btnTest.innerText = "Tester";
       
       if (res.ok && data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
-        statusEl.innerHTML = `<span style="color: #10b981; display: inline-flex; align-items: center; gap: 6px;">🟢 Clé API valide et fonctionnelle ! (Modèle: gemini-3.5-flash)</span>`;
+        statusEl.innerHTML = `<span style="color: #10b981; display: inline-flex; align-items: center; gap: 6px;">🟢 Clé API valide et fonctionnelle ! (Modèle: gemini-2.0-flash)</span>`;
         showToast("Test de connexion Gemini réussi !", "success");
       } else {
         const errMsg = data.error?.message || "Erreur de réponse.";
@@ -4238,7 +4238,7 @@ Message : "${firstMessageText}"`;
     } catch (e) {
       logDebug(`[asyncUpdateThreadTitle] Échec backend: ${e.message}. Tentative directe client.`);
       if (apiKey) {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`, {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -5144,7 +5144,7 @@ async function sendChatMessage() {
         throw new Error("Aucune clé API configurée localement ou en variable d'environnement.");
       }
       
-      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`, {
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
