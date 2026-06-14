@@ -695,12 +695,6 @@ function setupAuthModal() {
 
   authForm.addEventListener('submit', handleAuthSubmit);
 
-  const btnInstantTrial = document.getElementById('btn-instant-trial');
-  if (btnInstantTrial) {
-    btnInstantTrial.addEventListener('click', () => {
-      triggerInstantTrial('essai-gratuit@cesar-ia.com');
-    });
-  }
 }
 
 function toggleAuthMode(signup) {
