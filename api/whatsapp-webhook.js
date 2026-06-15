@@ -117,7 +117,58 @@ export default async function handler(req, res) {
         generatedPostText = `[Simulé] Événement partagé aujourd'hui ! Content d'avoir pu échanger avec tout le monde autour de nos dernières innovations. 🚀 #Evenement #Networking\n\nTexte d'origine : ${textContent}`;
       }
 
-      // 5. Enregistrement du brouillon dans le connecteur de l'utilisateur
+      // 4b. Récupérer tous les connecteurs configurés de l'utilisateur pour cet agent
+      let userConnectors = {};
+      let activePlatforms = [];
+
+      if (supabase) {
+        try {
+          const { data: allConns, error: allConnsErr } = await supabase
+            .from('connectors')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('agent_id', agentId);
+            
+          if (!allConnsErr && allConns) {
+            allConns.forEach(c => {
+              userConnectors[c.connector_name] = c.credentials || {};
+            });
+          }
+        } catch (eDb) {
+          console.error('[WhatsApp Webhook] Erreur lors de la récupération des connecteurs:', eDb);
+        }
+      }
+
+      // Helper pour vérifier si un connecteur est configuré
+      function hasCreds(info) {
+        return info && (info.token || info.accessToken || info.apiKey || info.webhookUrl || info.sender || info.phone);
+      }
+
+      // Safe helper pour récupérer les infos
+      function getConnectorInfo(connectors, name) {
+        if (!connectors) return null;
+        if (connectors[name]) return connectors[name];
+        const entry = Object.entries(connectors).find(([k]) => k && typeof k === 'string' && k.toLowerCase().includes(name.toLowerCase()));
+        return entry ? entry[1] : null;
+      }
+
+      // Détecter les plateformes de publication actives
+      if (hasCreds(getConnectorInfo(userConnectors, "LinkedIn"))) activePlatforms.push("linkedin");
+      if (hasCreds(getConnectorInfo(userConnectors, "Twitter")) || hasCreds(getConnectorInfo(userConnectors, "X"))) activePlatforms.push("twitter");
+      if (hasCreds(getConnectorInfo(userConnectors, "Facebook"))) activePlatforms.push("facebook");
+      if (hasCreds(getConnectorInfo(userConnectors, "Instagram"))) activePlatforms.push("instagram");
+      if (hasCreds(getConnectorInfo(userConnectors, "TikTok"))) activePlatforms.push("tiktok");
+      if (hasCreds(getConnectorInfo(userConnectors, "YouTube"))) activePlatforms.push("youtube");
+      if (hasCreds(getConnectorInfo(userConnectors, "Pinterest"))) activePlatforms.push("pinterest");
+      if (hasCreds(getConnectorInfo(userConnectors, "Threads"))) activePlatforms.push("threads");
+      if (hasCreds(getConnectorInfo(userConnectors, "Buffer")) || hasCreds(getConnectorInfo(userConnectors, "Hootsuite"))) activePlatforms.push("buffer");
+
+      // Par défaut toujours LinkedIn
+      if (activePlatforms.length === 0) {
+        activePlatforms.push("linkedin");
+      }
+
+      // 5. Enregistrement du brouillon dans le connecteur WhatsApp de l'utilisateur
       const currentCredentials = matchingConnector.credentials || {};
       const drafts = currentCredentials.drafts || [];
 
@@ -127,7 +178,7 @@ export default async function handler(req, res) {
         mediaUrl: mediaUrl || null,
         mediaType: messageType,
         status: 'draft',
-        platforms: ['linkedin'], // Par défaut LinkedIn
+        platforms: activePlatforms,
         date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Par défaut demain à la même heure
         created_at: new Date().toISOString()
       };
@@ -142,6 +193,67 @@ export default async function handler(req, res) {
           .eq('user_id', userId)
           .eq('agent_id', agentId)
           .eq('connector_name', matchingConnector.connector_name);
+      }
+
+      // 5b. Notification en direct vers Slack, Teams ou Webhook si connectés
+      const slackInfo = getConnectorInfo(userConnectors, "Slack");
+      if (hasCreds(slackInfo)) {
+        const webhookUrl = slackInfo.webhookUrl || slackInfo.token;
+        if (webhookUrl && webhookUrl.startsWith("http")) {
+          try {
+            await fetch(webhookUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                text: `📱 *[Chronos via WhatsApp]* Nouveau post rédigé en brouillon :\n\n"${generatedPostText}"\n\n🔗 Valider sur César-IA : https://plateforme-agents-ia.vercel.app/?validate_draft=${newDraft.id}`
+              })
+            });
+          } catch (e) {
+            console.error('[WhatsApp Webhook] Échec notification Slack:', e);
+          }
+        }
+      }
+
+      const teamsInfo = getConnectorInfo(userConnectors, "Teams");
+      if (hasCreds(teamsInfo)) {
+        const webhookUrl = teamsInfo.webhookUrl || teamsInfo.token;
+        if (webhookUrl && webhookUrl.startsWith("http")) {
+          try {
+            await fetch(webhookUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                text: `📱 *[Chronos via WhatsApp]* Nouveau post rédigé en brouillon :\n\n"${generatedPostText}"\n\n🔗 Valider sur César-IA : https://plateforme-agents-ia.vercel.app/?validate_draft=${newDraft.id}`
+              })
+            });
+          } catch (e) {
+            console.error('[WhatsApp Webhook] Échec notification Teams:', e);
+          }
+        }
+      }
+
+      const webhookInfo = getConnectorInfo(userConnectors, "Webhook");
+      if (hasCreds(webhookInfo)) {
+        const webhookUrl = webhookInfo.webhookUrl || webhookInfo.url;
+        if (webhookUrl && webhookUrl.startsWith("http")) {
+          try {
+            await fetch(webhookUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                event: "whatsapp_message_received",
+                agent_id: agentId,
+                user_id: userId,
+                text: generatedPostText,
+                originalText: textContent,
+                mediaUrl: mediaUrl || null,
+                draftId: newDraft.id
+              })
+            });
+          } catch (e) {
+            console.error('[WhatsApp Webhook] Échec webhook personnalisé:', e);
+          }
+        }
       }
 
       // 6. Réponse sur WhatsApp à l'utilisateur

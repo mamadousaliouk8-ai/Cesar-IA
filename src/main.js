@@ -7873,18 +7873,36 @@ async function checkWhatsAppDrafts() {
   whatsappConfig.drafts = [];
   
   for (const draft of drafts) {
-    const newEvt = {
-      id: "evt_" + Math.random().toString(36).substring(2, 9),
-      day: draft.day || "monday",
-      time: draft.time || "10:00",
-      platform: draft.platform || "LinkedIn",
-      text: draft.text,
-      status: "draft",
-      mediaUrl: draft.mediaUrl || null,
-      mediaType: draft.mediaType || 'image'
-    };
-    if (!state.calendarEvents) state.calendarEvents = [];
-    state.calendarEvents.push(newEvt);
+    const targetPlatforms = draft.platforms && Array.isArray(draft.platforms)
+      ? draft.platforms
+      : [draft.platform || "LinkedIn"];
+
+    for (const rawPlatform of targetPlatforms) {
+      let platformLabel = "LinkedIn";
+      const pLower = rawPlatform.toLowerCase();
+      if (pLower.includes("linkedin")) platformLabel = "LinkedIn";
+      else if (pLower.includes("twitter") || pLower === "x") platformLabel = "Twitter";
+      else if (pLower.includes("facebook")) platformLabel = "Facebook";
+      else if (pLower.includes("instagram")) platformLabel = "Instagram";
+      else if (pLower.includes("tiktok")) platformLabel = "TikTok";
+      else if (pLower.includes("youtube")) platformLabel = "YouTube";
+      else if (pLower.includes("pinterest")) platformLabel = "Pinterest";
+      else if (pLower.includes("threads")) platformLabel = "Threads";
+      else if (pLower.includes("buffer")) platformLabel = "Buffer";
+
+      const newEvt = {
+        id: "evt_" + Math.random().toString(36).substring(2, 9),
+        day: draft.day || "monday",
+        time: draft.time || "10:00",
+        platform: platformLabel,
+        text: draft.text,
+        status: "draft",
+        mediaUrl: draft.mediaUrl || null,
+        mediaType: draft.mediaType || 'image'
+      };
+      if (!state.calendarEvents) state.calendarEvents = [];
+      state.calendarEvents.push(newEvt);
+    }
     
     if (!chatHistories['chronos']) {
       chatHistories['chronos'] = [
@@ -7892,9 +7910,23 @@ async function checkWhatsAppDrafts() {
       ];
     }
     
+    const targetLabels = targetPlatforms.map(p => {
+      const pLower = p.toLowerCase();
+      if (pLower.includes("linkedin")) return "LinkedIn";
+      if (pLower.includes("twitter") || pLower === "x") return "Twitter";
+      if (pLower.includes("facebook")) return "Facebook";
+      if (pLower.includes("instagram")) return "Instagram";
+      if (pLower.includes("tiktok")) return "TikTok";
+      if (pLower.includes("youtube")) return "YouTube";
+      if (pLower.includes("pinterest")) return "Pinterest";
+      if (pLower.includes("threads")) return "Threads";
+      if (pLower.includes("buffer")) return "Buffer";
+      return p;
+    });
+
     chatHistories['chronos'].push({
       sender: 'agent',
-      text: `📱 **Nouveau contenu reçu via WhatsApp !**\n\nJ'ai généré ce projet de publication pour vous. Veuillez l'examiner et le planifier à l'aide de l'outil ci-dessous :`,
+      text: `📱 **Nouveau contenu reçu via WhatsApp !**\n\nJ'ai généré ce projet de publication pour les plateformes : **${targetLabels.join(', ')}**. Veuillez l'examiner et le planifier à l'aide de l'outil ci-dessous :`,
       executionLogs: []
     });
 
@@ -7907,7 +7939,7 @@ async function checkWhatsAppDrafts() {
       isChronosDraft: true
     });
 
-    await saveChatMessage('chronos', 'agent', `📱 Nouveau contenu reçu via WhatsApp :\n${draft.text}`, [], draft.mediaUrl || null, true);
+    await saveChatMessage('chronos', 'agent', `📱 Nouveau contenu reçu via WhatsApp (diffusé sur ${targetLabels.join(', ')}) :\n${draft.text}`, [], draft.mediaUrl || null, true);
   }
   
   saveMockState();
