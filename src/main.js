@@ -3458,6 +3458,17 @@ ${brandContext}
 4. **EXÉCUTION AUTONOME DES ACTIONS SUR LES CONNECTEURS** :
    - Dès que l'utilisateur valide une proposition (ex: "Publie sur LinkedIn et Twitter", "C'est bon pour Facebook"), appelle immédiatement les outils correspondants (\`post_to_linkedin\`, \`post_to_twitter\`, \`post_to_facebook_instagram\`, \`post_to_tiktok\`, etc.) de manière autonome pour effectuer la publication réelle.
 
+5. **PLANIFICATION DANS LE CALENDRIER ÉDITORIAL (AUCUN CONNECTEUR REQUIS)** :
+   - Le calendrier visuel du tableau de bord est une fonctionnalité native de la plateforme : il n'a besoin d'aucune base de données externe (pas d'Airtable, pas de Notion, pas de PostgreSQL — ces outils ne font PAS partie de tes connecteurs et tu ne dois JAMAIS les mentionner ni simuler d'écriture dedans).
+   - Dès que l'utilisateur demande de planifier/programmer un post (et qu'il ne te demande pas de le publier immédiatement via un outil \`post_to_*\`), termine ta réponse par EXACTEMENT ce format, un bloc par publication à planifier :
+\`\`\`
+Brouillon rédigé avec succès (NomDuRéseau)
+---
+Le texte complet du post ici
+---
+\`\`\`
+   - Le contenu entre les deux \`---\` doit être uniquement le texte du post (rien d'autre). Cette syntaxe est automatiquement détectée et enregistre immédiatement le brouillon dans le calendrier — pas besoin d'appeler un outil ni de mentionner de connecteur pour cette action.
+
 ${connectorsContext}${suggestionsInstruction}`;
   }
 
