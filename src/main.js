@@ -1287,7 +1287,28 @@ async function loadUserData() {
         state.connectorsData[c.agent_id][c.connector_name] = c.credentials || {};
       });
       logDebug("Connecteurs chargés avec succès.");
-      
+
+      logDebug("Chargement du calendrier éditorial...");
+      try {
+        const events = await supabaseFetch('calendar_events', {
+          queryParams: `?user_id=eq.${state.currentUser.uid}&select=*`
+        }) || [];
+        state.calendarEvents = events.map(e => ({
+          id: e.id,
+          day: e.day,
+          time: e.time,
+          platform: e.platform,
+          text: e.content,
+          status: e.status,
+          mediaUrl: e.media_url || null,
+          mediaType: e.media_type || null
+        }));
+        logDebug(`Calendrier chargé avec succès (${events.length} publication(s)).`);
+      } catch (errCalendar) {
+        logDebug(`Erreur lors du chargement du calendrier: ${errCalendar.message}`);
+        state.calendarEvents = state.calendarEvents || [];
+      }
+
       // Vérifier les brouillons de WhatsApp
       checkWhatsAppDrafts();
       
@@ -1330,6 +1351,45 @@ async function loadUserData() {
     await loadUserDataPromise;
   } finally {
     loadUserDataPromise = null;
+  }
+}
+
+async function persistCalendarEvent(evt) {
+  if (isMock || !state.currentUser) return;
+  try {
+    await supabaseFetch('calendar_events', {
+      method: 'POST',
+      queryParams: '?on_conflict=id',
+      headers: { 'Prefer': 'resolution=merge-duplicates' },
+      body: {
+        id: evt.id,
+        user_id: state.currentUser.uid,
+        agent_id: 'chronos',
+        day: evt.day,
+        time: evt.time,
+        platform: evt.platform,
+        content: evt.text,
+        status: evt.status,
+        media_url: evt.mediaUrl || null,
+        media_type: evt.mediaType || null
+      }
+    });
+  } catch (err) {
+    console.error("Erreur lors de la sauvegarde de la publication sur Supabase :", err);
+    showToast("Impossible de sauvegarder la publication sur le serveur.", "error");
+  }
+}
+
+async function deleteCalendarEventRemote(id) {
+  if (isMock || !state.currentUser) return;
+  try {
+    await supabaseFetch('calendar_events', {
+      method: 'DELETE',
+      queryParams: `?id=eq.${id}`
+    });
+  } catch (err) {
+    console.error("Erreur lors de la suppression de la publication sur Supabase :", err);
+    showToast("Impossible de supprimer la publication sur le serveur.", "error");
   }
 }
 
@@ -4611,8 +4671,9 @@ function renderChatMessages() {
             };
             if (!state.calendarEvents) state.calendarEvents = [];
             state.calendarEvents.push(newEvt);
+            persistCalendarEvent(newEvt);
           });
-          
+
           saveMockState();
           showToast("Publication planifiée avec succès ! ", "success");
           
@@ -4839,13 +4900,15 @@ function renderCalendarTab() {
       draftRow.querySelector('.btn-approve').addEventListener('click', () => {
         evt.status = 'planned';
         saveMockState();
+        persistCalendarEvent(evt);
         showToast("Publication approuvée et planifiée avec succès !", "success");
         renderCalendarTab();
       });
-      
+
       draftRow.querySelector('.btn-publish').addEventListener('click', async () => {
         evt.status = 'published';
         saveMockState();
+        persistCalendarEvent(evt);
         showToast("Publication publiée en direct sur les réseaux !", "success");
         
         // Add a mock execution log
@@ -4865,6 +4928,7 @@ function renderCalendarTab() {
       draftRow.querySelector('.btn-delete').addEventListener('click', () => {
         state.calendarEvents = state.calendarEvents.filter(e => e.id !== evt.id);
         saveMockState();
+        deleteCalendarEventRemote(evt.id);
         showToast("Brouillon supprimé.", "info");
         renderCalendarTab();
       });
@@ -4951,6 +5015,7 @@ function setupCalendarModalListeners() {
     if (id) {
       state.calendarEvents = state.calendarEvents.filter(e => e.id !== id);
       saveMockState();
+      deleteCalendarEventRemote(id);
       showToast("Publication retirée du planning.", "info");
       renderCalendarTab();
       modal.close();
@@ -4977,6 +5042,7 @@ function setupCalendarModalListeners() {
         evt.day = day;
         evt.time = time;
         evt.status = status;
+        persistCalendarEvent(evt);
         showToast("Publication mise à jour !", "success");
       }
     } else {
@@ -4990,6 +5056,7 @@ function setupCalendarModalListeners() {
         status
       };
       state.calendarEvents.push(newEvt);
+      persistCalendarEvent(newEvt);
       showToast("Publication ajoutée au planning !", "success");
     }
 
@@ -5039,6 +5106,7 @@ function detectAndAddChronosDraftToCalendar(text) {
   
   state.calendarEvents.push(newEvt);
   saveMockState();
+  persistCalendarEvent(newEvt);
 }
 
 async function sendChatMessage() {
@@ -8062,8 +8130,9 @@ async function checkWhatsAppDrafts() {
       };
       if (!state.calendarEvents) state.calendarEvents = [];
       state.calendarEvents.push(newEvt);
+      persistCalendarEvent(newEvt);
     }
-    
+
     if (!chatHistories['chronos']) {
       chatHistories['chronos'] = [
         { sender: 'agent', text: "Bonjour, je suis Chronos.", executionLogs: [] }
