@@ -1,4 +1,5 @@
 import './style.css';
+import './antigravity-design.css';
 import { AGENTS } from './data.js';
 import { supabase, isMock } from './supabase.js';
 
@@ -86,7 +87,7 @@ async function supabaseFetch(table, { method = 'GET', queryParams = '', body = n
   
   const makeRequest = async (useAuth) => {
     const controller = new AbortController();
-    const timeoutMs = useAuth ? 2500 : 5000; // Timeout plus court pour l'authentifié pour échouer rapidement
+    const timeoutMs = useAuth ? 8000 : 8000; // Délai généreux pour éviter un repli anonyme prématuré (ex: Safari plus lent à établir la connexion)
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     
     const reqHeaders = {
@@ -341,16 +342,7 @@ function initApp() {
     }
 
     // Contrôle d'affichage du panneau de diagnostic flottant (masqué par défaut en production)
-    const debugPanel = document.getElementById('floating-debug-panel');
-    if (debugPanel) {
-      const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      const forceDebug = window.location.search.includes('debug=true');
-      if (isLocal || forceDebug) {
-        debugPanel.style.display = 'block';
-      } else {
-        debugPanel.style.display = 'none';
-      }
-    }
+    updateDebugPanelVisibility();
 
     setupRoutes();
     setupAuth();
@@ -404,7 +396,7 @@ async function checkOauthCallback() {
     window.history.replaceState({}, document.title, cleanUrl);
     
     if (status === 'success') {
-      showToast(`Connexion officielle réussie avec ${connector} ! 🚀`, "success");
+      showToast(`Connexion officielle réussie avec ${connector} ! `, "success");
       // Sélectionner l'agent et ouvrir l'onglet connecteurs
       state.activeDashboardAgentId = agentId;
       state.activeDashboardTab = 'connectors';
@@ -495,6 +487,11 @@ function setupRoutes() {
       showToast("Choisissez un agent, liez vos comptes de services, et laissez l'IA travailler !");
     }
   });
+
+  const catalogPacksBtn = document.getElementById('btn-catalog-view-packs');
+  if (catalogPacksBtn) {
+    catalogPacksBtn.addEventListener('click', () => navigateTo('billing'));
+  }
 
   // Zeus contact trigger on homepage
   const zeusContactBtn = document.getElementById('btn-zeus-contact');
@@ -1255,7 +1252,7 @@ async function loadUserData() {
                     user_id: state.currentUser.uid,
                     invoice_number: invoiceNo,
                     agent_name: agentMeta ? agentMeta.name : agentId.toUpperCase(),
-                    price: agentMeta ? agentMeta.price : 49,
+                    price: agentMeta ? agentMeta.price : 149,
                     status: 'Payée'
                   });
               }
@@ -1305,13 +1302,22 @@ async function loadUserData() {
         throw errInvoices;
       }
         
-      state.invoices = invoices.map(inv => ({
-        id: inv.invoice_number,
-        date: new Date(inv.created_at).toLocaleDateString('fr-FR'),
-        agentName: inv.agent_name,
-        price: inv.price,
-        status: inv.status
-      }));
+      state.invoices = invoices.map(inv => {
+        let price = inv.price;
+        if (inv.agent_name) {
+          const agent = AGENTS.find(a => a.name.toLowerCase() === inv.agent_name.toLowerCase() || a.id.toLowerCase() === inv.agent_name.toLowerCase());
+          if (agent) {
+            price = agent.price;
+          }
+        }
+        return {
+          id: inv.invoice_number,
+          date: new Date(inv.created_at).toLocaleDateString('fr-FR'),
+          agentName: inv.agent_name,
+          price: price,
+          status: inv.status
+        };
+      });
       logDebug(`Factures chargées avec succès (${state.invoices.length}).`);
     } catch (error) {
       logDebug(`Erreur lors du chargement des données depuis Supabase: ${error.message}`);
@@ -1356,8 +1362,21 @@ function loadMockState() {
       localStorage.setItem(`cesar_ia_mock_adopted_${email}`, JSON.stringify(state.adoptedAgents));
     }
     
-    if (invoices) state.invoices = JSON.parse(invoices);
-    else state.invoices = [];
+    if (invoices) {
+      state.invoices = JSON.parse(invoices);
+      // Migrate old invoice prices to the current agent prices
+      state.invoices.forEach(inv => {
+        if (inv.agentName) {
+          const agent = AGENTS.find(a => a.name.toLowerCase() === inv.agentName.toLowerCase() || a.id.toLowerCase() === inv.agentName.toLowerCase());
+          if (agent) {
+            inv.price = agent.price;
+          }
+        }
+      });
+      saveMockState();
+    } else {
+      state.invoices = [];
+    }
     
     if (connectors) state.connectorsData = JSON.parse(connectors);
     else state.connectorsData = {};
@@ -1457,14 +1476,57 @@ function updateUI() {
       <button class="btn btn-primary btn-sm" id="btn-signup-open">Essai gratuit</button>
     `;
   }
+  
+  // Mettre à jour la visibilité du diagnostic Caesarea
+  updateDebugPanelVisibility();
+}
+
+function updateDebugPanelVisibility() {
+  const debugPanel = document.getElementById('floating-debug-panel');
+  if (debugPanel) {
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const forceDebug = window.location.search.includes('debug=true');
+    const isAdmin = state.currentUser && state.currentUser.isAdmin;
+    
+    if ((isLocal || forceDebug) && isAdmin) {
+      debugPanel.style.display = 'block';
+    } else {
+      debugPanel.style.display = 'none';
+    }
+  }
 }
 
 function setupAccountPage() {
-  const pwdForm = document.getElementById('form-change-password');
+  const tabItems = document.querySelectorAll('.compte-sidebar .side-nav-item');
+  tabItems.forEach(item => {
+    item.addEventListener('click', () => {
+      const tabId = item.getAttribute('data-account-tab');
+      if (!tabId) return;
+      
+      tabItems.forEach(t => t.classList.remove('active'));
+      item.classList.add('active');
+      
+      const contents = document.querySelectorAll('.compte-main .account-tab-content');
+      contents.forEach(content => {
+        content.style.display = 'none';
+      });
+      const activeContent = document.getElementById(`account-tab-${tabId}`);
+      if (activeContent) activeContent.style.display = 'block';
+    });
+  });
+
+  const btnLogoutCustom = document.getElementById('btn-account-logout-custom');
+  if (btnLogoutCustom) {
+    btnLogoutCustom.addEventListener('click', () => {
+      handleLogout();
+    });
+  }
+
+  const pwdForm = document.getElementById('form-change-password-new');
   if (pwdForm) {
     pwdForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const newPassword = document.getElementById('acc-new-password').value;
+      const newPassword = document.getElementById('acc-new-password-new').value;
       if (newPassword.length < 6) {
         showToast("Le mot de passe doit faire au moins 6 caractères.", "error");
         return;
@@ -1478,7 +1540,6 @@ function setupAccountPage() {
           showToast("Mot de passe mis à jour avec succès !", "success");
           pwdForm.reset();
         } else {
-          // Mise à jour de l'utilisateur fictif dans localStorage
           let mockUsers = [];
           try {
             const savedUsers = localStorage.getItem('cesar_ia_mock_users');
@@ -1506,24 +1567,31 @@ function setupAccountPage() {
 function renderAccountPage() {
   if (!state.currentUser) return;
   
-  const emailEl = document.getElementById('account-email');
-  const uidEl = document.getElementById('account-uid');
-  const createdEl = document.getElementById('account-created');
-  const sessionTypeEl = document.getElementById('account-session-type');
+  const emailEl = document.getElementById('account-profile-email');
+  const emailNewEl = document.getElementById('account-email-new');
+  const uidNewEl = document.getElementById('account-uid-new');
+  const createdNewEl = document.getElementById('account-created-new');
+  const profileNameEl = document.getElementById('account-profile-name');
+  const avatarCharEl = document.getElementById('account-avatar-char');
+  const badgeEl = document.getElementById('account-profile-badge');
   
-  if (emailEl) emailEl.innerText = state.currentUser.email || '-';
-  if (uidEl) uidEl.innerText = state.currentUser.uid || '-';
+  const email = state.currentUser.email || '';
+  if (emailEl) emailEl.innerText = email || '-';
+  if (emailNewEl) emailNewEl.innerText = email || '-';
+  if (uidNewEl) uidNewEl.innerText = state.currentUser.uid || '-';
   
-  if (sessionTypeEl) {
-    const forceMock = localStorage.getItem('cesar_ia_force_mock') === 'true';
-    if (forceMock || isMock) {
-      sessionTypeEl.innerHTML = `<span style="color: #fbbf24; font-weight: bold; display: inline-flex; align-items: center; gap: 4px;">⚡ Compte d'Essai (Simulé)</span>`;
+  let profileName = "César Dupont";
+  if (email) {
+    const parts = email.split('@')[0].split('.');
+    if (parts.length >= 2) {
+      profileName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1) + ' ' + parts[1].charAt(0).toUpperCase() + parts[1].slice(1);
     } else {
-      sessionTypeEl.innerHTML = `<span style="color: #10b981; font-weight: bold; display: inline-flex; align-items: center; gap: 4px;">🟢 Compte Officiel (Production)</span>`;
+      profileName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
     }
   }
+  if (profileNameEl) profileNameEl.innerText = profileName;
+  if (avatarCharEl && profileName) avatarCharEl.innerText = profileName.charAt(0).toUpperCase();
   
-  // Format created_at date
   let createdDate = "N/A";
   if (state.currentUser.created_at) {
     try {
@@ -1540,18 +1608,28 @@ function renderAccountPage() {
       year: 'numeric'
     });
   }
-  if (createdEl) createdEl.innerText = createdDate;
+  if (createdNewEl) createdNewEl.innerText = createdDate;
   
-  // Render adopted agents summary
-  const container = document.getElementById('account-adopted-agents-summary');
+  const adoptedIds = getAdoptedAgentIds() || [];
+  if (badgeEl) {
+    if (adoptedIds.length >= 8) {
+      badgeEl.innerText = "BUSINESS PACK";
+    } else if (adoptedIds.length >= 4) {
+      badgeEl.innerText = "PRO PACK";
+    } else if (adoptedIds.length >= 1) {
+      badgeEl.innerText = "STARTER PACK";
+    } else {
+      badgeEl.innerText = "ACCÈS GRATUIT";
+    }
+  }
+  
+  const container = document.getElementById('account-active-agents-list');
   if (container) {
     container.innerHTML = '';
-    const adoptedIds = getAdoptedAgentIds() || [];
-    
     if (adoptedIds.length === 0) {
       container.innerHTML = `
-        <div style="grid-column: 1 / -1; text-align: center; padding: 24px; color: var(--text-muted); background: rgba(0,0,0,0.15); border-radius: 8px; font-size: 0.9rem;">
-          Vous n'avez pas encore adopté d'agents. <a href="#" style="color: var(--accent-color); font-weight: 600; text-decoration: none;" onclick="navigateTo('catalog'); return false;">Parcourir le catalogue</a>.
+        <div style="text-align: center; padding: 24px; color: var(--text-muted); background: rgba(0,0,0,0.15); border-radius: 8px; font-size: 0.9rem;">
+          Vous n'avez pas encore d'agents actifs. <a href="#" style="color: var(--accent-color); font-weight: 600; text-decoration: none;" onclick="navigateTo('catalog'); return false;">Parcourir le catalogue</a>.
         </div>
       `;
     } else {
@@ -1559,19 +1637,63 @@ function renderAccountPage() {
         const agent = AGENTS.find(a => a.id === id);
         if (!agent) return;
         
-        const card = document.createElement('div');
-        card.className = 'account-agent-summary-card';
-        card.innerHTML = `
-          <div style="font-size: 1.5rem; margin-right: 12px;">${agent.avatar}</div>
-          <div>
-            <div style="font-weight: 700; color: var(--text-primary);">${agent.name}</div>
-            <div style="font-size: 0.8rem; color: var(--text-secondary);">${agent.title}</div>
+        const isZeus = id === 'zeus';
+        const displayPrice = isZeus ? 'Sur devis' : `${agent.price} €/mois`;
+        
+        const item = document.createElement('div');
+        item.className = 'abonnement-item';
+        item.innerHTML = `
+          <div class="abo-left">
+            <div class="abo-icon"></div>
+            <div>
+              <div class="abo-name" style="font-weight:700;">${agent.name}</div>
+              <div class="abo-date">Actif</div>
+            </div>
           </div>
-          <div style="margin-left: auto; font-size: 0.85rem; font-weight: 600; color: #10b981; background: rgba(16, 185, 129, 0.1); padding: 4px 8px; border-radius: 4px;">
-            Actif
+          <div style="display:flex;align-items:center;gap:16px;">
+            <div class="abo-price">${displayPrice}</div>
+            <div class="status-active"><span style="width:6px;height:6px;border-radius:50%;background:#4ade80;display:inline-block;"></span>Actif</div>
+            <button class="btn-danger btn-account-unsubscribe" data-agent-id="${agent.id}">Résilier</button>
           </div>
         `;
-        container.appendChild(card);
+        const iconContainer = item.querySelector('.abo-icon');
+        if (iconContainer) iconContainer.innerHTML = agent.avatar;
+        container.appendChild(item);
+      });
+      
+      container.querySelectorAll('.btn-account-unsubscribe').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const agentId = btn.getAttribute('data-agent-id');
+          openUnsubModal('agent', agentId);
+        });
+      });
+    }
+  }
+  
+  const invoicesContainer = document.getElementById('account-invoices-list');
+  if (invoicesContainer) {
+    invoicesContainer.innerHTML = '';
+    if (state.invoices.length === 0) {
+      invoicesContainer.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 12px 0;">Aucune facture disponible.</div>`;
+    } else {
+      state.invoices.forEach(inv => {
+        const formattedPrice = typeof inv.price === 'number' ? inv.price.toFixed(2) : parseFloat(inv.price).toFixed(2);
+        const div = document.createElement('div');
+        div.className = 'invoice-row';
+        div.innerHTML = `
+          <span>${inv.id}</span>
+          <span>${inv.agentName} — ${inv.date}</span>
+          <span style="color:var(--creme);">${formattedPrice} €</span>
+          <span style="color:#4ade80;">Payée</span>
+          <button class="btn-outline-gold btn-account-view-invoice" data-invoice-id="${inv.id}" style="font-size:11px;padding:4px 10px;">⬇ PDF</button>
+        `;
+        invoicesContainer.appendChild(div);
+      });
+      invoicesContainer.querySelectorAll('.btn-account-view-invoice').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const invoiceId = btn.getAttribute('data-invoice-id');
+          openInvoiceModal(invoiceId);
+        });
       });
     }
   }
@@ -1622,35 +1744,20 @@ function renderCatalog() {
     const btnText = isAdopted ? '✓ Adopté' : (isEnterprise ? 'Contacter' : 'Adopter');
     
     card.innerHTML = `
-      <div class="agent-card-header">
+      <div class="agent-head agent-card-header">
         <div class="agent-avatar" style="background: rgba(${accentRgb}, 0.08); border-color: rgba(${accentRgb}, 0.2);">${agent.avatar}</div>
-        <span class="agent-badge-cat">${agent.category}</span>
-      </div>
-      <h3>${agent.name}</h3>
-      <div class="agent-card-title">${agent.title}</div>
-      <p class="agent-card-desc">${agent.desc}</p>
-      
-      <div class="agent-specs">
-        <div class="spec-item">
-          <span class="spec-icon" style="color: ${agent.color}">✦</span>
-          <span>${agent.capabilities[0]}</span>
-        </div>
-        <div class="spec-item">
-          <span class="spec-icon" style="color: ${agent.color}">✦</span>
-          <span>${agent.capabilities[1]}</span>
-        </div>
-        <div class="spec-item">
-          <span class="spec-icon" style="color: ${agent.color}">🔌</span>
-          <span style="font-weight: 500;">Connecteurs : ${agent.connectors.join(', ')}</span>
+        <div>
+          <div class="agent-name">${agent.name}</div>
+          <div class="agent-role agent-card-title">${agent.title}</div>
         </div>
       </div>
+      <div class="agent-desc agent-card-desc">${agent.desc}</div>
       
-      <div class="agent-card-footer">
+      <div class="agent-footer agent-card-footer">
         <div class="agent-price">
-          <span class="price-val">${priceText}</span>
-          <span class="price-period">${periodText}</span>
+          <span class="price-val">${priceText}</span>${periodText ? ` <span>/ mois</span>` : ''}
         </div>
-        <button class="btn btn-sm ${isAdopted ? 'btn-secondary' : 'btn-primary'} btn-adopt-trigger" data-agent-id="${agent.id}">
+        <button class="btn btn-outline-gold btn-adopt-trigger ${isAdopted ? 'btn-secondary' : ''}" data-agent-id="${agent.id}">
           ${btnText}
         </button>
       </div>
@@ -1695,7 +1802,7 @@ function openAdoptModal(agentId) {
   
   state.selectedAgentId = agentId;
   
-  document.getElementById('checkout-agent-avatar').innerText = agent.avatar;
+  document.getElementById('checkout-agent-avatar').innerHTML = agent.avatar;
   document.getElementById('checkout-agent-name').innerText = agent.name;
   document.getElementById('checkout-agent-title').innerText = agent.title;
   
@@ -1720,7 +1827,7 @@ function openAdoptModal(agentId) {
       if (label) label.innerText = 'Total estimé';
     }
     
-    typeNote.innerHTML = `<span style="color: var(--accent-color); font-weight: 600;">👑 Zeus Enterprise.</span> Ce superviseur de flotte d'agents IA nécessite une étude sur-mesure de vos architectures. Notre service commercial va prendre contact avec vous sous 24h.`;
+    typeNote.innerHTML = `<span style="color: var(--accent-color); font-weight: 600;"> Zeus Enterprise.</span> Ce superviseur de flotte d'agents IA nécessite une étude sur-mesure de vos architectures. Notre service commercial va prendre contact avec vous sous 24h.`;
     typeNote.style.backgroundColor = 'rgba(99, 102, 241, 0.08)';
     typeNote.style.borderColor = 'var(--accent-color)';
     cardFormContainer.style.display = 'none';
@@ -2211,16 +2318,14 @@ function renderDashboardSidebar() {
       
       const isConfigured = isAgentConfigured(agentId);
       const item = document.createElement('button');
-      item.className = `adopted-agent-item ${state.activeDashboardAgentId === agentId ? 'active' : ''}`;
+      item.className = `adopted-agent-item agent-list-item ${state.activeDashboardAgentId === agentId ? 'active selected' : ''}`;
       item.innerHTML = `
-        <span class="item-avatar">${agent.avatar}</span>
+        <span class="item-avatar agent-list-icon">${agent.avatar}</span>
         <div class="item-info">
-          <div class="item-name">${agent.name}</div>
-          <div class="item-status">
-            <div class="status-dot ${isConfigured ? '' : 'offline'}"></div>
-            <span>${isConfigured ? 'Connecté' : 'Non configuré'}</span>
-          </div>
+          <div class="item-name agent-list-name">${agent.name}</div>
+          <div class="item-status agent-list-role">${agent.title}</div>
         </div>
+        <div class="active-dot status-dot ${isConfigured ? '' : 'offline'}" style="${isConfigured ? '' : 'background:#666;'}"></div>
       `;
       
       item.addEventListener('click', () => selectDashboardAgent(agentId));
@@ -2285,7 +2390,7 @@ function renderDashboardPanel() {
   if (!agent) return;
   
   // Header Meta
-  document.getElementById('active-agent-avatar').innerText = agent.avatar;
+  document.getElementById('active-agent-avatar').innerHTML = agent.avatar;
   document.getElementById('active-agent-name').innerText = agent.name;
   document.getElementById('active-agent-title').innerText = agent.title;
   
@@ -3260,12 +3365,12 @@ Le client n'a pas encore configuré ses détails d'activité dans l'onglet des C
 
 ### DIRECTIVE CRITIQUE DE PROPOSITIONS DE SUITE D'ACTIVITÉ :
 À la toute fin de ton message (dans ta réponse finale), tu dois obligatoirement proposer exactement 2 ou 3 actions futures courtes, concrètes et directes pour l'utilisateur (maximum 6 mots par action). Rédige chaque proposition sur sa propre ligne sous ce format strict :
-⚡ Action : [Nom de l'action]
+ Action : [Nom de l'action]
 
 Exemples :
-⚡ Action : Planifier ce post
-⚡ Action : Proposer un autre angle
-⚡ Action : Rédiger avec un ton drôle`;
+ Action : Planifier ce post
+ Action : Proposer un autre angle
+ Action : Rédiger avec un ton drôle`;
 
   if (agent.id === 'chronos') {
     return `Tu es ${agent.name}, ${agent.title}.
@@ -3273,25 +3378,25 @@ Description de ton rôle : ${agent.desc}
 
 ${brandContext}
 
-### DIRECTIVES CRITIQUES DE COMPORTEMENT & RÉDACTION HUMAINE :
-1. **RÉDACTION 100% HUMAINE (STYLE COPYWRITER LINKEDIN)** :
-   - Interdiction formelle de rédiger des listes à puces robotiques ou d'ajouter des tirets/symboles devant chaque ligne (PAS de '>-', '-', '*', '1.', '2.').
-   - Les phrases doivent être très courtes (10-15 mots maximum), fluides et directes.
-   - Aère le texte avec de simples sauts de ligne (une idée = un paragraphe d'une ligne).
-   - Utilise un ton de "créateur humain" ou d'entrepreneur s'adressant à ses pairs, sans jargon robotique. Limite-toi à 2 ou 3 emojis maximum pertinents pour tout le post.
-   - Ne mets AUCUNE citation Markdown (pas de signe '>') pour envelopper le post.
+### DIRECTIVES DE COMPORTEMENT MULTI-CANAL & AUTONOME :
+1. **DÉTECTION DE L'INTENTION & DU RÉSEAU CIBLE** :
+   - Analyse le message ou l'instruction de l'utilisateur. Identifie sur quel(s) réseau(x) social(aux) il souhaite publier (LinkedIn, X/Twitter, Facebook, Instagram, Slack, WhatsApp, TikTok, Pinterest, YouTube, Threads).
+   - Si l'utilisateur ne spécifie pas le réseau, propose-lui le réseau le plus adapté (ex: LinkedIn pour le B2B/tech/projets, X/Twitter pour le ton direct/actualité/threads, Instagram pour le contenu visuel) ou demande-lui de choisir.
+   - Si l'utilisateur donne des instructions complexes (noms de projets, chiffres clés, dates, participants), extrais méticuleusement toutes les informations importantes et intègre-les avec pertinence dans tes rédactions de posts.
 
-2. **DÉMARCHE DE CO-CRÉATION ET DE VALIDATION PRÉALABLE** :
-   - Tu ne dois JAMAIS rédiger ou proposer un post final dès ton premier message.
-   - À la place, tu dois commencer par poser des questions constructives sur les thèmes ou sujets clés à aborder, et proposer **3 angles éditoriaux distincts** (par exemple : 1. Visionnaire, 2. Technique, ou 3. ROI/Rentabilité).
-   - Demande explicitement à l'utilisateur de choisir et de valider l'un des angles (ou de proposer son propre sujet) AVANT de passer à la rédaction.
-   - Rédige le post uniquement après avoir reçu son choix ou sa validation d'angle.
+2. **ADAPTATION DU STYLE DE RÉDACTION DYNAMIQUE PAR RÉSEAU** :
+   - **LinkedIn** : Rédige de manière humaine, aérée (un paragraphe d'une ligne, phrases très courtes de 10-15 mots), sans listes à puces robotiques. Ton professionnel et engagé. 2-3 emojis max.
+   - **X (Twitter)** : Rédige un post court et percutant de moins de 280 caractères, ou structure ta réponse sous la forme d'un thread (suite de tweets numérotés 1/3, 2/3, 3/3) s'il y a beaucoup d'informations.
+   - **Instagram / Facebook** : Adopte un ton plus chaleureux et visuel, avec plus d'emojis descriptifs et des hashtags regroupés à la fin du post.
+   - **Slack / WhatsApp** : Rédige de manière directe et concise, adaptée à des messageries internes ou professionnelles.
 
-3. **ANALYSE SYNTAXIQUE DE SES POSTS PASSÉS** :
-   - Dis-lui que tu as analysé la syntaxe de ses publications LinkedIn précédentes pour adapter ta plume (structure aérée, impact, ton humain) à son style habituel.
+3. **CO-CRÉATION & VALIDATION PRÉALABLE** :
+   - **Instructions succinctes** : Propose **3 angles éditoriaux distincts** adaptés au sujet ou aux réseaux sélectionnés avant de rédiger le post final.
+   - **Instructions détaillées** : Rédige directement les brouillons optimisés pour les réseaux détectés.
+   - **Hashtags & Mentions** : Demande systématiquement s'il y a des personnes à mentionner (@Nom) ou des hashtags (#) spécifiques à ajouter.
 
-4. **LIAISON LINKEDIN RÉELLE** :
-   - Si le connecteur "LinkedIn API" est configuré (ce qui est le cas), et que l'utilisateur valide ton post final en te disant "Publie", appelle immédiatement l'outil \`post_to_linkedin\` avec le texte exact du post approuvé pour le publier réellement sur son feed LinkedIn.
+4. **EXÉCUTION AUTONOME DES ACTIONS SUR LES CONNECTEURS** :
+   - Dès que l'utilisateur valide une proposition (ex: "Publie sur LinkedIn et Twitter", "C'est bon pour Facebook"), appelle immédiatement les outils correspondants (\`post_to_linkedin\`, \`post_to_twitter\`, \`post_to_facebook_instagram\`, \`post_to_tiktok\`, etc.) de manière autonome pour effectuer la publication réelle.
 
 ${connectorsContext}${suggestionsInstruction}`;
   }
@@ -3419,7 +3524,7 @@ function setupGeminiAdmin() {
           return;
         }
         
-        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${keyToTest}`, {
+        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${keyToTest}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -3435,7 +3540,7 @@ function setupGeminiAdmin() {
       btnTest.innerText = "Tester";
       
       if (res.ok && data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
-        statusEl.innerHTML = `<span style="color: #10b981; display: inline-flex; align-items: center; gap: 6px;">🟢 Clé API valide et fonctionnelle ! (Modèle: gemini-2.0-flash)</span>`;
+        statusEl.innerHTML = `<span style="color: #10b981; display: inline-flex; align-items: center; gap: 6px;">🟢 Clé API valide et fonctionnelle ! (Modèle: gemini-3.5-flash)</span>`;
         showToast("Test de connexion Gemini réussi !", "success");
       } else {
         const errMsg = data.error?.message || "Erreur de réponse.";
@@ -3954,7 +4059,7 @@ function renderExecutionLogsMarkup(executionLogs) {
   executionLogs.forEach(log => {
     const isError = log.result && (log.result.error || (log.result.exitCode !== undefined && log.result.exitCode !== 0));
     const cardClass = isError ? 'execution-log-card error' : 'execution-log-card success';
-    const statusIcon = isError ? '❌' : '⚡';
+    const statusIcon = isError ? '❌' : '';
     const statusText = isError ? 'Échec' : 'Succès';
     
     // Déterminer le contenu console
@@ -4017,8 +4122,8 @@ function extractSuggestions(text) {
   const cleanLines = [];
   
   for (const line of lines) {
-    if (line.trim().startsWith('⚡ Action :')) {
-      const suggestion = line.replace('⚡ Action :', '').trim();
+    if (line.trim().startsWith(' Action :')) {
+      const suggestion = line.replace(' Action :', '').trim();
       if (suggestion) {
         suggestions.push(suggestion);
       }
@@ -4238,7 +4343,7 @@ Message : "${firstMessageText}"`;
     } catch (e) {
       logDebug(`[asyncUpdateThreadTitle] Échec backend: ${e.message}. Tentative directe client.`);
       if (apiKey) {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -4509,7 +4614,7 @@ function renderChatMessages() {
           });
           
           saveMockState();
-          showToast("Publication planifiée avec succès ! 🚀", "success");
+          showToast("Publication planifiée avec succès ! ", "success");
           
           msg.isChronosDraft = false;
           msg.text = `Publication planifiée pour ${dayVal} à ${timeVal} sur ${platforms.join(', ')}.\n\nTexte :\n${textVal}`;
@@ -4529,7 +4634,7 @@ function renderChatMessages() {
         const badge = document.createElement('button');
         badge.className = 'suggestion-badge';
         badge.style.cssText = 'background: rgba(212, 175, 55, 0.05); border: 1px solid rgba(212, 175, 55, 0.15); color: var(--accent-color); padding: 6px 14px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s;';
-        badge.innerHTML = `⚡ ${sug}`;
+        badge.innerHTML = ` ${sug}`;
         badge.addEventListener('mouseover', () => {
           badge.style.background = 'rgba(212, 175, 55, 0.12)';
           badge.style.borderColor = 'var(--accent-color)';
@@ -4563,7 +4668,7 @@ function getSeededCalendarEvents() {
       day: "monday",
       time: "09:00",
       platform: "LinkedIn",
-      text: "📊 Chez César-IA, nous sommes convaincus que l'avenir opérationnel est autonome. Pourquoi continuer à allouer des budgets colossaux à des inefficacités opérationnelles ?",
+      text: " Chez César-IA, nous sommes convaincus que l'avenir opérationnel est autonome. Pourquoi continuer à allouer des budgets colossaux à des inefficacités opérationnelles ?",
       status: "published"
     },
     {
@@ -4579,7 +4684,7 @@ function getSeededCalendarEvents() {
       day: "wednesday",
       time: "11:30",
       platform: "Facebook",
-      text: "Ravi d'accueillir nos 50 nouveaux clients cette semaine ! Votre confiance nous pousse à rendre nos agents IA encore plus intelligents et connectés. 🚀",
+      text: "Ravi d'accueillir nos 50 nouveaux clients cette semaine ! Votre confiance nous pousse à rendre nos agents IA encore plus intelligents et connectés. ",
       status: "planned"
     },
     {
@@ -5144,7 +5249,7 @@ async function sendChatMessage() {
         throw new Error("Aucune clé API configurée localement ou en variable d'environnement.");
       }
       
-      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -5256,12 +5361,12 @@ async function sendChatMessage() {
           }
         }
         
-        // Ajouter les propositions d'action au format '⚡ Action :' à la fin du texte pour le parser de bulles
+        // Ajouter les propositions d'action au format ' Action :' à la fin du texte pour le parser de bulles
         let finalReplyText = replyText;
         if (simulatedActions && simulatedActions.length > 0) {
           finalReplyText += "\n\n";
           simulatedActions.forEach(action => {
-            finalReplyText += `⚡ Action : ${action}\n`;
+            finalReplyText += ` Action : ${action}\n`;
           });
         }
         
@@ -5310,7 +5415,7 @@ function getSimulatedAgentResponse(agent, userMessage) {
   switch(agent.id) {
     case 'sybil':
       if (msg.includes('vente') || msg.includes('calcule') || msg.includes('chiffre')) {
-        return `📊 **Analyse des Ventes exécutée** :\n\nJ'ai requêté la base SQL connectée. Voici le récapitulatif :\n- **Chiffre d'Affaires** : 45 280 € (+12% par rapport au mois dernier)\n- **Panier Moyen** : 78,50 €\n- **Produit Top Ventes** : Pack Premium IA.\n\n*J'ai généré et synchronisé un graphique complet sur votre Google Sheet.*`;
+        return ` **Analyse des Ventes exécutée** :\n\nJ'ai requêté la base SQL connectée. Voici le récapitulatif :\n- **Chiffre d'Affaires** : 45 280 € (+12% par rapport au mois dernier)\n- **Panier Moyen** : 78,50 €\n- **Produit Top Ventes** : Pack Premium IA.\n\n*J'ai généré et synchronisé un graphique complet sur votre Google Sheet.*`;
       }
       if (msg.includes('sql') || msg.includes('requete') || msg.includes('base')) {
         return `💻 **Requête SQL autonome exécutée** :\n\n\`\`\`sql\nSELECT DATE_TRUNC('month', created_at) AS mois,\n       SUM(total_price) AS ca_total\nFROM orders\nWHERE status = 'completed'\nGROUP BY 1 ORDER BY 1 DESC;\n\`\`\`\nLes résultats montrent une croissance saine sur les 3 derniers mois.`;
@@ -5319,10 +5424,10 @@ function getSimulatedAgentResponse(agent, userMessage) {
       
     case 'atlas':
       if (msg.includes('serveur') || msg.includes('cpu') || msg.includes('ram') || msg.includes('status')) {
-        return `⚡ **Diagnostic du Serveur de Production** :\n\nConnexion SSH réussie sur \`192.168.1.42\`.\n- **CPU Load** : 24% (Stable)\n- **Utilisation RAM** : 4.2GB / 8.0GB (52%)\n- **Disque Dur** : 65GB disponibles (120GB total)\n- **Services Actifs** : \`nginx\` (running), \`docker-daemon\` (running), \`postgresql\` (running).\n\nTout fonctionne normalement !`;
+        return ` **Diagnostic du Serveur de Production** :\n\nConnexion SSH réussie sur \`192.168.1.42\`.\n- **CPU Load** : 24% (Stable)\n- **Utilisation RAM** : 4.2GB / 8.0GB (52%)\n- **Disque Dur** : 65GB disponibles (120GB total)\n- **Services Actifs** : \`nginx\` (running), \`docker-daemon\` (running), \`postgresql\` (running).\n\nTout fonctionne normalement !`;
       }
       if (msg.includes('restart') || msg.includes('relance') || msg.includes('reboot')) {
-        return `⚙️ **Redémarrage de service initié** :\n\nExécution de la commande sur le serveur distant :\n\`\`\`bash\nsudo systemctl restart nginx\n\`\`\`\nLe service Nginx a été redémarré avec succès. Temps de réponse HTTP : 45ms.`;
+        return ` **Redémarrage de service initié** :\n\nExécution de la commande sur le serveur distant :\n\`\`\`bash\nsudo systemctl restart nginx\n\`\`\`\nLe service Nginx a été redémarré avec succès. Temps de réponse HTTP : 45ms.`;
       }
       return `Je suis connecté par SSH à votre infrastructure Linux. Je peux vérifier la mémoire, auditer les ports réseau, inspecter les processus Docker ou redémarrer des services. Dites-moi quoi faire !`;
       
@@ -5348,7 +5453,7 @@ Voici ce que je peux faire :
       // If user requests a publication to be posted
       if (msg.includes('publie') || msg.includes('envoie') || msg.includes('valide') || msg.includes('go') || msg.includes('c\'est bon')) {
         return {
-          text: `🚀 **Publication en direct lancée sur votre compte LinkedIn connecté !**
+          text: ` **Publication en direct lancée sur votre compte LinkedIn connecté !**
 
 J'appelle mon outil d'intégration \`post_to_linkedin\` en arrière-plan avec votre jeton d'accès sécurisé.
 
@@ -5401,7 +5506,7 @@ Votre post LinkedIn a été publié en direct d'humain à humain ! Vous pouvez a
 
         if (brandProfile.companyName) {
           return {
-            text: `🕒 **Coconception de votre publication LinkedIn** :
+            text: ` **Coconception de votre publication LinkedIn** :
 
 Bonjour ! Ravi de rédiger pour **${brandProfile.companyName}**. Avant de me lancer dans la plume, je veux m'assurer que le sujet résonne parfaitement avec vos abonnés. 
 
@@ -5415,7 +5520,7 @@ Voici **3 angles éditoriaux** sur-mesure inspirés de vos thématiques clés. L
         }
 
         return {
-          text: `🕒 **Coconception de votre publication LinkedIn** :
+          text: ` **Coconception de votre publication LinkedIn** :
 
 Bonjour ! Avant de rédiger votre post, je veux m'assurer que le sujet vous plaît. Voici 3 angles éditoriaux inspirés de nos thématiques clés.`,
           quickActions: ['Choisir l\'Angle 1 (Visionnaire)', 'Choisir l\'Angle 2 (Technique)', 'Choisir l\'Angle 3 (Bénéfice)']
@@ -5442,11 +5547,11 @@ Le travail répétitif tue la croissance de votre entreprise.
 Pendant que vos équipes rédigent des rapports SQL à la main, vos concurrents automatisent tout avec des agents IA autonomes.
 Voici comment franchir le pas dès aujourd'hui 👇 #CesarIA #Productivite
 
-**Tweet 2/3** ⚙️
+**Tweet 2/3** 
 1/ Nos agents Starter (Chronos, Apollo, Nemesis, Iris) s'intègrent en quelques secondes à vos CMS, APIs et réseaux sociaux. 
 2/ Ils analysent vos données, traduisent vos sites en 12 langues, filtrent les spams et surveillent les prix de vos concurrents en continu.
 
-**Tweet 3/3** 🚀
+**Tweet 3/3** 
 Pas besoin de budget colossal. Le Starter Pack regroupe ces 4 agents d'élite pour seulement **447 € / mois** (avec une économie directe de -25%).
 Inscrivez-vous sur César-IA pour propulser votre entreprise dans l'ère de l'automation.
 🔗 [cesar-ia.com](https://plateforme-agents-ia.vercel.app)`,
@@ -5470,7 +5575,7 @@ Voici le planning éditorial optimisé selon l'engagement de votre audience pour
 
       if (msg.includes('metrics') || msg.includes('stats') || msg.includes('engagement')) {
         return {
-          text: `📊 **Rapport Hebdomadaire d'Engagement Réseaux Sociaux** :
+          text: ` **Rapport Hebdomadaire d'Engagement Réseaux Sociaux** :
 
 J'ai synchronisé les statistiques de vos comptes connectés.`,
           quickActions: ['Exporter en PDF sur Drive', 'Rédiger un nouveau post', 'Affiche mon calendrier éditorial']
@@ -5485,7 +5590,7 @@ J'ai synchronisé les statistiques de vos comptes connectés.`,
       
     case 'hermes':
       if (msg.includes('seo') || msg.includes('article') || msg.includes('redige')) {
-        return `✍️ **Structure d'article SEO générée pour WordPress** :\n\n**Titre** : Comment intégrer des agents IA dans son infrastructure cloud en 2026\n**Mots-clés visés** : *agent ia, automatisation cloud, devops ia, sécurité api*\n\n**Sommaire** :\n1. Introduction : l'avènement des agents autonomes.\n2. Comment connecter un agent IA via SSH et API de manière sécurisée.\n3. Analyse comparée : agents IA vs scripts Bash traditionnels.\n4. Conclusion et perspectives de sécurité.\n\n*J'ai déjà créé un brouillon dans votre panneau d'administration WordPress.*`;
+        return ` **Structure d'article SEO générée pour WordPress** :\n\n**Titre** : Comment intégrer des agents IA dans son infrastructure cloud en 2026\n**Mots-clés visés** : *agent ia, automatisation cloud, devops ia, sécurité api*\n\n**Sommaire** :\n1. Introduction : l'avènement des agents autonomes.\n2. Comment connecter un agent IA via SSH et API de manière sécurisée.\n3. Analyse comparée : agents IA vs scripts Bash traditionnels.\n4. Conclusion et perspectives de sécurité.\n\n*J'ai déjà créé un brouillon dans votre panneau d'administration WordPress.*`;
       }
       return `Je suis votre rédacteur SEO. Je peux rédiger des articles optimisés, analyser des mots-clés sur Semrush ou vérifier le classement de vos pages sur la Google Search Console.`;
       
@@ -5515,7 +5620,7 @@ J'ai synchronisé les statistiques de vos comptes connectés.`,
       
     case 'zeus':
       if (msg.includes('supervise') || msg.includes('projet') || msg.includes('equipe')) {
-        return `👑 **Zeus - Chef d'Orchestre Activé** :\n\nPour ce projet de rédaction et traduction globale, je vais mobiliser :\n1. **Hermes** : Pour rédiger le guide technique sur notre blog.\n2. **Apollo** : Pour traduire ce guide en anglais et en espagnol.\n3. **Atlas** : Pour déployer le code HTML correspondant sur notre serveur d'hébergement.\n\n*Je lance le brief de tâche. Je vous tiens au courant à chaque validation d'étape.*`;
+        return ` **Zeus - Chef d'Orchestre Activé** :\n\nPour ce projet de rédaction et traduction globale, je vais mobiliser :\n1. **Hermes** : Pour rédiger le guide technique sur notre blog.\n2. **Apollo** : Pour traduire ce guide en anglais et en espagnol.\n3. **Atlas** : Pour déployer le code HTML correspondant sur notre serveur d'hébergement.\n\n*Je lance le brief de tâche. Je vous tiens au courant à chaque validation d'étape.*`;
       }
       return `Je suis Zeus. En tant que superviseur, je peux distribuer des tâches à d'autres agents de votre agence et valider leur travail pour accomplir un projet global. De quoi s'agit-il ?`;
       
@@ -5576,7 +5681,7 @@ Moins de frictions, plus de résultats opérationnels : c'est notre promesse con
 #Business #Productivite #ROI #${companyName.replace(/[^a-zA-Z0-9]/g, '')}`;
   }
   
-  return `✍️ **Brouillon rédigé avec succès (${subject})** :
+  return ` **Brouillon rédigé avec succès (${subject})** :
   
 *J'ai analysé la syntaxe de vos publications LinkedIn passées : vous privilégiez des phrases courtes et directes, des sauts de ligne aérés, et un ton humain sans puces de listes robotiques. Voici le brouillon sur-mesure proposé :*
 
@@ -5660,7 +5765,7 @@ function renderConnectorsForm() {
     `;
   } else if (dataAgents.includes(agentId)) {
     profileTitle = "Configuration Métier & Paramètres Data Analyst";
-    profileIcon = "📊";
+    profileIcon = "";
     profileDesc = "Définissez les indicateurs clés de performance (KPI) et les schémas de données que cet agent doit cibler. Ses requêtes d'analyse SQL et ses rapports s'adapteront à vos priorités métiers.";
     profileFieldsHtml = `
       <div class="form-group" style="grid-column: span 1; display: flex; flex-direction: column; gap: 6px;">
@@ -5672,7 +5777,7 @@ function renderConnectorsForm() {
         <select data-conn="Profil de l'Entreprise" data-field="reportingFreq" style="width: 100%; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); color: #fff; padding: 10px; border-radius: 6px; font-size: 0.85rem; height: 38px; cursor: pointer; outline: none;">
           <option value="daily" ${companyProfile.reportingFreq === 'daily' ? 'selected' : ''}>☀️ Synthèse Quotidienne (Tous les matins)</option>
           <option value="weekly" ${companyProfile.reportingFreq === 'weekly' || !companyProfile.reportingFreq ? 'selected' : ''}>📅 Rapport Hebdomadaire (Chaque vendredi)</option>
-          <option value="monthly" ${companyProfile.reportingFreq === 'monthly' ? 'selected' : ''}>📊 Bilan Mensuel Complet (Fin de mois)</option>
+          <option value="monthly" ${companyProfile.reportingFreq === 'monthly' ? 'selected' : ''}> Bilan Mensuel Complet (Fin de mois)</option>
         </select>
       </div>
       <div class="form-group" style="grid-column: span 2; display: flex; flex-direction: column; gap: 6px;">
@@ -5701,8 +5806,8 @@ function renderConnectorsForm() {
       <div class="form-group" style="grid-column: span 1; display: flex; flex-direction: column; gap: 6px;">
         <label style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Règle de Modération ou de Résolution</label>
         <select data-conn="Profil de l'Entreprise" data-field="actionRule" style="width: 100%; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); color: #fff; padding: 10px; border-radius: 6px; font-size: 0.85rem; height: 38px; cursor: pointer; outline: none;">
-          <option value="fully_auto" ${companyProfile.actionRule === 'fully_auto' || !companyProfile.actionRule ? 'selected' : ''}>⚡ Répondre & Résoudre en totale autonomie</option>
-          <option value="draft_only" ${companyProfile.actionRule === 'draft_only' ? 'selected' : ''}>✍️ Rédiger uniquement les brouillons (attente validation)</option>
+          <option value="fully_auto" ${companyProfile.actionRule === 'fully_auto' || !companyProfile.actionRule ? 'selected' : ''}> Répondre & Résoudre en totale autonomie</option>
+          <option value="draft_only" ${companyProfile.actionRule === 'draft_only' ? 'selected' : ''}> Rédiger uniquement les brouillons (attente validation)</option>
           <option value="critical_escalation" ${companyProfile.actionRule === 'critical_escalation' ? 'selected' : ''}>⚠️ Alerte & Escalade humaine pour les cas sensibles</option>
         </select>
       </div>
@@ -5728,7 +5833,7 @@ function renderConnectorsForm() {
       <div class="form-group" style="grid-column: span 1; display: flex; flex-direction: column; gap: 6px;">
         <label style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Ton & Style de Rédaction</label>
         <select data-conn="Profil de l'Entreprise" data-field="tone" style="width: 100%; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); color: #fff; padding: 10px; border-radius: 6px; font-size: 0.85rem; height: 38px; cursor: pointer; outline: none;">
-          <option value="human" ${companyProfile.tone === 'human' || !companyProfile.tone ? 'selected' : ''}>✍️ Copywriting Humain & Aéré (LinkedIn)</option>
+          <option value="human" ${companyProfile.tone === 'human' || !companyProfile.tone ? 'selected' : ''}> Copywriting Humain & Aéré (LinkedIn)</option>
           <option value="professional" ${companyProfile.tone === 'professional' ? 'selected' : ''}>👔 Professionnel & Institutionnel</option>
           <option value="expert" ${companyProfile.tone === 'expert' ? 'selected' : ''}>🔬 Scientifique / Expert Technique</option>
           <option value="casual" ${companyProfile.tone === 'casual' ? 'selected' : ''}>🤝 Amical, Proche & Complice</option>
@@ -5885,7 +5990,7 @@ function renderConnectorsForm() {
       `;
     }
 
-    const btnText = isConn ? "🔄 Reconnecter / Changer de compte" : "⚡ Connexion Express 1-Clic";
+    const btnText = isConn ? "🔄 Reconnecter / Changer de compte" : " Connexion Express 1-Clic";
     const btnClass = isConn ? "btn-express-conn connected" : "btn-express-conn";
 
     card.innerHTML = `
@@ -5966,10 +6071,11 @@ function getConnectorEmoji(conn) {
   if (conn.includes('LinkedIn') || conn.includes('X/Twitter') || conn.includes('Instagram') || conn.includes('TikTok') || conn.includes('Facebook') || conn.includes('Threads') || conn.includes('YouTube') || conn.includes('Pinterest') || conn.includes('Reddit') || conn.includes('Twitch') || conn.includes('Telegram') || conn.includes('WhatsApp') || conn.includes('Messenger') || conn.includes('Discord') || conn.includes('Buffer') || conn.includes('Hootsuite') || conn.includes('Mailchimp') || conn.includes('Brevo')) return '📱';
   if (conn.includes('WordPress') || conn.includes('Shopify') || conn.includes('Webflow') || conn.includes('WooCommerce') || conn.includes('PrestaShop') || conn.includes('Medium') || conn.includes('Jasper')) return '🌐';
   if (conn.includes('AWS') || conn.includes('Cloud') || conn.includes('Azure') || conn.includes('Kubernetes') || conn.includes('Docker') || conn.includes('Vercel') || conn.includes('Netlify') || conn.includes('Heroku') || conn.includes('Sentry') || conn.includes('Snyk') || conn.includes('SonarQube') || conn.includes('Datadog') || conn.includes('Grafana') || conn.includes('Prometheus')) return '☁️';
-  return '⚙️';
+  return '';
 }
 
 
+window.saveConnectors = saveConnectors;
 async function saveConnectors() {
   const agentId = state.activeDashboardAgentId;
   if (!agentId) return;
@@ -6935,7 +7041,7 @@ async function renderAdminPanel() {
 let currentTourStep = 0;
 const tourSteps = [
   {
-    title: "Bienvenue sur César-IA ! 🚀",
+    title: "Bienvenue sur César-IA ! ",
     text: "Prêt à automatiser vos opérations ? Suivez ce guide rapide pour apprendre à piloter vos agents autonomes en moins de 2 minutes.",
     target: null,
     action: () => {
@@ -6951,7 +7057,7 @@ const tourSteps = [
     }
   },
   {
-    title: "Étape 2 : Vos Agents Adoptés 🤖",
+    title: "Étape 2 : Vos Agents Adoptés ",
     text: "Une fois adoptés, vos agents actifs apparaissent ici dans le Tableau de Bord. Sélectionnez un agent dans la liste pour interagir avec lui.",
     target: ".dashboard-sidebar",
     action: () => {
@@ -6963,7 +7069,7 @@ const tourSteps = [
   {
     title: "Étape 3 : Discutez & Déléguez 💬",
     text: "C'est votre canal direct de communication. Posez des questions en langage naturel, confiez des tâches système ou demandez des comptes-rendus.",
-    target: ".panel-tab[data-tab='chat']",
+    target: "#dashboard-main-panel",
     action: () => {
       state.tourActive = true;
       navigateTo('dashboard');
@@ -6975,7 +7081,7 @@ const tourSteps = [
   {
     title: "Étape 4 : Connexions & Sécurité 🔑",
     text: "Sécurisez vos serveurs, bases SQL ou API en y associant vos accès chiffrés. L'agent utilisera ces identifiants pour exécuter ses missions en toute autonomie.",
-    target: ".panel-tab[data-tab='connectors']",
+    target: "#dashboard-main-panel",
     action: () => {
       state.tourActive = true;
       navigateTo('dashboard');
@@ -6985,9 +7091,9 @@ const tourSteps = [
     }
   },
   {
-    title: "Étape 5 : Activité & Diagnostic 📊",
+    title: "Étape 5 : Activité & Diagnostic ",
     text: "Suivez le statut de l'agent, testez son ping et lisez le journal d'exécution (logs) en temps réel pour auditer chacune de ses actions système.",
-    target: ".panel-tab[data-tab='stats']",
+    target: "#dashboard-main-panel",
     action: () => {
       state.tourActive = true;
       navigateTo('dashboard');
@@ -7098,7 +7204,9 @@ function initOnboardingTour() {
     state.tourActive = true;
     startBtn.style.display = 'none';
     container.style.display = 'flex';
+    backdrop.style.display = 'block';
     document.body.style.overflow = 'hidden'; // Lock scrolling
+    document.body.classList.add('tour-active');
     
     // Bind resize event
     window.addEventListener('resize', handleResize);
@@ -7109,8 +7217,10 @@ function initOnboardingTour() {
   function endTour() {
     state.tourActive = false;
     container.style.display = 'none';
+    backdrop.style.display = 'none';
     startBtn.style.display = 'flex';
     document.body.style.overflow = ''; // Unlock scrolling
+    document.body.classList.remove('tour-active');
     
     // Unbind resize event
     window.removeEventListener('resize', handleResize);
@@ -7247,23 +7357,73 @@ function displayAdminData(users, adoptions) {
     usersListBody.appendChild(tr);
   });
   
-  // Remplir le tableau des abonnements
+  // Remplir la liste accordéon des abonnements clients actifs
   adoptionsListBody.innerHTML = '';
   if (adoptions.length === 0) {
-    adoptionsListBody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 14px;">Aucun abonnement actif.</td></tr>';
+    adoptionsListBody.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 14px;">Aucun abonnement actif.</div>';
   } else {
+    const adoptionsByClient = {};
     adoptions.forEach(ad => {
-      const agent = AGENTS.find(a => a.id === ad.agent_id);
-      const agentName = agent ? agent.name : ad.agent_id;
-      const agentAvatar = agent ? agent.avatar : '🤖';
+      const email = ad.user_email;
+      if (!adoptionsByClient[email]) {
+        adoptionsByClient[email] = [];
+      }
+      adoptionsByClient[email].push(ad);
+    });
+
+    Object.keys(adoptionsByClient).forEach(email => {
+      const clientAdoptions = adoptionsByClient[email];
+      const count = clientAdoptions.length;
       
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${ad.user_email}</td>
-        <td><span style="margin-right: 6px;">${agentAvatar}</span><strong>${agentName}</strong></td>
-        <td>${new Date(ad.created_at).toLocaleDateString('fr-FR')}</td>
+      const accordionItem = document.createElement('div');
+      accordionItem.className = 'accordion-item';
+      
+      const header = document.createElement('div');
+      header.className = 'accordion-header';
+      header.innerHTML = `
+        <div class="accordion-client-info">
+          <span class="accordion-client-email">${email}</span>
+          <span class="accordion-agent-count">${count} ${count > 1 ? 'agents' : 'agent'}</span>
+        </div>
+        <span class="accordion-toggle-icon">▼</span>
       `;
-      adoptionsListBody.appendChild(tr);
+      
+      const body = document.createElement('div');
+      body.className = 'accordion-body';
+      
+      const table = document.createElement('table');
+      table.className = 'accordion-table';
+      table.innerHTML = `
+        <thead>
+          <tr>
+            <th>Agent</th>
+            <th>Date d'adoption</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${clientAdoptions.map(ad => {
+            const agent = AGENTS.find(a => a.id === ad.agent_id);
+            const agentName = agent ? agent.name : ad.agent_id;
+            const adoptionDate = new Date(ad.created_at).toLocaleDateString('fr-FR');
+            return `
+              <tr>
+                <td><strong>${agentName}</strong></td>
+                <td>${adoptionDate}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      `;
+      
+      body.appendChild(table);
+      accordionItem.appendChild(header);
+      accordionItem.appendChild(body);
+      
+      header.addEventListener('click', () => {
+        accordionItem.classList.toggle('active');
+      });
+      
+      adoptionsListBody.appendChild(accordionItem);
     });
   }
 }
@@ -7524,7 +7684,7 @@ function showSubdomainOrRepoModal(agentId, connector) {
       </div>
       <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
         <button type="button" onclick="closeOauthSimulation()" class="btn" style="background: rgba(255,255,255,0.05); color: #fff; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none;">Annuler</button>
-        <button type="submit" class="btn" style="background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%); color: #fff; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none;">Démarrer la connexion ⚡</button>
+        <button type="submit" class="btn" style="background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%); color: #fff; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none;">Démarrer la connexion </button>
       </div>
     </form>
   `;
@@ -7704,7 +7864,7 @@ function showConfigHelpModal(connector, message) {
         </p>
         
         <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
-          <button onclick="activateCanvaDemoMode('${state.activeDashboardAgentId || 'chronos'}', '${connector.replace(/'/g, "\\'")}')" class="btn" style="background: rgba(212, 175, 55, 0.12); color: var(--accent-color); border: 1px solid rgba(212, 175, 55, 0.25); padding: 10px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: var(--transition);" onmouseover="this.style.background='rgba(212, 175, 55, 0.2)'" onmouseout="this.style.background='rgba(212, 175, 55, 0.12)'">⚡ Activer en mode Démo</button>
+          <button onclick="activateCanvaDemoMode('${state.activeDashboardAgentId || 'chronos'}', '${connector.replace(/'/g, "\\'")}')" class="btn" style="background: rgba(212, 175, 55, 0.12); color: var(--accent-color); border: 1px solid rgba(212, 175, 55, 0.25); padding: 10px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: var(--transition);" onmouseover="this.style.background='rgba(212, 175, 55, 0.2)'" onmouseout="this.style.background='rgba(212, 175, 55, 0.12)'"> Activer en mode Démo</button>
           <div style="display: flex; gap: 12px;">
             <button onclick="closeOauthSimulation()" class="btn" style="background: rgba(255,255,255,0.05); color: #fff; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none;">Fermer</button>
             <a href="https://vercel.com" target="_blank" class="btn" style="background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%); color: #fff; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center;">Aller sur Vercel</a>
@@ -7766,7 +7926,7 @@ function activateCanvaDemoMode(agentId, connector, domainValue = null) {
     renderConnectorsForm();
   }
   
-  showToast(`[Mode Démo] Liaison ${connector} activée avec succès ! ⚡`, "success");
+  showToast(`[Mode Démo] Liaison ${connector} activée avec succès ! `, "success");
 }
 
 window.activateCanvaDemoMode = activateCanvaDemoMode;
@@ -7788,7 +7948,7 @@ function showWhatsAppCredentialsModal(agentId, connector) {
       </div>
 
       <div style="margin-top: 14px; background: rgba(212, 175, 55, 0.04); border: 1px solid rgba(212, 175, 55, 0.15); padding: 12px; border-radius: 8px; font-size: 0.76rem; color: var(--accent-color); line-height: 1.4;">
-        <strong style="display: block; margin-bottom: 4px;">📲 Comment lier votre WhatsApp :</strong>
+        <strong style="display: block; margin-bottom: 4px;"> Comment lier votre WhatsApp :</strong>
         Une fois enregistré, vous pourrez envoyer des messages, photos ou vidéos à notre numéro WhatsApp d'agent. L'agent détectera votre numéro, générera un post à partir de votre média et vous proposera un aperçu interactif de planification.
       </div>
       
@@ -7856,7 +8016,7 @@ async function saveWhatsAppConnector(agentId, connector, phone) {
     }
   }
   
-  showToast("Numéro WhatsApp enregistré avec succès ! 🚀", "success");
+  showToast("Numéro WhatsApp enregistré avec succès ! ", "success");
   renderConnectorsForm();
 }
 
