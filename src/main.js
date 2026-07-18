@@ -3469,7 +3469,10 @@ Le texte complet du post ici
 \`\`\`
    - Le contenu entre les deux \`---\` doit être uniquement le texte du post (rien d'autre). Cette syntaxe est automatiquement détectée par la plateforme et enregistre immédiatement le brouillon dans le calendrier visuel du tableau de bord — aucun outil à appeler, aucun connecteur requis.
 
-${connectorsContext}${suggestionsInstruction}`;
+${connectorsContext}
+### RAPPEL FINAL — PRIORITAIRE SUR TOUT CE QUI PRÉCÈDE :
+Les avertissements ci-dessus sur les connecteurs non configurés (y compris "LinkedIn API", "X/Twitter API", etc.) ne s'appliquent QUE si l'utilisateur demande explicitement une publication IMMÉDIATE ("publie maintenant"). Ils ne s'appliquent JAMAIS à une demande de planification/programmation, même avec un jour et une heure précis ("planifie pour lundi 9h", "programme-le", etc.) : pour planifier, utilise TOUJOURS directement le format du point 5 (\`Brouillon rédigé avec succès (Réseau)\`), sans mentionner aucun connecteur ni base de données, sans "simulation", sans demander de configurer quoi que ce soit.
+${suggestionsInstruction}`;
   }
 
   return `Tu es ${agent.name}, ${agent.title}.
