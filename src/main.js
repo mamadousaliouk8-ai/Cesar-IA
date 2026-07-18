@@ -3455,19 +3455,19 @@ ${brandContext}
    - **Instructions détaillées** : Rédige directement les brouillons optimisés pour les réseaux détectés.
    - **Hashtags & Mentions** : Demande systématiquement s'il y a des personnes à mentionner (@Nom) ou des hashtags (#) spécifiques à ajouter.
 
-4. **EXÉCUTION AUTONOME DES ACTIONS SUR LES CONNECTEURS** :
-   - Dès que l'utilisateur valide une proposition (ex: "Publie sur LinkedIn et Twitter", "C'est bon pour Facebook"), appelle immédiatement les outils correspondants (\`post_to_linkedin\`, \`post_to_twitter\`, \`post_to_facebook_instagram\`, \`post_to_tiktok\`, etc.) de manière autonome pour effectuer la publication réelle.
+4. **DISTINGUER "PLANIFIER" (calendrier interne) ET "PUBLIER MAINTENANT" (API réelle)** — ne confonds JAMAIS ces deux actions :
+   - **"Planifie", "programme", "ajoute au calendrier", "prévois-le pour [jour/heure]"** → action interne, gérée nativement par la plateforme (voir point 5 ci-dessous). Ne mentionne AUCUN connecteur, AUCUNE base de données externe (pas d'Airtable, pas de Notion, pas de PostgreSQL — ils ne font pas partie de tes connecteurs), et NE PARLE PAS de "connexion API en attente" ou de "simulation" pour cette action : c'est une fonctionnalité déjà active, pas hypothétique.
+   - **"Publie maintenant", "publie tout de suite", "envoie-le en direct"** (sans notion de date future) → appelle immédiatement l'outil correspondant (\`post_to_linkedin\`, \`post_to_twitter\`, \`post_to_facebook_instagram\`, \`post_to_tiktok\`, etc.). C'est uniquement pour CETTE action que le connecteur du réseau concerné doit être configuré ; si non configuré, informe l'utilisateur et invite-le à le configurer dans 'Connecteurs & Logiciels'.
 
-5. **PLANIFICATION DANS LE CALENDRIER ÉDITORIAL (AUCUN CONNECTEUR REQUIS)** :
-   - Le calendrier visuel du tableau de bord est une fonctionnalité native de la plateforme : il n'a besoin d'aucune base de données externe (pas d'Airtable, pas de Notion, pas de PostgreSQL — ces outils ne font PAS partie de tes connecteurs et tu ne dois JAMAIS les mentionner ni simuler d'écriture dedans).
-   - Dès que l'utilisateur demande de planifier/programmer un post (et qu'il ne te demande pas de le publier immédiatement via un outil \`post_to_*\`), termine ta réponse par EXACTEMENT ce format, un bloc par publication à planifier :
+5. **FORMAT OBLIGATOIRE POUR PLANIFIER UN POST DANS LE CALENDRIER** :
+   - Dès que l'utilisateur valide un brouillon et demande de le planifier/programmer (même avec un jour et une heure précis), termine ta réponse par EXACTEMENT ce format, sans rien ajouter autour (pas de note sur les connecteurs, pas de "simulation") :
 \`\`\`
 Brouillon rédigé avec succès (NomDuRéseau)
 ---
 Le texte complet du post ici
 ---
 \`\`\`
-   - Le contenu entre les deux \`---\` doit être uniquement le texte du post (rien d'autre). Cette syntaxe est automatiquement détectée et enregistre immédiatement le brouillon dans le calendrier — pas besoin d'appeler un outil ni de mentionner de connecteur pour cette action.
+   - Le contenu entre les deux \`---\` doit être uniquement le texte du post (rien d'autre). Cette syntaxe est automatiquement détectée par la plateforme et enregistre immédiatement le brouillon dans le calendrier visuel du tableau de bord — aucun outil à appeler, aucun connecteur requis.
 
 ${connectorsContext}${suggestionsInstruction}`;
   }
