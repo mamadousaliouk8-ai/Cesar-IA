@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
@@ -7,10 +8,40 @@ const supabase = (!supabaseUrl || !supabaseKey || supabaseUrl.includes('YOUR_SUP
   ? null
   : createClient(supabaseUrl, supabaseKey);
 
+// Meta doit nous laisser le corps brut de la requête pour pouvoir vérifier sa signature
+// (calculée par Meta sur les octets exacts envoyés, avant tout parsing JSON).
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
+async function getRawBody(req) {
+  const chunks = [];
+  for await (const chunk of req) {
+    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
 // Normaliser un numéro de téléphone pour comparaison (ne garde que les chiffres)
 function normalizePhone(phone) {
   if (!phone) return '';
   return phone.replace(/[^0-9]/g, '');
+}
+
+// Valide qu'une requête webhook provient bien de Meta, et non d'un tiers qui se
+// ferait passer pour un utilisateur en connaissant son numéro WhatsApp.
+// Meta signs the payload with X-Hub-Signature-256 (HMAC-SHA256 of the raw body, using the App Secret).
+function isValidMetaSignature(rawBodyBuffer, signatureHeader) {
+  const appSecret = process.env.WHATSAPP_APP_SECRET || process.env.META_APP_SECRET;
+  if (!appSecret || !signatureHeader || !signatureHeader.startsWith('sha256=')) return false;
+
+  const expected = 'sha256=' + crypto.createHmac('sha256', appSecret).update(rawBodyBuffer).digest('hex');
+  const expectedBuf = Buffer.from(expected);
+  const receivedBuf = Buffer.from(signatureHeader);
+  if (expectedBuf.length !== receivedBuf.length) return false;
+  return crypto.timingSafeEqual(expectedBuf, receivedBuf);
 }
 
 export default async function handler(req, res) {
@@ -43,7 +74,14 @@ export default async function handler(req, res) {
   // 2. Traitement des notifications de messages (Requête POST de Meta)
   if (req.method === 'POST') {
     try {
-      const body = req.body;
+      const rawBody = await getRawBody(req);
+      const signatureHeader = req.headers['x-hub-signature-256'];
+      if (!isValidMetaSignature(rawBody, signatureHeader)) {
+        console.warn('[WhatsApp Webhook] Signature Meta invalide ou absente — requête rejetée.');
+        return res.status(403).json({ error: 'Invalid signature' });
+      }
+
+      const body = JSON.parse(rawBody.toString('utf-8'));
 
       if (!body.object || body.object !== 'whatsapp_business_account') {
         return res.status(404).json({ error: 'Not a WhatsApp event' });

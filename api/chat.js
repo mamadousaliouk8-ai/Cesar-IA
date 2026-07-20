@@ -15,6 +15,7 @@ try {
 }
 
 import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
@@ -22,6 +23,40 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SU
 const supabase = (!supabaseUrl || !supabaseKey || supabaseUrl.includes('YOUR_SUPABASE_PROJECT_URL'))
   ? null
   : createClient(supabaseUrl, supabaseKey);
+
+// Vercel doit nous laisser le corps brut de la requête pour pouvoir vérifier
+// la signature Twilio (calculée sur le texte exact envoyé, avant tout parsing).
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
+async function getRawBody(req) {
+  const chunks = [];
+  for await (const chunk of req) {
+    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+  }
+  return Buffer.concat(chunks).toString('utf-8');
+}
+
+// Valide qu'une requête webhook WhatsApp provient bien de Twilio, et non d'un
+// tiers qui se ferait passer pour un utilisateur en connaissant son numéro.
+// https://www.twilio.com/docs/usage/security#validating-requests
+function isValidTwilioSignature(url, params, twilioSignature) {
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  if (!authToken || !twilioSignature) return false;
+
+  const data = Object.keys(params)
+    .sort()
+    .reduce((acc, key) => acc + key + params[key], url);
+  const expected = crypto.createHmac('sha1', authToken).update(Buffer.from(data, 'utf-8')).digest('base64');
+
+  const expectedBuf = Buffer.from(expected);
+  const receivedBuf = Buffer.from(twilioSignature);
+  if (expectedBuf.length !== receivedBuf.length) return false;
+  return crypto.timingSafeEqual(expectedBuf, receivedBuf);
+}
 
 
 // Global in-memory cache for LinkedIn past posts (valid 15 minutes)
@@ -1100,24 +1135,32 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Parse body if urlencoded / raw string
-    let body = req.body || {};
-    if (typeof body === 'string') {
+    // Parse body (bodyParser is disabled above so we can verify the Twilio signature on the exact raw bytes)
+    const rawBody = await getRawBody(req);
+    let body = {};
+    try {
+      body = JSON.parse(rawBody);
+    } catch (e) {
       try {
-        body = JSON.parse(body);
-      } catch (e) {
-        try {
-          const urlParams = new URLSearchParams(body);
-          body = {};
-          for (const [key, value] of urlParams.entries()) {
-            body[key] = value;
-          }
-        } catch (err) {}
-      }
+        const urlParams = new URLSearchParams(rawBody);
+        body = {};
+        for (const [key, value] of urlParams.entries()) {
+          body[key] = value;
+        }
+      } catch (err) {}
     }
 
     // 1. Detect if the request is an incoming Webhook from Twilio WhatsApp
     if (body && body.From && body.From.startsWith('whatsapp:')) {
+      // Reject anything that isn't cryptographically signed by Twilio — without this,
+      // anyone who knows a user's registered WhatsApp number could impersonate them here.
+      const appUrl = process.env.APP_URL || 'https://plateforme-agents-ia.vercel.app';
+      const twilioSignature = req.headers['x-twilio-signature'];
+      if (!isValidTwilioSignature(`${appUrl}/api/chat`, body, twilioSignature)) {
+        console.warn('[WhatsApp Webhook] Signature Twilio invalide ou absente — requête rejetée.');
+        return res.status(403).json({ error: 'Invalid Twilio signature' });
+      }
+
       console.log(`[WhatsApp Webhook] Message reçu de: ${body.From}`);
       const incomingMessage = body.Body || '';
       const mediaUrl = body.MediaUrl0 || null; 
@@ -1222,18 +1265,10 @@ export default async function handler(req, res) {
         }
       }
 
-      // 4. Publish to LinkedIn if LinkedIn is connected
-      let publishStatus = "sauvegardé en brouillon.";
-      if (userConnectors && userConnectors["LinkedIn API"] && userConnectors["LinkedIn API"].token) {
-        const pubRes = await runLinkedIn(userConnectors, responseText);
-        if (pubRes && !pubRes.error) {
-          publishStatus = "publié directement sur votre feed LinkedIn ! 🚀";
-        } else {
-          publishStatus = `erreur de publication LinkedIn : ${pubRes ? pubRes.error : 'inconnue'}`;
-        }
-      } else {
-        publishStatus = `sauvegardé en brouillon pour ${activePlatforms.join(', ')} sur César-IA.`;
-      }
+      // 4. Toujours sauvegarder en brouillon — jamais de publication automatique.
+      // Même un message WhatsApp légitime peut être mal interprété par l'IA ; l'utilisateur
+      // doit relire et valider depuis son tableau de bord avant toute publication réelle.
+      const publishStatus = `sauvegardé en brouillon pour ${activePlatforms.join(', ')} sur César-IA.`;
 
       // Notifications additionnelles (Slack, Teams, Webhooks)
       if (userConnectors) {
