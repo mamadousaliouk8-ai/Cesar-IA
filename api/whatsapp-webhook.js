@@ -88,6 +88,21 @@ export default async function handler(req, res) {
       }
 
       const { user_id: userId, agent_id: agentId } = matchingConnector;
+
+      // Vérifier si l'utilisateur a effectivement adopté cet agent
+      if (supabase) {
+        const { data: adoption, error: adoptErr } = await supabase
+          .from('adopted_agents')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('agent_id', agentId);
+
+        if (adoptErr || !adoption || adoption.length === 0) {
+          console.warn(`[WhatsApp Webhook] L'utilisateur ${userId} a configuré un connecteur WhatsApp mais n'a pas adopté l'agent ${agentId}.`);
+          return res.status(200).json({ error: 'Agent not adopted by this user' });
+        }
+      }
+
       let textContent = '';
       let mediaUrl = '';
       let mediaMimeType = '';
@@ -343,9 +358,20 @@ async function analyzeAndDraftPost(message, mediaUrl, mimeType, apiKey) {
   }
 
   parts.push({
-    text: `Tu es Chronos, un agent marketing autonome spécialisé dans la rédaction LinkedIn.
+    text: `Tu es Chronos, un agent marketing autonome et multi-canal spécialisé dans la rédaction pour les réseaux sociaux (LinkedIn, X/Twitter, Facebook, Instagram, Slack, WhatsApp).
 Un utilisateur t'envoie un média et/ou un message depuis son téléphone lors d'un événement.
-Ton but est de rédiger un post LinkedIn impactant, vivant et professionnel qui résume cet événement.
+Ton but est de rédiger une proposition de post adaptée aux réseaux sociaux visés pour résumer cet événement.
+
+Consignes de comportement multi-canal, d'analyse d'intention et d'extraction d'éléments :
+1. **DÉTECTION DU RÉSEAU & EXTRACTION** :
+   - Détermine quel(s) réseau(x) social(aux) est/sont visé(s) par le message. Si aucun n'est spécifié, prépare par défaut une version LinkedIn (style professionnel) et une version courte X/Twitter (moins de 280 caractères).
+   - Repère et extrais méticuleusement toutes les informations importantes du message (projets précis, résultats chiffrés, technologies, noms de participants, dates, etc.) pour les incorporer de manière intelligente et réaliste dans tes rédactions de posts.
+2. **ADAPTATION DU STYLE** :
+   - **LinkedIn** : Professionnel, aéré (sauts de ligne, phrases courtes), sans listes à puces robotiques, 2-3 emojis max.
+   - **X (Twitter)** : Moins de 280 caractères, accrocheur, ou structuré en thread si le message est très long.
+   - **Instagram / Facebook** : Ton chaleureux, plus d'emojis contextuels et hashtags regroupés en bas.
+3. **HASHTAGS & MENTIONS** :
+   - À la fin du message, demande systématiquement à l'utilisateur s'il y a des personnes à mentionner (@Nom) ou des hashtags (#) spécifiques à ajouter.
 
 Consigne de style : Copywriting humain, percutant, structuré en paragraphes aérés, avec emojis contextuels pertinents et hashtags de portée.
 
@@ -353,12 +379,12 @@ Contexte fourni par l'utilisateur : "${message}"
 ${mediaUrl ? "Une image de l'événement a été fournie et attachée. Analyse visuellement ce qu'elle montre pour l'intégrer avec intelligence et réalisme dans le texte du post." : ""}
 
 Consignes de formatage de ta réponse :
-- Renvoie uniquement le texte final du post LinkedIn, prêt à être copié/collé ou publié directement.
-- N'ajoute aucune introduction, aucune salutation ni commentaire externe (pas de "Voici le post rédigé :").`
+- Renvoie les versions rédigées pour les réseaux concernés suivies de tes questions sur les mentions et hashtags à la fin.
+- N'ajoute aucune introduction, aucune salutation globale ni commentaire externe explicatif (pas de "Voici le post rédigé :").`
   });
 
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

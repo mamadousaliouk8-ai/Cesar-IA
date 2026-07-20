@@ -20,8 +20,18 @@ export default async function handler(req, res) {
   try {
     const { apiKey: clientApiKey, checkOnly } = req.body || {};
     
-    // Déterminer la clé API : celle passée dans le corps ou configurée sur Vercel
-    const apiKey = clientApiKey || process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+    let cleanClientApiKey = (typeof clientApiKey === 'string' ? clientApiKey.trim() : '');
+    if (
+      !cleanClientApiKey || 
+      cleanClientApiKey === 'undefined' || 
+      cleanClientApiKey === 'null' || 
+      cleanClientApiKey.startsWith('AIzaSyDXkwII') || 
+      cleanClientApiKey.includes('AIzaSyDXkwIIYoxT4nekvUYFXqfjRMvJP127vLs') || 
+      cleanClientApiKey.startsWith('MOCK_')
+    ) {
+      cleanClientApiKey = '';
+    }
+    const apiKey = cleanClientApiKey || process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
     
     if (checkOnly) {
       return res.status(200).json({ configured: !!apiKey });
@@ -31,7 +41,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: { message: 'Clé API manquante.' } });
     }
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

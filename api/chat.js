@@ -24,6 +24,29 @@ const supabase = (!supabaseUrl || !supabaseKey || supabaseUrl.includes('YOUR_SUP
   : createClient(supabaseUrl, supabaseKey);
 
 
+// Global in-memory cache for LinkedIn past posts (valid 15 minutes)
+if (!global.linkedinStyleCache) {
+  global.linkedinStyleCache = new Map();
+}
+
+async function fetchWithTimeout(resource, options = {}) {
+  const { timeout = 2500 } = options;
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(resource, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(id);
+    return response;
+  } catch (err) {
+    clearTimeout(id);
+    throw err;
+  }
+}
+
+
 // =================================================================
 //  CYBERSECURITY SHIELD & SSRF PROTECTION HELPERS (Étape 3.1)
 // =================================================================
@@ -824,8 +847,20 @@ async function runWhatsApp(connectors, to, text, mediaUrl = null) {
   const envToken = process.env.WHATSAPP_ACCESS_TOKEN;
   const envPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
-  const token = (info.token || envToken || '').trim();
-  const phoneId = (info.phoneId || envPhoneId || 'me').trim();
+  let token = (info.token || '').trim();
+  let phoneId = (info.phoneId || 'me').trim();
+
+  // Si des variables d'environnement WhatsApp réelles sont présentes, on les utilise en priorité
+  // à la place des tokens de simulation de l'interface qui commencent par "wa_" ou "mock_"
+  const isEnvTokenValid = envToken && !envToken.startsWith("mock_") && !envToken.startsWith("oauth_") && !envToken.startsWith("wa_") && envToken !== 'cesar_verify_token_default';
+  
+  if (isEnvTokenValid && (!token || token.startsWith("wa_") || token.startsWith("mock_"))) {
+    token = envToken.trim();
+    phoneId = (envPhoneId || 'me').trim();
+  } else if (!token && envToken) {
+    token = envToken.trim();
+    phoneId = (envPhoneId || 'me').trim();
+  }
 
   if (!token || token.startsWith("mock_") || token.startsWith("oauth_") || token.startsWith("wa_") || token === 'cesar_verify_token_default') {
     return {
@@ -1373,75 +1408,31 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
     const liInfo = getConnectorInfo(connectors, "LinkedIn");
     if (liInfo && liInfo.token) {
       try {
-        const token = liInfo.token.trim();
-        // 1. Fetch LinkedIn URN and last posts to study style and history (OIDC first, fallback to legacy me)
-        let personId = null;
-        let profileRes = await fetch("https://api.linkedin.com/v2/userinfo", {
-          headers: { "Authorization": `Bearer ${token}` }
-        });
-        if (profileRes.ok) {
-          const profileData = await profileRes.json();
-          personId = profileData.sub;
-        }
-        if (!personId) {
-          profileRes = await fetch("https://api.linkedin.com/v2/me", {
-            headers: { "Authorization": `Bearer ${token}` }
+        const pastPosts = await getLinkedInPastPosts(connectors);
+        if (pastPosts && pastPosts.length > 0) {
+          finalSystemInstruction += `\n\n### HISTORIQUE & STYLE D'ÉCRITURE RÉEL DE L'UTILISATEUR (RÉCUPÉRÉ DEPUIS LINKEDIN) :\n`;
+          pastPosts.forEach((post, idx) => {
+            finalSystemInstruction += `\n[Post précédent #${idx+1}]:\n${post}\n`;
           });
-          if (profileRes.ok) {
-            const profileData = await profileRes.json();
-            personId = profileData.id;
-          }
-        }
-        if (personId) {
-          let sharesRes = await fetch(`https://api.linkedin.com/rest/posts?author=urn%3Ali%3Aperson%3A${personId}&q=author&count=5`, {
-            headers: {
-              "Authorization": `Bearer ${token}`,
-              "X-Restli-Protocol-Version": "2.0.0",
-              "LinkedIn-Version": "202401"
-            }
-          });
-          const pastPosts = [];
-          if (sharesRes.ok) {
-            const sharesData = await sharesRes.json();
-            if (sharesData.elements && sharesData.elements.length > 0) {
-              sharesData.elements.forEach(share => {
-                if (share.commentary) {
-                  pastPosts.push(share.commentary);
-                }
-              });
-            }
-          }
-          
-          if (pastPosts.length === 0) {
-            sharesRes = await fetch(`https://api.linkedin.com/v2/shares?owners=urn:li:person:${personId}&sharesPerOwner=5`, {
-              headers: { "Authorization": `Bearer ${token}` }
-            });
-            if (sharesRes.ok) {
-              const sharesData = await sharesRes.json();
-              if (sharesData.elements && sharesData.elements.length > 0) {
-                sharesData.elements.forEach(share => {
-                  if (share.text && share.text.text) {
-                    pastPosts.push(share.text.text);
-                  }
-                });
-              }
-            }
-          }
-
-          if (pastPosts.length > 0) {
-            finalSystemInstruction += `\n\n### HISTORIQUE & STYLE D'ÉCRITURE RÉEL DE L'UTILISATEUR (RÉCUPÉRÉ DEPUIS LINKEDIN) :\n`;
-            pastPosts.forEach((post, idx) => {
-              finalSystemInstruction += `\n[Post précédent #${idx+1}]:\n${post}\n`;
-            });
-            finalSystemInstruction += `\nConsigne de style critique : Analyse minutieusement la structure, le ton, le saut de lignes et l'esprit des publications réelles ci-dessus. Rédige tes nouvelles propositions en mimant parfaitement à 100% ce style d'écriture réel. N'écris jamais de posts identiques aux exemples ci-dessus pour éviter les répétitions !`;
-          }
+          finalSystemInstruction += `\nConsigne de style critique : Analyse minutieusement la structure, le ton, le saut de lignes et l'esprit des publications réelles ci-dessus. Rédige tes nouvelles propositions en mimant parfaitement à 100% ce style d'écriture réel. N'écris jamais de posts identiques aux exemples ci-dessus pour éviter les répétitions !`;
         }
       } catch (errStyle) {
         console.error("Erreur lors de la récupération automatique du style LinkedIn :", errStyle);
       }
     }
     
-    const apiKey = clientApiKey || process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+    let cleanClientApiKey = (typeof clientApiKey === 'string' ? clientApiKey.trim() : '');
+    if (
+      !cleanClientApiKey || 
+      cleanClientApiKey === 'undefined' || 
+      cleanClientApiKey === 'null' || 
+      cleanClientApiKey.startsWith('AIzaSyDXkwII') || 
+      cleanClientApiKey.includes('AIzaSyDXkwIIYoxT4nekvUYFXqfjRMvJP127vLs') || 
+      cleanClientApiKey.startsWith('MOCK_')
+    ) {
+      cleanClientApiKey = '';
+    }
+    const apiKey = cleanClientApiKey || process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
     if (!apiKey) {
       return res.status(400).json({ 
         error: { 
@@ -1877,7 +1868,7 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
     const executionLogs = [];
 
     while (loopCount < 3) {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2005,19 +1996,31 @@ async function getLinkedInPastPosts(connectors) {
   const liInfo = getConnectorInfo(connectors, "LinkedIn");
   if (!liInfo || !liInfo.token) return null;
   const token = liInfo.token.trim();
+  
+  const cacheKey = `posts_${token.slice(-20)}`;
+  if (global.linkedinStyleCache) {
+    const cached = global.linkedinStyleCache.get(cacheKey);
+    if (cached && cached.expiry > Date.now()) {
+      console.log("[LinkedIn Past Posts Cache] Hit!");
+      return cached.posts;
+    }
+  }
+
   try {
-    // Fetch profile (OIDC first, fallback to legacy me)
+    // Fetch profile (OIDC first, fallback to legacy me) with a 2-second timeout per call
     let personId = null;
-    let profileRes = await fetch("https://api.linkedin.com/v2/userinfo", {
-      headers: { "Authorization": `Bearer ${token}` }
+    let profileRes = await fetchWithTimeout("https://api.linkedin.com/v2/userinfo", {
+      headers: { "Authorization": `Bearer ${token}` },
+      timeout: 2000
     });
     if (profileRes.ok) {
       const profileData = await profileRes.json();
       personId = profileData.sub;
     }
     if (!personId) {
-      profileRes = await fetch("https://api.linkedin.com/v2/me", {
-        headers: { "Authorization": `Bearer ${token}` }
+      profileRes = await fetchWithTimeout("https://api.linkedin.com/v2/me", {
+        headers: { "Authorization": `Bearer ${token}` },
+        timeout: 2000
       });
       if (profileRes.ok) {
         const profileData = await profileRes.json();
@@ -2026,12 +2029,13 @@ async function getLinkedInPastPosts(connectors) {
     }
     if (!personId) return null;
     
-    let sharesRes = await fetch(`https://api.linkedin.com/rest/posts?author=urn%3Ali%3Aperson%3A${personId}&q=author&count=5`, {
+    let sharesRes = await fetchWithTimeout(`https://api.linkedin.com/rest/posts?author=urn%3Ali%3Aperson%3A${personId}&q=author&count=5`, {
       headers: {
         "Authorization": `Bearer ${token}`,
         "X-Restli-Protocol-Version": "2.0.0",
         "LinkedIn-Version": "202401"
-      }
+      },
+      timeout: 2000
     });
     const posts = [];
     if (sharesRes.ok) {
@@ -2046,8 +2050,9 @@ async function getLinkedInPastPosts(connectors) {
     }
     
     if (posts.length === 0) {
-      sharesRes = await fetch(`https://api.linkedin.com/v2/shares?owners=urn:li:person:${personId}&sharesPerOwner=5`, {
-        headers: { "Authorization": `Bearer ${token}` }
+      sharesRes = await fetchWithTimeout(`https://api.linkedin.com/v2/shares?owners=urn:li:person:${personId}&sharesPerOwner=5`, {
+        headers: { "Authorization": `Bearer ${token}` },
+        timeout: 2000
       });
       if (sharesRes.ok) {
         const sharesData = await sharesRes.json();
@@ -2060,6 +2065,14 @@ async function getLinkedInPastPosts(connectors) {
         }
       }
     }
+    
+    if (global.linkedinStyleCache) {
+      global.linkedinStyleCache.set(cacheKey, {
+        posts: posts,
+        expiry: Date.now() + 15 * 60 * 1000 // 15 minutes cache
+      });
+    }
+    
     return posts;
   } catch (e) {
     console.error("Error fetching LinkedIn past posts:", e);
@@ -2102,9 +2115,20 @@ async function analyzeAndDraftPost(message, mediaUrl, connectors) {
   }
 
   parts.push({
-    text: `Tu es Chronos, un agent marketing autonome spécialisé dans la rédaction LinkedIn.
+    text: `Tu es Chronos, un agent marketing autonome et multi-canal spécialisé dans la rédaction pour les réseaux sociaux (LinkedIn, X/Twitter, Facebook, Instagram, Slack, WhatsApp).
 Un utilisateur t'envoie un média et/ou un message depuis son téléphone lors d'un événement.
-Ton but est de rédiger un post LinkedIn impactant, vivant et professionnel qui résume cet événement.
+Ton but est de rédiger une proposition de post adaptée aux réseaux sociaux visés pour résumer cet événement.
+
+Consignes de comportement multi-canal, d'analyse d'intention et d'extraction d'éléments :
+1. **DÉTECTION DU RÉSEAU & EXTRACTION** :
+   - Détermine quel(s) réseau(x) social(aux) est/sont visé(s) par le message. Si aucun n'est spécifié, prépare par défaut une version LinkedIn (style professionnel) et une version courte X/Twitter (moins de 280 caractères).
+   - Repère et extrais méticuleusement toutes les informations importantes du message (projets précis, résultats chiffrés, technologies, noms de participants, dates, etc.) pour les incorporer de manière intelligente et réaliste dans tes rédactions de posts.
+2. **ADAPTATION DU STYLE** :
+   - **LinkedIn** : Professionnel, aéré (sauts de ligne, phrases courtes), sans listes à puces robotiques, 2-3 emojis max.
+   - **X (Twitter)** : Moins de 280 caractères, accrocheur, ou structuré en thread si le message est très long.
+   - **Instagram / Facebook** : Ton chaleureux, plus d'emojis contextuels et hashtags regroupés en bas.
+3. **HASHTAGS & MENTIONS** :
+   - À la fin du message, demande systématiquement à l'utilisateur s'il y a des personnes à mentionner (@Nom) ou des hashtags (#) spécifiques à ajouter.
 
 Directives de style d'écriture de l'utilisateur :
 ${styleGuideline}
@@ -2113,12 +2137,12 @@ Contexte fourni par l'utilisateur : "${message}"
 ${mediaUrl ? "Une image de l'événement a été fournie et attachée. Analyse visuellement ce qu'elle montre pour l'intégrer avec intelligence et réalisme dans le texte du post." : ""}
 
 Consignes de formatage de ta réponse :
-- Renvoie uniquement le texte final du post LinkedIn, prêt à être copié/collé ou publié directement.
-- N'ajoute aucune introduction, aucune salutation ni commentaire externe (pas de "Voici le post rédigé :"). Renvoie DIRECTEMENT le texte du post.`
+- Renvoie les versions rédigées pour les réseaux concernés suivies de tes questions sur les mentions et hashtags à la fin.
+- N'ajoute aucune introduction, aucune salutation globale ni commentaire externe explicatif.`
   });
 
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
