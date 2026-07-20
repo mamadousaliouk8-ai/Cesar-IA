@@ -31,19 +31,20 @@
       <!-- Top Navigation Bar -->
       <header class="navbar">
         <a href="#" class="logo-container" id="logo-home">
-          <div class="logo-icon">CA</div>
-          <span>César-IA</span>
+          <img class="logo-img" src="/assets/design/1_accueil-02.png" alt="César-IA">
+          <span class="logo-text">César-IA</span>
         </a>
         <nav class="nav-links">
-          <a href="#comment-ca-marche" class="nav-link" id="nav-explain-link">Comment ça marche</a>
+          <a href="#" class="nav-link active" data-route="home" id="nav-home-link">Accueil</a>
           <a href="#" class="nav-link" data-route="catalog">Catalogue</a>
-          <a href="#" class="nav-link" data-route="dashboard" id="nav-dashboard-link" style="display: none;">Tableau de Bord</a>
-          <a href="#" class="nav-link" data-route="account" id="nav-account-link" style="display: none;">Mon Compte</a>
+          <a href="#" class="nav-link" data-route="dashboard" id="nav-dashboard-link" style="display: none;">Tableau de bord</a>
           <a href="#" class="nav-link" data-route="billing" id="nav-billing-link">Tarifs</a>
+          <a href="#" class="nav-link" data-route="account" id="nav-account-link" style="display: none;">Mon Compte</a>
+          <a href="#comment-ca-marche" class="nav-link" id="nav-explain-link" style="display: none;">Comment ça marche</a>
         </nav>
         <div class="nav-auth" id="auth-nav-container">
-          <button class="btn btn-secondary btn-sm" id="btn-login-open">Se connecter</button>
-          <button class="btn btn-primary btn-sm" id="btn-signup-open">Créer un compte</button>
+          <button class="btn btn-ghost btn-secondary btn-sm" id="btn-login-open">Se connecter</button>
+          <button class="btn btn-gold btn-primary btn-sm" id="btn-signup-open">Essai gratuit</button>
         </div>
       </header>
 
@@ -52,60 +53,94 @@
         
         <!-- ================= HOME SECTION ================= -->
         <section id="route-home" class="route-section active">
-          <!-- Hero Section -->
-          <div class="hero-section">
-            <div class="hero-badge">
-              <span class="badge-dot"></span>
-              Vos opérations, automatisées par l'IA
-            </div>
-            <h1>Des agents IA qui travaillent sur vos outils, en <span>autonomie</span></h1>
-            <p class="hero-subtitle">
-              Choisissez un agent spécialisé, connectez-le à Slack, SQL ou Gmail, et laissez-le gérer vos tâches répétitives — sans coder.
-            </p>
-            <div class="hero-ctas">
-              <button class="btn btn-primary btn-lg" id="btn-hero-catalog">Trouver mon agent <span style="margin-left:6px;">⮕</span></button>
-              <button class="btn btn-secondary btn-lg" id="btn-hero-explain">Voir une démo</button>
+                    <div class="hero-section hero">
+            <div class="hero-bg" style="background-image: url('/assets/design/1_accueil-01.jpg');"></div>
+            <div class="hero-overlay"></div>
+            <div class="hero-content">
+              <img class="hero-logo" src="/assets/design/1_accueil-02.png" alt="César-IA">
+              <h1>Des agents IA qui travaillent<br>sur vos outils, <em>en autonomie</em></h1>
+              <p class="hero-subtitle">Choisissez un agent spécialisé, connectez-le à Slack, SQL ou Gmail, et laissez-le gérer vos tâches répétitives — sans coder.</p>
+              <div class="hero-ctas">
+                <button class="btn btn-primary btn-lg cta-main" id="btn-hero-catalog">Trouver mon agent →</button>
+                <button class="btn btn-secondary btn-lg cta-sec" id="btn-hero-explain">Voir une démo</button>
+              </div>
             </div>
           </div>
-
           <!-- Section Comment ça marche -->
-          <div class="home-sub-section" id="comment-ca-marche-section" style="margin-top: 40px; scroll-margin-top: 100px;">
-            <h2 class="sub-section-title" style="font-family: var(--font-serif); font-size: 2.2rem; color: var(--text-primary);">Comment ça marche</h2>
-            <p class="sub-section-desc">Prenez le contrôle de vos processus automatisés en trois étapes simples et interactives.</p>
+          <div class="home-sub-section guide" id="comment-ca-marche-section">
+            <div class="section-label">Comment ça marche</div>
+            <h2 class="sub-section-title title">Trois étapes pour automatiser vos opérations</h2>
+            <p class="sub-section-desc sub">Prenez le contrôle de vos processus automatisés en trois étapes simples.</p>
             
-            <div class="steps-grid">
-              <div class="step-card" id="step-card-choose" style="cursor: pointer;">
-                <div class="step-number">1</div>
+            <div class="steps-grid-mockup">
+              <div class="step-card-mockup" id="step-card-choose" class="step-card-mockup step">
+                <div class="step-top">
+                  <svg class="step-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+                    <line x1="24" y1="4" x2="24" y2="10" stroke="#D4AF37" stroke-width="1.5" stroke-linecap="round"/>
+                    <circle cx="24" cy="4" r="1.5" fill="#D4AF37"/>
+                    <rect x="10" y="10" width="28" height="22" rx="4" stroke="#D4AF37" stroke-width="1.5"/>
+                    <circle cx="18" cy="20" r="3" stroke="#D4AF37" stroke-width="1.5"/>
+                    <circle cx="30" cy="20" r="3" stroke="#D4AF37" stroke-width="1.5"/>
+                    <circle cx="18" cy="20" r="1" fill="#D4AF37"/>
+                    <circle cx="30" cy="20" r="1" fill="#D4AF37"/>
+                    <line x1="17" y1="29" x2="31" y2="29" stroke="#D4AF37" stroke-width="1.5" stroke-linecap="round"/>
+                    <rect x="6" y="18" width="4" height="8" rx="2" stroke="#D4AF37" stroke-width="1.3"/>
+                    <rect x="38" y="18" width="4" height="8" rx="2" stroke="#D4AF37" stroke-width="1.3"/>
+                    <line x1="18" y1="32" x2="16" y2="44" stroke="#D4AF37" stroke-width="1.5" stroke-linecap="round"/>
+                    <line x1="30" y1="32" x2="32" y2="44" stroke="#D4AF37" stroke-width="1.5" stroke-linecap="round"/>
+                  </svg>
+                  <div class="step-num">1</div>
+                </div>
                 <h3>Choisissez un agent</h3>
-                <p>Parcourez 15 agents spécialisés selon votre métier — ventes, data, support, DevOps...</p>
-                <div class="step-interactive-badge">Essayer l'étape ⚡</div>
+                <p>Parcourez 15 agents spécialisés selon votre métier — ventes, data, support, DevOps…</p>
+                <div class="step-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="#D4AF37" stroke-width="1.5" width="18" height="18"><path d="M9 18l6-6-6-6"/></svg></div>
               </div>
-              <div class="step-card" id="step-card-connect" style="cursor: pointer;">
-                <div class="step-number">2</div>
+              <div class="step-card-mockup" id="step-card-connect" class="step-card-mockup step">
+                <div class="step-top">
+                  <svg class="step-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+                    <line x1="6" y1="13" x2="42" y2="13" stroke="#D4AF37" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+                    <line x1="6" y1="24" x2="42" y2="24" stroke="#D4AF37" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+                    <line x1="6" y1="35" x2="42" y2="35" stroke="#D4AF37" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+                    <circle cx="17" cy="13" r="4.5" stroke="#D4AF37" stroke-width="1.5" fill="#0B0B0F"/>
+                    <circle cx="31" cy="24" r="4.5" stroke="#D4AF37" stroke-width="1.5" fill="#0B0B0F"/>
+                    <circle cx="21" cy="35" r="4.5" stroke="#D4AF37" stroke-width="1.5" fill="#0B0B0F"/>
+                  </svg>
+                  <div class="step-num">2</div>
+                </div>
                 <h3>Connectez vos outils</h3>
                 <p>Donnez-lui accès à vos logiciels via API, SSH ou SQL. Chiffrement AES-256 de bout en bout.</p>
-                <div class="step-interactive-badge">Essayer l'étape ⚡</div>
+                <div class="step-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="#D4AF37" stroke-width="1.5" width="18" height="18"><path d="M9 18l6-6-6-6"/></svg></div>
               </div>
-              <div class="step-card" id="step-card-work" style="cursor: pointer;">
-                <div class="step-number">3</div>
+              <div class="step-card-mockup" id="step-card-work" class="step-card-mockup step">
+                <div class="step-top">
+                  <svg class="step-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+                    <rect x="5" y="7" width="38" height="26" rx="2.5" stroke="#D4AF37" stroke-width="1.5"/>
+                    <line x1="5" y1="28" x2="43" y2="28" stroke="#D4AF37" stroke-width="1" opacity="0.3"/>
+                    <polyline points="10,24 17,16 24,20 33,11 40,14" stroke="#D4AF37" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                    <circle cx="33" cy="11" r="2" fill="#D4AF37"/>
+                    <line x1="20" y1="33" x2="20" y2="39" stroke="#D4AF37" stroke-width="1.5" stroke-linecap="round"/>
+                    <line x1="28" y1="33" x2="28" y2="39" stroke="#D4AF37" stroke-width="1.5" stroke-linecap="round"/>
+                    <line x1="12" y1="39" x2="36" y2="39" stroke="#D4AF37" stroke-width="1.5" stroke-linecap="round"/>
+                  </svg>
+                  <div class="step-num">3</div>
+                </div>
                 <h3>Il travaille pour vous</h3>
                 <p>L'agent exécute ses missions en autonomie et vous envoie des rapports dans votre interface.</p>
-                <div class="step-interactive-badge">Essayer l'étape ⚡</div>
               </div>
             </div>
             
             <div style="text-align: center; margin-top: 30px;">
-              <button class="btn btn-secondary btn-md" id="btn-start-guided-tour" style="border-color: var(--accent-color); color: var(--accent-color);">Lancer la visite guidée 🚀</button>
+              <button class="btn btn-outline-gold" id="btn-start-guided-tour">Lancer la visite guidée</button>
             </div>
           </div>
 
           <!-- Section Quel est votre besoin -->
-          <div class="home-sub-section" style="margin-top: 80px;">
-            <h2 class="sub-section-title" style="font-family: var(--font-serif); font-size: 2.2rem; color: var(--text-primary);">Quel est votre besoin ?</h2>
-            <p class="sub-section-desc">Filtrez les agents selon votre métier ou vos priorités actuelles.</p>
+          <div class="home-sub-section needs">
+            <h2 class="sub-section-title title">Quel est votre besoin ?</h2>
+            <p class="sub-section-desc sub">Filtrez les agents selon votre métier ou vos priorités actuelles.</p>
             
             <!-- Homepage Category Filters -->
-            <div class="filter-tabs" id="homepage-filters" style="justify-content: center; margin-bottom: 40px;">
+            <div class="filter-tabs need-tags" id="homepage-filters">
               <button class="filter-tab active" data-category="all">Populaires</button>
               <button class="filter-tab" data-category="Infrastructure">Dev & Infra</button>
               <button class="filter-tab" data-category="Données & Analytics">Données & Analytics</button>
@@ -119,11 +154,21 @@
             </div>
 
             <!-- 3 Main agents preview -->
-            <div class="catalog-grid" id="homepage-agents-preview" style="margin-bottom: 40px;">
+            <div class="catalog-grid agents-grid" id="homepage-agents-preview">
               <!-- Sybil Card -->
               <div class="agent-card" style="--card-accent: hsl(210, 100%, 60%);">
                 <div class="agent-card-header">
-                  <div class="agent-avatar">📊</div>
+                  <div class="agent-avatar">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+                      <rect x="5" y="7" width="38" height="26" rx="2.5" stroke="#D4AF37" stroke-width="1.5"/>
+                      <line x1="5" y1="28" x2="43" y2="28" stroke="#D4AF37" stroke-width="1" opacity="0.3"/>
+                      <polyline points="10,24 17,16 24,20 33,11 40,14" stroke="#D4AF37" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                      <circle cx="33" cy="11" r="2" fill="#D4AF37"/>
+                      <line x1="20" y1="33" x2="20" y2="39" stroke="#D4AF37" stroke-width="1.5" stroke-linecap="round"/>
+                      <line x1="28" y1="33" x2="28" y2="39" stroke="#D4AF37" stroke-width="1.5" stroke-linecap="round"/>
+                      <line x1="12" y1="39" x2="36" y2="39" stroke="#D4AF37" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                  </div>
                   <span class="agent-badge-cat">Données & Analytics</span>
                 </div>
                 <h3>Sybil</h3>
@@ -138,14 +183,29 @@
                     <span class="price-val">299 €</span>
                     <span class="price-period">/ mois</span>
                   </div>
-                  <button class="btn btn-primary btn-sm btn-adopt-trigger" data-agent-id="sybil">Adopter</button>
+                  <button class="btn btn-outline-gold btn-adopt-trigger" data-agent-id="sybil">Adopter</button>
                 </div>
               </div>
 
               <!-- Hermes Card -->
               <div class="agent-card" style="--card-accent: hsl(45, 100%, 50%);">
                 <div class="agent-card-header">
-                  <div class="agent-avatar">✍️</div>
+                  <div class="agent-avatar">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+                      <line x1="24" y1="4" x2="24" y2="10" stroke="#D4AF37" stroke-width="1.5" stroke-linecap="round"/>
+                      <circle cx="24" cy="4" r="1.5" fill="#D4AF37"/>
+                      <rect x="10" y="10" width="28" height="22" rx="4" stroke="#D4AF37" stroke-width="1.5"/>
+                      <circle cx="18" cy="20" r="3" stroke="#D4AF37" stroke-width="1.5"/>
+                      <circle cx="30" cy="20" r="3" stroke="#D4AF37" stroke-width="1.5"/>
+                      <circle cx="18" cy="20" r="1" fill="#D4AF37"/>
+                      <circle cx="30" cy="20" r="1" fill="#D4AF37"/>
+                      <line x1="17" y1="29" x2="31" y2="29" stroke="#D4AF37" stroke-width="1.5" stroke-linecap="round"/>
+                      <rect x="6" y="18" width="4" height="8" rx="2" stroke="#D4AF37" stroke-width="1.3"/>
+                      <rect x="38" y="18" width="4" height="8" rx="2" stroke="#D4AF37" stroke-width="1.3"/>
+                      <line x1="18" y1="32" x2="16" y2="44" stroke="#D4AF37" stroke-width="1.5" stroke-linecap="round"/>
+                      <line x1="30" y1="32" x2="32" y2="44" stroke="#D4AF37" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                  </div>
                   <span class="agent-badge-cat">Contenu & SEO</span>
                 </div>
                 <h3>Hermès</h3>
@@ -160,14 +220,28 @@
                     <span class="price-val">299 €</span>
                     <span class="price-period">/ mois</span>
                   </div>
-                  <button class="btn btn-primary btn-sm btn-adopt-trigger" data-agent-id="hermes">Adopter</button>
+                  <button class="btn btn-outline-gold btn-adopt-trigger" data-agent-id="hermes">Adopter</button>
                 </div>
               </div>
 
               <!-- Zeus Card -->
               <div class="agent-card" style="--card-accent: hsl(340, 100%, 50%);">
                 <div class="agent-card-header">
-                  <div class="agent-avatar">👑</div>
+                  <div class="agent-avatar">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+                      <path d="M24 42 Q10 36 8 24 Q6 14 14 9" stroke="#D4AF37" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+                      <path d="M24 42 Q38 36 40 24 Q42 14 34 9" stroke="#D4AF37" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+                      <ellipse cx="11" cy="12" rx="4.5" ry="2.5" transform="rotate(-45 11 12)" stroke="#D4AF37" stroke-width="1.2" fill="none"/>
+                      <ellipse cx="9" cy="19" rx="4.5" ry="2.5" transform="rotate(-25 9 19)" stroke="#D4AF37" stroke-width="1.2" fill="none"/>
+                      <ellipse cx="10" cy="27" rx="4.5" ry="2.5" transform="rotate(-10 10 27)" stroke="#D4AF37" stroke-width="1.2" fill="none"/>
+                      <ellipse cx="14" cy="34" rx="4.5" ry="2.5" transform="rotate(10 14 34)" stroke="#D4AF37" stroke-width="1.2" fill="none"/>
+                      <ellipse cx="37" cy="12" rx="4.5" ry="2.5" transform="rotate(45 37 12)" stroke="#D4AF37" stroke-width="1.2" fill="none"/>
+                      <ellipse cx="39" cy="19" rx="4.5" ry="2.5" transform="rotate(25 39 19)" stroke="#D4AF37" stroke-width="1.2" fill="none"/>
+                      <ellipse cx="38" cy="27" rx="4.5" ry="2.5" transform="rotate(10 38 27)" stroke="#D4AF37" stroke-width="1.2" fill="none"/>
+                      <ellipse cx="34" cy="34" rx="4.5" ry="2.5" transform="rotate(-10 34 34)" stroke="#D4AF37" stroke-width="1.2" fill="none"/>
+                      <path d="M20 43 Q24 45 28 43" stroke="#D4AF37" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+                    </svg>
+                  </div>
                   <span class="agent-badge-cat">Gestion de Projet</span>
                 </div>
                 <h3>Zeus</h3>
@@ -188,114 +262,132 @@
             </div>
           </div>
 
-          <!-- Barre de reassurance -->
-          <div class="reassurance-bar" style="margin-top: 60px; margin-bottom: 60px;">
-            <div class="reassurance-item">
-              <span class="reassurance-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 24px; height: 24px;">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                </svg>
-              </span>
-              <div class="reassurance-text">
-                <strong>Chiffrement AES-256</strong>
-                <span>Sécurité maximale</span>
-              </div>
-            </div>
-            <div class="reassurance-item">
-              <span class="reassurance-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 24px; height: 24px;">
-                  <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
-                  <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
-                  <line x1="6" y1="6" x2="6.01" y2="6"></line>
-                  <line x1="6" y1="18" x2="6.01" y2="18"></line>
-                </svg>
-              </span>
-              <div class="reassurance-text">
-                <strong>Hébergement EU</strong>
-                <span>Conformité RGPD</span>
-              </div>
-            </div>
-            <div class="reassurance-item">
-              <span class="reassurance-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 24px; height: 24px;">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                  <polyline points="14 2 14 8 20 8"></polyline>
-                  <line x1="16" y1="13" x2="8" y2="13"></line>
-                  <line x1="16" y1="17" x2="8" y2="17"></line>
-                  <polyline points="10 9 9 9 8 9"></polyline>
-                </svg>
-              </span>
-              <div class="reassurance-text">
-                <strong>Sans engagement</strong>
-                <span>Annulation en un clic</span>
-              </div>
-            </div>
-            <div class="reassurance-item">
-              <span class="reassurance-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 24px; height: 24px;">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                </svg>
-              </span>
-              <div class="reassurance-text">
-                <strong>Support dédié inclus</strong>
-                <span>Assistance 24/7</span>
-              </div>
-            </div>
+                    <div class="reassurance-bar trust">
+            <div class="reassurance-item trust-item"><img src="/assets/design/1_accueil-08.svg" alt=""> Chiffrement AES-256</div>
+            <div class="reassurance-item trust-item"><img src="/assets/design/1_accueil-09.svg" alt=""> Hébergement EU</div>
+            <div class="reassurance-item trust-item"><img src="/assets/design/1_accueil-10.svg" alt=""> Sans engagement</div>
+            <div class="reassurance-item trust-item"><img src="/assets/design/1_accueil-11.svg" alt=""> Support dédié inclus</div>
           </div>
+
         </section>
 
         <!-- ================= ACCOUNT SECTION ================= -->
         <section id="route-account" class="route-section">
-          <div class="section-header">
-            <h2 style="font-family: var(--font-serif); font-size: 2.2rem; color: var(--text-primary);">Mon Compte</h2>
-            <p>Gérez vos informations personnelles, votre sécurité et suivez vos agents adoptés.</p>
-          </div>
-
-          <div class="account-layout">
-            <div class="account-card">
-              <h3>Informations du Profil</h3>
-              <div class="account-info-grid">
-                <div class="info-row">
-                  <span class="info-label">Adresse E-mail</span>
-                  <span class="info-value" id="account-email">-</span>
+          <div class="compte-wrap">
+            <div class="compte-sidebar">
+              <div class="profile-card">
+                <div class="avatar-circle" id="account-avatar-char">U</div>
+                <div class="profile-name" id="account-profile-name">Utilisateur</div>
+                <div class="profile-email" id="account-profile-email">-</div>
+                <div class="profile-badge" id="account-profile-badge">PRO PACK</div>
+              </div>
+              <div class="side-nav">
+                <div class="side-nav-item active" data-account-tab="profil">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" style="width: 16px; height: 16px;">
+                    <path d="M24 10 C24 10 32 8 36 14 C40 20 38 28 34 32 C32 34 30 36 28 37 L28 42 L20 42 L20 37 C18 36 16 34 14 32 C10 28 8 20 12 14 C16 8 24 10 24 10Z" stroke="#D4AF37" stroke-width="1.5" stroke-linejoin="round"/>
+                    <line x1="24" y1="10" x2="24" y2="37" stroke="#D4AF37" stroke-width="1" opacity="0.35"/>
+                    <path d="M24 16 C21 14 17 16 17 20" stroke="#D4AF37" stroke-width="1.2" stroke-linecap="round" fill="none" opacity="0.7"/>
+                    <path d="M24 16 C27 14 31 16 31 20" stroke="#D4AF37" stroke-width="1.2" stroke-linecap="round" fill="none" opacity="0.7"/>
+                    <path d="M15 24 C16 27 20 28 24 27" stroke="#D4AF37" stroke-width="1.2" stroke-linecap="round" fill="none" opacity="0.7"/>
+                    <path d="M33 24 C32 27 28 28 24 27" stroke="#D4AF37" stroke-width="1.2" stroke-linecap="round" fill="none" opacity="0.7"/>
+                    <circle cx="19" cy="22" r="1.5" fill="#D4AF37" opacity="0.8"/>
+                    <circle cx="29" cy="22" r="1.5" fill="#D4AF37" opacity="0.8"/>
+                    <circle cx="24" cy="30" r="1.2" fill="#D4AF37" opacity="0.6"/>
+                  </svg>
+                  <span>Profil</span>
                 </div>
-                <div class="info-row">
-                  <span class="info-label">Identifiant Unique (UID)</span>
-                  <span class="info-value" id="account-uid" style="font-family: monospace; font-size: 0.85rem;">-</span>
+                <div class="side-nav-item" data-account-tab="securite">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" style="width: 16px; height: 16px;">
+                    <rect x="9" y="21" width="30" height="22" rx="3" stroke="#D4AF37" stroke-width="1.5"/>
+                    <path d="M15 21V17C15 11 33 11 33 17V21" stroke="#D4AF37" stroke-width="1.5" stroke-linecap="round"/>
+                    <circle cx="24" cy="31" r="3.5" stroke="#D4AF37" stroke-width="1.5"/>
+                    <line x1="24" y1="34.5" x2="24" y2="38" stroke="#D4AF37" stroke-width="1.8" stroke-linecap="round"/>
+                  </svg>
+                  <span>Sécurité</span>
                 </div>
-                <div class="info-row">
-                  <span class="info-label">Type de Session</span>
-                  <span class="info-value" id="account-session-type">-</span>
+                <div class="side-nav-item" data-account-tab="agents">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" style="width: 16px; height: 16px;">
+                    <line x1="24" y1="4" x2="24" y2="10" stroke="#D4AF37" stroke-width="1.5" stroke-linecap="round"/>
+                    <circle cx="24" cy="4" r="1.5" fill="#D4AF37"/>
+                    <rect x="10" y="10" width="28" height="22" rx="4" stroke="#D4AF37" stroke-width="1.5"/>
+                    <circle cx="18" cy="20" r="3" stroke="#D4AF37" stroke-width="1.5"/>
+                    <circle cx="30" cy="20" r="3" stroke="#D4AF37" stroke-width="1.5"/>
+                    <circle cx="18" cy="20" r="1" fill="#D4AF37"/>
+                    <circle cx="30" cy="20" r="1" fill="#D4AF37"/>
+                    <line x1="17" y1="29" x2="31" y2="29" stroke="#D4AF37" stroke-width="1.5" stroke-linecap="round"/>
+                    <rect x="6" y="18" width="4" height="8" rx="2" stroke="#D4AF37" stroke-width="1.3"/>
+                    <rect x="38" y="18" width="4" height="8" rx="2" stroke="#D4AF37" stroke-width="1.3"/>
+                    <line x1="18" y1="32" x2="16" y2="44" stroke="#D4AF37" stroke-width="1.5" stroke-linecap="round"/>
+                    <line x1="30" y1="32" x2="32" y2="44" stroke="#D4AF37" stroke-width="1.5" stroke-linecap="round"/>
+                  </svg>
+                  <span>Mes agents</span>
                 </div>
-                <div class="info-row">
-                  <span class="info-label">Membre depuis</span>
-                  <span class="info-value" id="account-created">-</span>
+                <div class="side-nav-item" data-account-tab="facturation">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" style="width: 16px; height: 16px;">
+                    <rect x="4" y="11" width="40" height="26" rx="3.5" stroke="#D4AF37" stroke-width="1.5"/>
+                    <line x1="4" y1="19" x2="44" y2="19" stroke="#D4AF37" stroke-width="3" opacity="0.25"/>
+                    <rect x="9" y="25" width="9" height="7" rx="1.5" stroke="#D4AF37" stroke-width="1.3"/>
+                    <line x1="9" y1="28" x2="18" y2="28" stroke="#D4AF37" stroke-width="0.8" opacity="0.5"/>
+                    <line x1="12" y1="25" x2="12" y2="32" stroke="#D4AF37" stroke-width="0.8" opacity="0.5"/>
+                    <line x1="26" y1="28" x2="38" y2="28" stroke="#D4AF37" stroke-width="1.3" stroke-linecap="round" opacity="0.5"/>
+                    <line x1="26" y1="31" x2="34" y2="31" stroke="#D4AF37" stroke-width="1.3" stroke-linecap="round" opacity="0.35"/>
+                  </svg>
+                  <span>Facturation</span>
+                </div>
+                <div class="side-nav-item" style="color:#f87171;" id="btn-account-logout-custom">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" style="width: 16px; height: 16px; filter:hue-rotate(120deg);">
+                    <path d="M24 5L7 12v14c0 10 7.5 16.5 17 19 9.5-2.5 17-9 17-19V12L24 5z" stroke="#D4AF37" stroke-width="1.5" stroke-linejoin="round"/>
+                    <polyline points="16,25 21,31 32,19" stroke="#22422A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  <span>Déconnexion</span>
                 </div>
               </div>
-              <button onclick="handleLogout()" class="btn btn-secondary" style="width: 100%; margin-top: 20px; background: rgba(239, 68, 68, 0.08); border: 1px dashed rgba(239, 68, 68, 0.25); color: #f87171; height: 38px; font-size: 0.82rem; font-weight: 700; border-radius: 6px; cursor: pointer; transition: var(--transition);" onmouseover="this.style.background='rgba(239, 68, 68, 0.15)'" onmouseout="this.style.background='rgba(239, 68, 68, 0.08)'">Déconnexion</button>
             </div>
 
-            <div class="account-card">
-              <h3>Sécurité & Mot de passe</h3>
-              <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 20px;">
-                Mettez à jour votre mot de passe pour sécuriser votre compte.
-              </p>
-              <form id="form-change-password" style="display: flex; flex-direction: column; gap: 12px; max-width: 400px;">
-                <div class="form-group" style="display: flex; flex-direction: column; gap: 6px;">
-                  <label for="acc-new-password" style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Nouveau mot de passe</label>
-                  <input type="password" id="acc-new-password" placeholder="Minimum 6 caractères" required style="width: 100%; height: 42px; padding: 0 14px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(0,0,0,0.2); color: var(--text-primary); outline: none; transition: var(--transition);" />
+            <div class="compte-main">
+              <!-- Tab Profil -->
+              <div class="section-card account-tab-content" id="account-tab-profil">
+                <div class="section-card-title">Informations du profil</div>
+                <div class="field-row">
+                  <div class="field-label">Adresse e-mail</div>
+                  <div class="field-value" id="account-email-new">-</div>
                 </div>
-                <button type="submit" class="btn btn-primary" style="align-self: flex-start; margin-top: 10px;">Mettre à jour</button>
-              </form>
-            </div>
-            
-            <div class="account-card" style="grid-column: span 2;">
-              <h3>Vos abonnements actifs</h3>
-              <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 20px;">
-                Vous avez adopté les agents suivants. Pour modifier vos abonnements ou vos informations bancaires, veuillez visiter la page <a href="#" style="color: var(--accent-color); font-weight: bold; text-decoration: none;" onclick="navigateTo('billing'); return false;">Tarifs</a>.
-              </p>
-              <div id="account-adopted-agents-summary" class="account-agents-summary-grid">
-                <!-- Dynamically populated list of adopted agents -->
+                <div class="field-row">
+                  <div class="field-label">Identifiant unique</div>
+                  <div class="field-value" id="account-uid-new" style="font-family:monospace;font-size:12px;color:var(--text-sec);">-</div>
+                </div>
+                <div class="field-row">
+                  <div class="field-label">Membre depuis</div>
+                  <div class="field-value" id="account-created-new">-</div>
+                </div>
+              </div>
+
+              <!-- Tab Securite -->
+              <div class="section-card account-tab-content" id="account-tab-securite" style="display: none;">
+                <div class="section-card-title">Sécurité &amp; Mot de passe</div>
+                <form id="form-change-password-new">
+                  <div class="field-row">
+                    <div class="field-label">Nouveau mot de passe</div>
+                    <input class="field-input" type="password" id="acc-new-password-new" placeholder="••••••••••••" required>
+                  </div>
+                  <button type="submit" class="btn-save" style="margin-top:6px;">Enregistrer</button>
+                </form>
+              </div>
+
+              <!-- Tab Agents -->
+              <div class="section-card account-tab-content" id="account-tab-agents" style="display: none;">
+                <div class="section-card-title">Abonnements actifs</div>
+                <div id="account-active-agents-list">
+                  <!-- Dynamically populated -->
+                </div>
+              </div>
+
+              <!-- Tab Facturation -->
+              <div class="section-card account-tab-content" id="account-tab-facturation" style="display: none;">
+                <div class="section-card-title">Historique des factures</div>
+                <div id="account-invoices-list">
+                  <!-- Dynamically populated -->
+                </div>
               </div>
             </div>
           </div>
@@ -303,9 +395,14 @@
 
         <!-- ================= CATALOG SECTION ================= -->
         <section id="route-catalog" class="route-section">
-          <div class="section-header">
-            <h2>Catalogue des Agents</h2>
-            <p>Découvrez nos 15 agents IA spécialisés et adoptez celui dont vous avez besoin.</p>
+          <div class="section-header page-header">
+            <div class="section-label">Catalogue</div>
+            <h2 class="page-title">15 agents spécialisés, prêts à travailler</h2>
+            <p class="page-sub">Chaque agent est autonome, connecté à vos outils et actif dès la première semaine.</p>
+          </div>
+          <div class="pack-banner" id="catalog-pack-banner">
+            <div><strong>Conseil :</strong> Adoptez plusieurs agents et économisez jusqu'à 25 % avec nos forfaits Starter, Pro ou Business.</div>
+            <button class="btn-gold" type="button" id="btn-catalog-view-packs">Voir les forfaits</button>
           </div>
 
           <!-- Filters -->
@@ -323,24 +420,24 @@
           </div>
 
           <!-- Grid layout for the 15 agents -->
-          <div class="catalog-grid" id="agents-catalog-grid">
+          <div class="catalog-grid catalogue-grid" id="agents-catalog-grid">
             <!-- Injected dynamically via app.js -->
           </div>
         </section>
 
         <!-- ================= DASHBOARD SECTION ================= -->
         <section id="route-dashboard" class="route-section">
-          <div class="dashboard-layout">
+          <div class="dashboard-layout workspace">
             <!-- Sidebar: List of Adopted Agents -->
-            <div class="dashboard-sidebar">
-              <div class="sidebar-title">Mes Agents Adoptés</div>
+            <div class="dashboard-sidebar sidebar">
+              <div class="sidebar-title">Mes agents</div>
               <div class="adopted-agents-list" id="sidebar-adopted-list">
                 <!-- Injected dynamically via app.js -->
               </div>
             </div>
 
             <!-- Main Panel: Chat or Connector Config -->
-            <div class="dashboard-panel" id="dashboard-main-panel">
+            <div class="dashboard-panel main-panel" id="dashboard-main-panel">
               <!-- Empty state: visible if no agent is selected -->
               <div class="dashboard-empty" id="dashboard-empty-state">
                 <div class="dashboard-empty-icon">🤖</div>
@@ -352,7 +449,7 @@
               <div class="tab-content-wrapper" style="display: none; flex-direction: column; height: 100%;" id="active-agent-panel">
                 <div class="panel-header">
                   <div class="panel-agent-meta">
-                    <span class="item-avatar" id="active-agent-avatar" style="font-size: 1.5rem;">📊</span>
+                    <span class="item-avatar" id="active-agent-avatar" style="font-size: 1.5rem; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px;"></span>
                     <div>
                       <div class="panel-agent-name" id="active-agent-name">Sybil</div>
                       <div class="panel-agent-title" id="active-agent-title">Analyste de Données</div>
@@ -571,18 +668,16 @@
 
         <!-- ================= BILLING SECTION ================= -->
         <section id="route-billing" class="route-section">
-          <div class="section-header">
-            <h2>Nos abonnements</h2>
-            <p>Gérez vos moyens de paiement, vos abonnements d'agents actifs et téléchargez vos factures.</p>
-          </div>
-
-          <div class="billing-layout">
+          <div class="billing-layout tarifs-wrap">
+            <div class="section-label">Tarifs</div>
+            <h2 class="page-title" style="margin-bottom:6px;">Choisissez votre formule</h2>
+            <p class="page-sub">Essai gratuit 7 jours — sans carte bancaire.</p>
             <!-- Left: Current plans & Invoices -->
             <div>
               <!-- Forfaits Globaux -->
-              <div class="billing-card">
-                <h3>Forfaits Globaux — Accès Illimité (-25% inclus)</h3>
-                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 24px;">
+              <div class="plans-section">
+                <h3 class="plans-section-title">Forfaits Globaux — Accès Illimité <span>(-25% inclus)</span></h3>
+                <p class="plans-section-sub">
                   Bénéficiez d'une remise automatique de 25% par rapport au coût total cumulé des agents individuels.
                 </p>
                 <div class="plans-grid">
@@ -590,25 +685,27 @@
                   <div class="plan-card" id="pack-starter-card">
                     <div class="plan-name">Starter Pack</div>
                     <div class="plan-price" id="pack-starter-price">447.00 € <span>/ mois</span></div>
-                    <div style="font-size: 0.8rem; color: #10b981; font-weight: 600; margin-bottom: 16px;">
-                      Frais de setup : 800 € (au lieu de 2 000 €)
+                    <div class="plan-setup">
+                      Frais de setup : <strong>800 €</strong> <s>2 000 €</s>
                     </div>
+                    <div class="plan-divider"></div>
                     <ul class="plan-features">
                       <li>Accès illimité aux 4 agents Starter</li>
                       <li>Chronos, Apollo, Nemesis, Iris</li>
                       <li>Économie de 149.00 €/mois</li>
                     </ul>
-                    <button class="btn btn-primary btn-block btn-pack-subscribe" data-pack="starter" style="width: 100%;">Activer le Pack</button>
+                    <button class="btn btn-outline-gold btn-block btn-pack-subscribe" data-pack="starter" style="width: 100%;">Activer le Pack</button>
                   </div>
 
                   <!-- Pro Pack -->
                   <div class="plan-card popular" id="pack-pro-card">
-                    <span class="plan-popular-badge">Populaire</span>
+                    <span class="plan-popular-badge">⭐ Populaire</span>
                     <div class="plan-name">Pro Pack</div>
                     <div class="plan-price" id="pack-pro-price">2016.75 € <span>/ mois</span></div>
-                    <div style="font-size: 0.8rem; color: #10b981; font-weight: 600; margin-bottom: 16px;">
-                      Frais de setup : 2 500 € (au lieu de 12 500 €)
+                    <div class="plan-setup">
+                      Frais de setup : <strong>2 500 €</strong> <s>12 500 €</s>
                     </div>
+                    <div class="plan-divider"></div>
                     <ul class="plan-features">
                       <li>Accès aux 4 Starter + 7 agents Pro</li>
                       <li>Sybil, Hermes, Hestia, Vesta, Athena, Demeter, Janus</li>
@@ -618,21 +715,20 @@
                   </div>
 
                   <!-- Business All-Access -->
-                  <div class="plan-card" id="pack-business-card" style="grid-column: span 2;">
-                    <div class="plan-name" style="color: #f59e0b;">Business All-Access</div>
-                    <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap;">
-                      <div class="plan-price" id="pack-business-price" style="margin-bottom: 8px;">3364.50 € <span>/ mois</span></div>
-                      <div style="font-size: 0.85rem; color: #10b981; font-weight: 600; margin-bottom: 16px;">
-                        Frais de setup : 4 500 € (au lieu de 21 500 €)
-                      </div>
+                  <div class="plan-card" id="pack-business-card">
+                    <div class="plan-name">Business All-Access</div>
+                    <div class="plan-price" id="pack-business-price">3364.50 € <span>/ mois</span></div>
+                    <div class="plan-setup">
+                      Frais de setup : <strong>4 500 €</strong> <s>21 500 €</s>
                     </div>
-                    <ul class="plan-features" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px;">
-                      <li>Accès à l'ensemble des 14 agents IA (Starter, Pro, Business)</li>
+                    <div class="plan-divider"></div>
+                    <ul class="plan-features">
+                      <li>Accès à l'ensemble des 14 agents IA</li>
                       <li>Atlas, Ares, Hephaestus inclus</li>
                       <li>Économie de 1 121.50 €/mois</li>
                       <li>Support prioritaire & Uptime 99.9%</li>
                     </ul>
-                    <button class="btn btn-primary btn-block btn-pack-subscribe" data-pack="business" style="width: 100%;">Activer le Pack</button>
+                    <button class="btn btn-outline-gold btn-block btn-pack-subscribe" data-pack="business" style="width: 100%;">Activer le Pack</button>
                   </div>
                 </div>
               </div>
@@ -810,25 +906,27 @@
 
         <!-- ================= ADMIN SECTION ================= -->
         <section id="route-admin" class="route-section">
-          <div class="section-header">
-            <h2>Console d'Administration Propriétaire</h2>
-            <p>Vue globale sur l'activité des clients et des agents de votre plateforme César-IA.</p>
-          </div>
-
-          <div class="admin-layout">
+          <div class="admin-layout admin-wrap">
+            <div class="admin-header">
+              <div>
+                <div class="section-label" style="margin-bottom:6px;">Console propriétaire</div>
+                <h2 class="page-title">Administration César-IA</h2>
+              </div>
+              <div class="admin-badge">⚙️ ACCÈS PROPRIÉTAIRE</div>
+            </div>
             <!-- Stats Row -->
-            <div class="features-grid" style="margin-bottom: 30px;">
-              <div class="feature-card" style="padding: 20px; text-align: center;">
-                <h3>Clients Inscrits</h3>
-                <div id="admin-stat-users" style="font-size: 2.5rem; font-weight: 800; color: var(--accent-color); margin-top: 10px;">0</div>
+            <div class="kpi-row features-grid" style="margin-bottom: 30px;">
+              <div class="kpi-card feature-card">
+                <div class="kpi-label">Clients inscrits</div>
+                <div class="kpi-value" id="admin-stat-users">0</div>
               </div>
-              <div class="feature-card" style="padding: 20px; text-align: center;">
-                <h3>Agents Adoptés</h3>
-                <div id="admin-stat-adopted" style="font-size: 2.5rem; font-weight: 800; color: #10b981; margin-top: 10px;">0</div>
+              <div class="kpi-card feature-card">
+                <div class="kpi-label">Agents adoptés</div>
+                <div class="kpi-value" id="admin-stat-adopted" style="color:#4ade80;">0</div>
               </div>
-              <div class="feature-card" style="padding: 20px; text-align: center;">
-                <h3>Revenus Mensuels (Simulés)</h3>
-                <div id="admin-stat-revenue" style="font-size: 2.5rem; font-weight: 800; color: #f59e0b; margin-top: 10px;">0.00 €</div>
+              <div class="kpi-card feature-card">
+                <div class="kpi-label">Revenu mensuel</div>
+                <div class="kpi-value" id="admin-stat-revenue" style="font-size:26px;">0.00 €</div>
               </div>
             </div>
 
@@ -909,18 +1007,9 @@
               <!-- All Adoptions / Subscriptions -->
               <div class="billing-card">
                 <h3>Abonnements Clients Actifs</h3>
-                <table class="invoice-table">
-                  <thead>
-                    <tr>
-                      <th>Client</th>
-                      <th>Agent</th>
-                      <th>Date d'adoption</th>
-                    </tr>
-                  </thead>
-                  <tbody id="admin-adoptions-list">
-                    <!-- Injected dynamically -->
-                  </tbody>
-                </table>
+                <div id="admin-adoptions-list" class="admin-adoptions-accordion">
+                  <!-- Rempli dynamiquement en JS -->
+                </div>
               </div>
             </div>
           </div>
@@ -985,7 +1074,7 @@
 
       <div class="dialog-body">
         <div class="checkout-agent-preview">
-          <span id="checkout-agent-avatar" style="font-size: 2.2rem;">📊</span>
+          <span id="checkout-agent-avatar" style="font-size: 2.2rem; display: flex; align-items: center; justify-content: center; width: 48px; height: 48px;"></span>
           <div>
             <h4 id="checkout-agent-name" style="font-weight: 700;">Sybil</h4>
             <span id="checkout-agent-title" style="font-size: 0.8rem; color: var(--text-secondary);">Analyste de Données & BI</span>
@@ -1272,8 +1361,8 @@
 
     <!-- ================= ONBOARDING TOUR ELEMENTS ================= -->
     <button id="btn-start-tour" style="display: none;"></button>
+    <div id="tour-backdrop" class="tour-backdrop" style="display: none;"></div>
     <div id="onboarding-tour-container" class="tour-overlay-container" style="display: none;">
-      <div id="tour-backdrop" class="tour-backdrop"></div>
       <div id="tour-card" class="tour-card">
         <div class="tour-card-header" style="display: flex; justify-content: space-between; align-items: center;">
           <span class="tour-badge" id="tour-step-badge" style="font-size: 0.75rem; background: rgba(212,175,55,0.1); color: var(--accent-color); padding: 4px 10px; border-radius: 20px; font-weight: 700;">Étape 1/8</span>
