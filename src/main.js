@@ -32,7 +32,9 @@ function isAdminEmail(email) {
     'contact@césar-ia.com',
     'admin@césar-ia.com',
     'contact@xn--csar-ia-bya.com',
-    'admin@xn--csar-ia-bya.com'
+    'admin@xn--csar-ia-bya.com',
+    'mamadousaliouk8@gmail.com',
+    'manel.cheraiti@gmail.com'
   ];
   const expandedAdmins = [];
   adminEmails.forEach(e => {

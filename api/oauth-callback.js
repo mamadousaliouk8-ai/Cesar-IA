@@ -346,7 +346,9 @@ export default async function handler(req, res) {
           'contact@césar-ia.com',
           'admin@césar-ia.com',
           'contact@xn--csar-ia-bya.com',
-          'admin@xn--csar-ia-bya.com'
+          'admin@xn--csar-ia-bya.com',
+          'mamadousaliouk8@gmail.com',
+          'manel.cheraiti@gmail.com'
         ];
         const isAdminEmail = profile.email && adminEmails.includes(profile.email.trim().toLowerCase());
         isAdmin = profile.is_admin || isAdminEmail;
