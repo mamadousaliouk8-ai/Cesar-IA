@@ -1213,13 +1213,14 @@ async function loadUserData() {
       
       state.adoptedAgents = adopted.map(a => a.agent_id);
       
-      // Si l'utilisateur est admin, contact@cesar-ia.com, ou s'il s'agit d'un nouveau compte sans aucun agent, on lui pré-adopte TOUS les 15 agents par défaut pour lui éviter un tableau de bord vide.
+      // Seul le compte admin reçoit automatiquement les 15 agents (avec factures internes "Payée").
+      // Un client normal ne doit obtenir que les agents qu'il a réellement souscrits via Stripe —
+      // un nouveau compte sans aucun agent adopté doit voir un tableau de bord vide, pas les 15 agents gratuits.
       const isAdminUser = state.currentUser.isAdmin || isAdminEmail(state.currentUser.email);
-      const isNewUserEmpty = state.adoptedAgents.length === 0;
-      logDebug(`[loadUserData] Évaluation de l'auto-adoption : Admin=${isAdminUser}, Nouveau/Vide=${isNewUserEmpty}`);
-      
-      if (isAdminUser || isNewUserEmpty) {
-        logDebug(`[loadUserData] Attribution des 15 agents par défaut.`);
+      logDebug(`[loadUserData] Évaluation de l'auto-adoption : Admin=${isAdminUser}`);
+
+      if (isAdminUser) {
+        logDebug(`[loadUserData] Attribution des 15 agents par défaut (compte admin).`);
         const allAgentIds = [
           'sybil', 'atlas', 'chronos', 'hermes', 'hestia',
           'vesta', 'ares', 'athena', 'hephaestus', 'iris',
