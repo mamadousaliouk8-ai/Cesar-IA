@@ -42,6 +42,8 @@ html, body {
   overflow-x: hidden;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.1) var(--bg-primary);
 }
 
 /* Custom Scrollbar */
@@ -318,13 +320,17 @@ main.content-area {
   letter-spacing: -2px;
   margin-bottom: 20px;
   background: linear-gradient(to right, #ffffff, #a3a3a3);
+  background-clip: text;
   -webkit-background-clip: text;
+  color: transparent;
   -webkit-text-fill-color: transparent;
 }
 
 .hero-section h1 span {
   background: linear-gradient(135deg, var(--accent-color), #E8DFC8);
+  background-clip: text;
   -webkit-background-clip: text;
+  color: transparent;
   -webkit-text-fill-color: transparent;
 }
 
@@ -2042,6 +2048,7 @@ dialog.invoice-dialog::backdrop {
   border-radius: 12px;
   padding: 20px;
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -2083,6 +2090,7 @@ dialog.invoice-dialog::backdrop {
   border-radius: 12px;
   padding: 20px;
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -2187,7 +2195,9 @@ dialog.invoice-dialog::backdrop {
   font-size: 2.2rem;
   font-weight: 800;
   background: linear-gradient(135deg, #fff 0%, var(--text-secondary) 100%);
+  background-clip: text;
   -webkit-background-clip: text;
+  color: transparent;
   -webkit-text-fill-color: transparent;
   margin-bottom: 8px;
 }
@@ -2695,6 +2705,7 @@ dialog.invoice-dialog::backdrop {
   text-align: left;
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
   backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -2793,6 +2804,7 @@ dialog.invoice-dialog::backdrop {
   background: rgba(255, 255, 255, 0.02) !important;
   border: 1px solid rgba(255, 255, 255, 0.05) !important;
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border-radius: 12px 12px 12px 4px !important;
   padding: 10px 16px !important;
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
