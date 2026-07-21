@@ -1942,25 +1942,21 @@ function openAdoptModal(agentId) {
   }
   
   if (stripeUrl) {
-    typeNote.innerHTML = `<span style="color: #10b981; font-weight: 500;">🔗 Lien Stripe réel configuré.</span> Vous allez être redirigé vers la page de paiement sécurisée de Stripe pour valider votre abonnement.`;
+    typeNote.innerHTML = `<span style="color: #10b981; font-weight: 500;">🔗 Paiement sécurisé.</span> Vous allez être redirigé vers la page de paiement Stripe pour valider votre abonnement.`;
     typeNote.style.backgroundColor = 'rgba(16, 185, 129, 0.08)';
     typeNote.style.borderColor = 'rgba(16, 185, 129, 0.2)';
     cardFormContainer.style.display = 'none';
+    btnConfirm.disabled = false;
     btnConfirm.innerHTML = `🔗 Rediriger vers Stripe`;
   } else {
-    typeNote.innerHTML = `<span style="color: #f59e0b; font-weight: 500;">⚠️ Mode Simulation activé.</span> Aucun lien Stripe n'est configuré pour cet agent. Utilisez le formulaire ci-dessous pour simuler le paiement.`;
+    // Aucun lien de paiement réel configuré pour cet agent : on ne doit jamais laisser
+    // l'utilisateur "payer" via un faux formulaire qui ne fait que simuler Stripe.
+    typeNote.innerHTML = `<span style="color: #f59e0b; font-weight: 500;">⚠️ Paiement en ligne indisponible pour le moment.</span> Cet agent n'est pas encore ouvert à la souscription en ligne. Contactez-nous pour l'activer.`;
     typeNote.style.backgroundColor = 'rgba(245, 158, 11, 0.08)';
     typeNote.style.borderColor = 'rgba(245, 158, 11, 0.2)';
-    cardFormContainer.style.display = 'block';
-    btnConfirm.innerHTML = `💳 Confirmer & Payer (Simulé)`;
-    
-    // Clear card fields
-    document.getElementById('checkout-card-name').value = '';
-    document.getElementById('checkout-card-number').value = '';
-    document.getElementById('checkout-card-expiry').value = '';
-    document.getElementById('checkout-card-cvc').value = '';
-    const brandIcon = document.getElementById('card-brand-icon');
-    if (brandIcon) brandIcon.innerText = '💳';
+    cardFormContainer.style.display = 'none';
+    btnConfirm.disabled = false;
+    btnConfirm.innerHTML = `✉️ Nous contacter`;
   }
   
   document.getElementById('adopt-modal').showModal();
@@ -2085,139 +2081,37 @@ function setupModals() {
     if (stripeUrl) {
       btnConfirm.disabled = true;
       btnConfirm.innerHTML = `<span class="spinner"></span> Redirection Stripe...`;
-      
+
       localStorage.setItem('cesar_ia_pending_stripe_callback', JSON.stringify({
         agentId: agentId,
         sessionId: null,
         timestamp: Date.now()
       }));
-      
-      await new Promise(resolve => setTimeout(resolve, 300));
-      window.location.href = stripeUrl;
-      return;
-    }
-    
-    // Fallback Mock Validation
-    const cardName = document.getElementById('checkout-card-name').value.trim();
-    const cardNumber = document.getElementById('checkout-card-number').value.replace(/\s/g, '');
-    const cardExpiry = document.getElementById('checkout-card-expiry').value.trim();
-    const cardCvc = document.getElementById('checkout-card-cvc').value.trim();
-    
-    if (!cardName) {
-      showToast("Veuillez saisir le nom du titulaire.", "error");
-      return;
-    }
-    if (!/^\d{13,19}$/.test(cardNumber)) {
-      showToast("Numéro de carte invalide (13 à 19 chiffres requis).", "error");
-      return;
-    }
-    if (!validateLuhn(cardNumber)) {
-      showToast("Numéro de carte invalide (Échec du test Luhn).", "error");
-      return;
-    }
-    if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(cardExpiry)) {
-      showToast("Date d'expiration invalide (format MM/YY requis).", "error");
-      return;
-    }
-    const parts = cardExpiry.split('/');
-    const expMonth = parseInt(parts[0], 10);
-    const expYear = parseInt('20' + parts[1], 10);
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth() + 1;
-    if (expYear < currentYear || (expYear === currentYear && expMonth < currentMonth)) {
-      showToast("La carte de paiement a expiré.", "error");
-      return;
-    }
-    if (!/^\d{3,4}$/.test(cardCvc)) {
-      showToast("Code CVC invalide (3 ou 4 chiffres requis).", "error");
-      return;
-    }
 
-    // Simulate payment transaction
-    btnConfirm.disabled = true;
-    btnConfirm.innerHTML = `<span class="spinner"></span> Traitement Stripe...`;
-    
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // Calculate setup fee with surclassement waiver
-    const adoptedIds = getAdoptedAgentIds();
-    const hasBusiness = adoptedIds.some(id => {
-      const a = AGENTS.find(x => x.id === id);
-      return a && a.tier === 'Business';
-    });
-    const hasPro = adoptedIds.some(id => {
-      const a = AGENTS.find(x => x.id === id);
-      return a && a.tier === 'Pro';
-    });
-    
-    let setupFee = agent.setupFee || 0;
-    if (agent.tier === 'Starter' && (hasPro || hasBusiness)) setupFee = 0;
-    else if (agent.tier === 'Pro' && hasBusiness) setupFee = 0;
-    
-    const finalInvoicePrice = agent.price + setupFee;
-    const invoiceNo = "INV-" + Math.floor(100000 + Math.random() * 900000);
-    
-    if (isMock) {
-      if (!state.adoptedAgents.includes(agentId)) {
-        state.adoptedAgents.push(agentId);
-      }
-      if (state.currentUser) {
-        state.currentUser.adopted = state.adoptedAgents;
-      }
-      state.invoices.unshift({
-        id: invoiceNo,
-        date: new Date().toLocaleDateString('fr-FR'),
-        agentName: agent.name,
-        price: finalInvoicePrice,
-        status: 'Payée'
-      });
-      saveMockState();
-    } else {
-      try {
-        try {
-          await supabaseFetch('adopted_agents', {
-            method: 'POST',
-            body: { user_id: state.currentUser.uid, agent_id: agentId }
-          });
-        } catch (errAdopt) {
-          if (!errAdopt.message.includes('23505') && !errAdopt.message.includes('409') && !errAdopt.message.includes('duplicate')) {
-            throw errAdopt;
-          }
-        }
-        
-        await supabaseFetch('invoices', {
-          method: 'POST',
-          body: {
-            user_id: state.currentUser.uid,
-            invoice_number: invoiceNo,
-            agent_name: agent.name,
-            price: finalInvoicePrice,
-            status: 'Payée'
-          }
-        });
-        
-        await loadUserData();
-      } catch (error) {
-        console.error("Erreur lors de l'adoption de l'agent :", error);
-        showToast("Impossible d'adopter l'agent via Supabase.", "error");
-        btnConfirm.disabled = false;
-        btnConfirm.innerHTML = `💳 Confirmer & Payer (Simulé)`;
-        return;
-      }
+      // client_reference_id permet au webhook Stripe côté serveur de savoir qui a payé
+      // quoi une fois le paiement réellement confirmé — l'accès n'est plus jamais accordé
+      // sur la seule base d'un retour depuis Stripe.
+      const refId = `${state.currentUser.uid}::${agentId}`;
+      const separator = stripeUrl.includes('?') ? '&' : '?';
+      const finalStripeUrl = `${stripeUrl}${separator}client_reference_id=${encodeURIComponent(refId)}&prefilled_email=${encodeURIComponent(state.currentUser.email)}`;
+
+      await new Promise(resolve => setTimeout(resolve, 300));
+      window.location.href = finalStripeUrl;
+      return;
     }
     
-    // Reset button
-    btnConfirm.disabled = false;
-    btnConfirm.innerHTML = `💳 Confirmer & Payer (Simulé)`;
-    
-    adoptModal.close();
-    showToast(`Félicitations ! Vous avez adopté l'agent ${agent.name}.`, "success");
-    
-    // Re-render
-    renderCatalog();
-    navigateTo('dashboard');
-    selectDashboardAgent(agentId);
+    // Aucun lien de paiement Stripe réel n'est configuré pour cet agent : on ne simule plus
+    // de paiement (l'ancien formulaire de carte factice accordait l'accès sans jamais
+    // facturer réellement). On oriente vers le contact commercial à la place.
+    btnConfirm.disabled = true;
+    btnConfirm.innerHTML = `<span class="spinner"></span> Envoi de la demande...`;
+
+    setTimeout(() => {
+      btnConfirm.disabled = false;
+      btnConfirm.innerHTML = `✉️ Nous contacter`;
+      adoptModal.close();
+      document.getElementById('contact-modal').showModal();
+    }, 800);
   });
 
   // Fallback backdrop click
@@ -4028,7 +3922,7 @@ async function processAdoptionAndInvoice(agent, sessionId) {
     if (state.currentUser) {
       state.currentUser.adopted = state.adoptedAgents;
     }
-    
+
     const exists = state.invoices.some(inv => inv.id === invoiceNo);
     if (!exists) {
       state.invoices.push({
@@ -4041,41 +3935,28 @@ async function processAdoptionAndInvoice(agent, sessionId) {
     }
     saveMockState();
   } else {
-    try {
-      logDebug(`Adoption de l'agent dans Supabase...`);
-      try {
-        await supabaseFetch('adopted_agents', {
-          method: 'POST',
-          body: { user_id: state.currentUser.uid, agent_id: agentId }
-        });
-      } catch (errAdopt) {
-        if (!errAdopt.message.includes('23505') && !errAdopt.message.includes('409') && !errAdopt.message.includes('duplicate')) {
-          throw errAdopt;
-        }
-      }
-      
-      logDebug(`Création de la facture dans Supabase...`);
-      await supabaseFetch('invoices', {
-        method: 'POST',
-        body: {
-          user_id: state.currentUser.uid,
-          invoice_number: invoiceNo,
-          agent_name: agent.name,
-          price: agent.price,
-          status: 'Payée'
-        }
-      });
-      
+    // Le webhook Stripe (api/stripe-webhook.js) vérifie le paiement auprès de Stripe et est
+    // seul habilité à écrire l'adoption + la facture. Revenir sur le site ne prouve rien en
+    // soi — on attend simplement que le webhook ait eu le temps de traiter l'événement, puis
+    // on rafraîchit l'état depuis la base pour voir si l'agent y apparaît réellement.
+    showToast("Confirmation du paiement en cours...", "info");
+    let confirmed = false;
+    for (let attempt = 0; attempt < 6; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 1500));
       await loadUserData();
-    } catch (error) {
-      console.error("Erreur d'adoption post-paiement:", error);
-      showToast("Erreur lors de l'activation finale de votre abonnement.", "error");
+      if (state.adoptedAgents.includes(agentId)) {
+        confirmed = true;
+        break;
+      }
+    }
+    if (!confirmed) {
+      showToast("Paiement en cours de confirmation par Stripe. Rafraîchissez la page dans quelques instants si l'agent n'apparaît pas encore.", "warning");
       return;
     }
   }
 
   showToast(`Abonnement validé ! L'agent ${agent.name} est maintenant actif.`, "success");
-  
+
   renderCatalog();
   renderBilling();
   navigateTo('dashboard');
