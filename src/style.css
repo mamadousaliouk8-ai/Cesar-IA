@@ -1074,6 +1074,16 @@ main.content-area {
   gap: 30px;
 }
 
+/* .billing-layout's intro text (label/title/subtitle) are direct grid children placed
+   before the two real columns — without this they get auto-placed into the grid cells
+   themselves, pushing the actual content (plans, invoices) into the narrow right column
+   and the simulator down into the left one, leaving a long empty gap above it. */
+.billing-layout > .section-label,
+.billing-layout > .page-title,
+.billing-layout > .page-sub {
+  grid-column: 1 / -1;
+}
+
 .billing-card {
   background: rgba(255, 255, 255, 0.015);
   border: 1px solid var(--border-color);
