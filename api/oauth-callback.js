@@ -271,8 +271,12 @@ export default async function handler(req, res) {
     const isNotion = providerKey === 'notion';
     const isAirtable = providerKey === 'airtable';
     const isCanva = providerKey === 'canva';
+    // X/Twitter's token endpoint requires confidential clients to authenticate via HTTP Basic
+    // auth (client_id:client_secret) — sending them as body params instead (the generic branch
+    // below) gets rejected with "Missing valid authorization header".
+    const isTwitter = providerKey === 'twitter';
 
-    if (isNotion || isAirtable || isCanva) {
+    if (isNotion || isAirtable || isCanva || isTwitter) {
       const authHeader = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
       headers['Authorization'] = `Basic ${authHeader}`;
       
@@ -300,9 +304,6 @@ export default async function handler(req, res) {
       params.append('redirect_uri', redirectUri);
       params.append('client_id', clientId);
       params.append('client_secret', clientSecret);
-      if (providerKey === 'twitter') {
-        params.append('code_verifier', codeVerifier || 'challenge');
-      }
       bodyPayload = params.toString();
     }
 
