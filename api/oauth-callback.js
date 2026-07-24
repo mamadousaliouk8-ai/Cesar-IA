@@ -318,7 +318,16 @@ export default async function handler(req, res) {
 
     if (!tokenResponse.ok) {
       console.error('[OAuth Callback] Échec de l\'échange de jeton :', tokenData);
-      return renderHTMLResponse(res, false, `Échec de la validation de connexion auprès du partenaire : ${tokenData.error_description || tokenData.error || JSON.stringify(tokenData)}`, agentId, connector);
+      // Certains partenaires (ex: Crisp) renvoient error/error_description sous forme de booléen
+      // plutôt qu'un texte descriptif — dans ce cas on ignore ces champs pour afficher un message
+      // exploitable au lieu de la valeur "true" brute.
+      const partnerErrorMsg =
+        (typeof tokenData.error_description === 'string' && tokenData.error_description) ||
+        (typeof tokenData.error === 'string' && tokenData.error) ||
+        tokenData.message ||
+        tokenData.reason ||
+        JSON.stringify(tokenData);
+      return renderHTMLResponse(res, false, `Échec de la validation de connexion auprès du partenaire : ${partnerErrorMsg}`, agentId, connector);
     }
 
     // 4. Stockage des identifiants dans Supabase
