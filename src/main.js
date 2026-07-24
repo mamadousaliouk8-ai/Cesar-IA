@@ -1179,7 +1179,7 @@ async function loadUserData() {
       }
       
       state.adoptedAgents = adopted.map(a => a.agent_id);
-      
+
       // Seul le compte admin reçoit automatiquement les 15 agents (avec factures internes "Payée").
       // Un client normal ne doit obtenir que les agents qu'il a réellement souscrits via Stripe —
       // un nouveau compte sans aucun agent adopté doit voir un tableau de bord vide, pas les 15 agents gratuits.
@@ -1193,13 +1193,22 @@ async function loadUserData() {
           'vesta', 'ares', 'athena', 'hephaestus', 'iris',
           'apollo', 'demeter', 'janus', 'nemesis', 'zeus'
         ];
+        const alreadyAdoptedIds = new Set(state.adoptedAgents);
         state.adoptedAgents = allAgentIds;
-        
-        // On lance la synchronisation de tous les agents en arrière-plan vers Supabase
+
+        // On lance la synchronisation des agents manquants en arrière-plan vers Supabase.
+        // On ne tente d'insérer que ceux qui ne sont pas déjà présents : sinon chaque connexion
+        // admin renvoyait 15 requêtes vouées à échouer en conflit (409, doublon de clé), inutiles
+        // et bruyantes dans la console une fois les agents déjà adoptés lors d'une session précédente.
+        const missingIds = allAgentIds.filter(id => !alreadyAdoptedIds.has(id));
         setTimeout(async () => {
           try {
-            console.log(`loadUserData: Auto-adoption complète pour l'utilisateur UID ${state.currentUser.uid} dans Supabase...`);
-            for (const agentId of allAgentIds) {
+            if (missingIds.length === 0) {
+              logDebug(`loadUserData: Les 15 agents sont déjà adoptés pour l'utilisateur UID ${state.currentUser.uid}, rien à synchroniser.`);
+              return;
+            }
+            console.log(`loadUserData: Auto-adoption de ${missingIds.length} agent(s) manquant(s) pour l'utilisateur UID ${state.currentUser.uid} dans Supabase...`);
+            for (const agentId of missingIds) {
               const { error: errAdopt } = await supabase
                 .from('adopted_agents')
                 .insert({ user_id: state.currentUser.uid, agent_id: agentId });
