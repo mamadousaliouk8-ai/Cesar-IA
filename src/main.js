@@ -145,6 +145,29 @@ async function supabaseFetch(table, { method = 'GET', queryParams = '', body = n
       logDebug(`[SupabaseFetch] Réussite avec token.`);
       return res;
     } catch (authError) {
+      // Un 401/403 signifie que le token est rejeté (session expirée/invalide) — retomber en
+      // anonyme masquerait le problème : l'appel "réussirait" en silence avec des résultats
+      // vides (RLS), donnant l'impression trompeuse d'être connecté sans que rien ne s'affiche.
+      // On tente plutôt un rafraîchissement de session, et sinon on force une reconnexion propre.
+      const isAuthRejection = /HTTP 401|HTTP 403/.test(authError.message);
+      if (isAuthRejection) {
+        logDebug(`[SupabaseFetch] Token rejeté (${authError.message}). Tentative de rafraîchissement de session...`);
+        try {
+          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+          if (!refreshError && refreshData?.session) {
+            token = refreshData.session.access_token;
+            const retryRes = await makeRequest(true);
+            logDebug(`[SupabaseFetch] Réussite après rafraîchissement de session.`);
+            return retryRes;
+          }
+          throw refreshError || new Error('Session non renouvelée');
+        } catch (refreshFailure) {
+          logDebug(`[SupabaseFetch] Session irrécupérable (${refreshFailure.message}). Déconnexion forcée pour éviter un état incohérent.`);
+          await forceCleanSignOut();
+          throw authError;
+        }
+      }
+
       logDebug(`[SupabaseFetch] Échec/Timeout avec token (${authError.message}). Tentative de repli anonyme...`);
       try {
         const res = await makeRequest(false);
@@ -983,6 +1006,33 @@ async function handleLogout() {
       }, 500);
     }
   }
+}
+
+// Utilisé quand une session existante s'avère invalide côté serveur (token expiré/révoqué,
+// souvent après une longue absence ou un cache de navigateur périmé — notamment Safari).
+// Sans ça, l'utilisateur reste coincé dans un état incohérent : l'app le montre "connecté"
+// mais aucune donnée protégée par RLS ne se charge puisque les requêtes retombent en anonyme.
+let forceSignOutInProgress = false;
+async function forceCleanSignOut() {
+  if (forceSignOutInProgress) return;
+  forceSignOutInProgress = true;
+  logDebug("Session invalide détectée — déconnexion forcée pour repartir sur une base propre.");
+  localStorage.removeItem('cesar_ia_mock_user');
+  localStorage.removeItem('cesar_ia_force_mock');
+  try {
+    await supabase.auth.signOut();
+  } catch (e) {
+    logDebug(`Erreur lors de la déconnexion forcée : ${e.message}`);
+  }
+  state.currentUser = null;
+  state.adoptedAgents = [];
+  state.activePack = null;
+  state.activeDashboardAgentId = null;
+  state.invoices = [];
+  state.connectorsData = {};
+  updateUI();
+  showToast("Votre session a expiré. Merci de vous reconnecter.", "error");
+  navigateTo('home');
 }
 
 async function initSupabaseAuth() {
