@@ -122,10 +122,8 @@ header.navbar {
   justify-content: space-between;
   padding: 0 40px;
   height: var(--header-height);
-  background: rgba(3, 3, 3, 0.25);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border-bottom: 1px solid transparent;
+  background: transparent;
+  border-bottom: none;
   position: sticky;
   top: 0;
   z-index: 100;
