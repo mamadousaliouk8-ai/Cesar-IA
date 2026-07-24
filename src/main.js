@@ -369,6 +369,13 @@ function initApp() {
     // Contrôle d'affichage du panneau de diagnostic flottant (masqué par défaut en production)
     updateDebugPanelVisibility();
 
+    // Nettoyage des anciens comptes "fictifs" locaux (ancien mode simulation, retiré du flux
+    // de connexion/inscription) : sans ça, des navigateurs ayant déjà un compte fictif en cache
+    // (créé avant ce nettoyage) continueraient à court-circuiter la vraie connexion Supabase.
+    localStorage.removeItem('cesar_ia_mock_users');
+    localStorage.removeItem('cesar_ia_mock_user');
+    localStorage.removeItem('cesar_ia_force_mock');
+
     setupRoutes();
     setupAuth();
     setupCatalog();
@@ -812,115 +819,23 @@ async function handleAuthSubmit(e) {
           return;
         }
       } catch (err) {
-        logDebug(`Échec inscription réelle Supabase : ${err.message}. Passage au mode simulation.`);
+        logDebug(`Échec inscription réelle Supabase : ${err.message}`);
+        const signupErrMsg = err.message || "L'inscription a échoué. Veuillez réessayer.";
+        if (errEl) {
+          errEl.innerText = signupErrMsg;
+          errEl.style.display = 'block';
+        }
+        showToast(signupErrMsg, "error");
+        return;
       } finally {
         btnSubmit.disabled = false;
         btnSubmit.innerText = originalText;
       }
     }
-
-    logDebug(`Tentative d'inscription locale pour l'email: ${email}`);
-    
-    // Récupérer la liste des utilisateurs fictifs existants
-    let mockUsers = [];
-    try {
-      const savedUsers = localStorage.getItem('cesar_ia_mock_users');
-      if (savedUsers) {
-        mockUsers = JSON.parse(savedUsers);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    
-    // Vérifier si cet e-mail existe déjà dans la base locale
-    const normalizedEmail = email.trim().toLowerCase();
-    const userExists = mockUsers.some(u => u.email === normalizedEmail);
-    if (userExists) {
-      const existsMsg = "Cet e-mail est déjà associé à un compte d'essai. Veuillez vous connecter.";
-      if (errEl) {
-        errEl.innerText = existsMsg;
-        errEl.style.display = 'block';
-      }
-      showToast(existsMsg, "error");
-      return;
-    }
-    
-    // Créer le nouvel utilisateur fictif
-    const newUser = {
-      email: normalizedEmail,
-      password: password, // Stocké pour la simulation locale
-      uid: "usr_" + Math.random().toString(36).substr(2, 9),
-      isAdmin: false
-    };
-    
-    mockUsers.push(newUser);
-    localStorage.setItem('cesar_ia_mock_users', JSON.stringify(mockUsers));
-    
-    // Transférer l'historique et les connecteurs de l'essai gratuit vers le nouveau compte
-    const oldEmail = 'essai-gratuit@cesar-ia.com';
-    AGENTS.forEach(agent => {
-      const oldKey = `cesar_ia_chat_history_${oldEmail}_${agent.id}`;
-      const oldHistory = localStorage.getItem(oldKey);
-      if (oldHistory) {
-        const newKey = `cesar_ia_chat_history_${normalizedEmail}_${agent.id}`;
-        localStorage.setItem(newKey, oldHistory);
-      }
-    });
-    
-    const oldConnectors = localStorage.getItem(`cesar_ia_mock_connectors_${oldEmail}`);
-    if (oldConnectors) {
-      localStorage.setItem(`cesar_ia_mock_connectors_${normalizedEmail}`, oldConnectors);
-    }
-
-    const oldCalendar = localStorage.getItem(`cesar_ia_mock_calendar_${oldEmail}`);
-    if (oldCalendar) {
-      localStorage.setItem(`cesar_ia_mock_calendar_${normalizedEmail}`, oldCalendar);
-    }
-    
-    // Activer le mode simulation
-    localStorage.setItem('cesar_ia_force_mock', 'true');
-    localStorage.setItem('cesar_ia_mock_user', JSON.stringify(newUser));
-    
-    document.getElementById('auth-modal').close();
-    showToast("Inscription réussie (Mode Essai Gratuit activé) !", "success");
-    
-    setTimeout(() => {
-      window.location.reload();
-    }, 800);
     return;
   }
-  
+
   // Mode Connexion (isSignupMode === false)
-  const normalizedEmail = email.trim().toLowerCase();
-  
-  // 1. Vérifier s'il s'agit d'un utilisateur fictif enregistré localement
-  let mockUsers = [];
-  try {
-    const savedUsers = localStorage.getItem('cesar_ia_mock_users');
-    if (savedUsers) {
-      mockUsers = JSON.parse(savedUsers);
-    }
-  } catch (e) {
-    console.error(e);
-  }
-  
-  const matchedUser = mockUsers.find(u => u.email === normalizedEmail && u.password === password);
-  
-  if (matchedUser) {
-    logDebug("Utilisateur fictif trouvé, connexion en cours...");
-    localStorage.setItem('cesar_ia_force_mock', 'true');
-    localStorage.setItem('cesar_ia_mock_user', JSON.stringify(matchedUser));
-    
-    document.getElementById('auth-modal').close();
-    showToast("Connexion réussie (Simulation) !", "success");
-    
-    setTimeout(() => {
-      window.location.reload();
-    }, 800);
-    return;
-  }
-  
-  // 2. Si non trouvé dans le mock et qu'on est en configuration sans Supabase, on rejette
   if (isMock) {
     const noMatchMsg = "Identifiants de simulation incorrects. Veuillez créer un compte.";
     if (errEl) {
@@ -1646,29 +1561,10 @@ function setupAccountPage() {
       }
       
       try {
-        const forceMock = localStorage.getItem('cesar_ia_force_mock') === 'true';
-        if (supabase && !forceMock) {
-          const { error } = await supabase.auth.updateUser({ password: newPassword });
-          if (error) throw error;
-          showToast("Mot de passe mis à jour avec succès !", "success");
-          pwdForm.reset();
-        } else {
-          let mockUsers = [];
-          try {
-            const savedUsers = localStorage.getItem('cesar_ia_mock_users');
-            if (savedUsers) mockUsers = JSON.parse(savedUsers);
-          } catch (errLocal) {}
-          
-          const index = mockUsers.findIndex(u => u.uid === state.currentUser.uid);
-          if (index !== -1) {
-            mockUsers[index].password = newPassword;
-            localStorage.setItem('cesar_ia_mock_users', JSON.stringify(mockUsers));
-            localStorage.setItem('cesar_ia_mock_user', JSON.stringify(mockUsers[index]));
-            state.currentUser.password = newPassword;
-          }
-          showToast("Mot de passe mis à jour avec succès (Simulé) !", "success");
-          pwdForm.reset();
-        }
+        const { error } = await supabase.auth.updateUser({ password: newPassword });
+        if (error) throw error;
+        showToast("Mot de passe mis à jour avec succès !", "success");
+        pwdForm.reset();
       } catch (err) {
         console.error("Error updating password:", err);
         showToast(`Erreur : ${err.message}`, "error");
