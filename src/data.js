@@ -114,7 +114,7 @@ export const AGENTS = [
     ],
     connectors: ["PostgreSQL/MySQL/SQL Server", "MongoDB", "BigQuery", "Snowflake", "Airtable", "Google Sheets", "Excel Online", "Salesforce API", "HubSpot API", "Stripe API", "Shopify API", "Slack", "Microsoft Teams", "Webhook / API Personnalisée"],
     avatar: SVG_CHART,
-    color: "hsl(210, 100%, 60%)", // Blue
+    color: "#D4AF37",
     welcome: "Bonjour ! Je suis Sybil, votre analyste de données autonome spécialisée dans l'exploration de données, la génération de rapports et la détection d'anomalies.\n\n **Ce que je peux faire pour vous :**\n- Exécuter des requêtes SQL complexes et analyser vos bases de données en langage naturel.\n- Générer des graphiques interactifs et des rapports d'activité.\n- Nettoyer et analyser vos fichiers CSV de vente.\n\n **Comment je fonctionne :** Connectez-moi à vos bases de données (PostgreSQL, MySQL, Airtable, Snowflake...) ou importez simplement un fichier CSV dans ce chat, puis posez-moi vos questions !",
     stripeLink: ""
   },
@@ -135,7 +135,7 @@ export const AGENTS = [
     ],
     connectors: ["Serveur SSH", "AWS", "Google Cloud (GCP)", "Microsoft Azure", "GitHub Actions", "GitLab CI/CD", "Docker Hub", "Kubernetes", "Vercel API", "Netlify API", "Heroku API", "Cloudflare API", "Grafana / Prometheus", "Sentry API", "Slack", "Discord", "Webhook Personnalisé"],
     avatar: SVG_SERVER,
-    color: "hsl(140, 100%, 45%)", // Green
+    color: "#D4AF37",
     welcome: "Atlas à l'écoute, votre administrateur système et ingénieur DevOps autonome.\n\n **Ce que je peux faire pour vous :**\n- Effectuer des diagnostics de vos machines Linux (mémoire, CPU, processus).\n- Gérer vos conteneurs Docker et vos déploiements Kubernetes.\n- Automatiser la surveillance de vos logs et vos sauvegardes de bases de données.\n\n **Comment je fonctionne :** Connectez un serveur via des accès SSH sécurisés ou associez vos plateformes cloud (AWS, GCP, Vercel) dans l'onglet 'Connecteurs', puis donnez-moi vos instructions système en toute simplicité.",
     stripeLink: ""
   },
@@ -156,7 +156,7 @@ export const AGENTS = [
     ],
     connectors: ["LinkedIn API", "X/Twitter API", "Instagram/Facebook API", "TikTok API", "YouTube API", "Pinterest API", "Threads API", "Buffer/Hootsuite", "WhatsApp", "Canva API", "Mailchimp API", "Brevo API", "Slack", "Microsoft Teams", "Webhook Personnalisé"],
     avatar: SVG_SLIDERS,
-    color: "hsl(330, 95%, 60%)", // Pink
+    color: "#D4AF37",
     welcome: "Hello ! Je suis Chronos, votre agent marketing autonome spécialisé dans la rédaction et la planification de publications sur les réseaux sociaux (LinkedIn, Twitter, Facebook).\n\n **Ce que je peux faire pour vous :**\n- Rédiger des posts percutants à partir de vos idées brutes ou de notes d'événements.\n- Analyser visuellement vos photos d'événements pour les intégrer intelligemment dans vos posts.\n- Détecter les informations clés et vous suggérer les mentions (@) et hashtags (#) adéquats.\n\n **Fonctionnalité exclusive WhatsApp :**\nVous pouvez me piloter en direct depuis le terrain ! Ajoutez-moi à vos contacts WhatsApp au **+33 7 75 47 54 29** et envoyez-moi vos photos ou messages. Je générerai vos brouillons automatiquement dans votre tableau de bord.\n\n **Comment je fonctionne :** Connectez vos réseaux sociaux et enregistrez votre numéro de téléphone WhatsApp dans l'onglet 'Connecteurs' pour démarrer !",
     stripeLink: ""
   },
@@ -177,7 +177,7 @@ export const AGENTS = [
     ],
     connectors: ["WordPress", "Shopify", "Webflow", "WooCommerce", "PrestaShop", "Medium API", "Notion", "Airtable", "Google Sheets", "Semrush API", "Google Search Console", "Google Analytics", "Jasper API", "Slack", "Webhook Personnalisé"],
     avatar: SVG_ROBOT,
-    color: "hsl(45, 100%, 50%)", // Gold
+    color: "#D4AF37",
     welcome: "Bonjour ! Je suis Hermes. Prêt à propulser votre site en première page de Google. Quel sujet de blog allons-nous aborder aujourd'hui ?",
     stripeLink: ""
   },
@@ -198,7 +198,7 @@ export const AGENTS = [
     ],
     connectors: ["Zendesk", "Intercom", "Crisp Chat", "Freshdesk", "LiveChat API", "WhatsApp Business API", "Messenger API", "Gmail / Outlook", "Salesforce CRM", "Pipedrive CRM", "Slack", "Microsoft Teams", "Webhook Personnalisé"],
     avatar: SVG_HEADSET,
-    color: "hsl(15, 100%, 55%)", // Orange
+    color: "#D4AF37",
     welcome: "Bonjour, ici Hestia. Prête à prendre soin de vos clients. Connectez mon canal de messagerie ou importez votre FAQ de base.",
     stripeLink: ""
   },
@@ -219,7 +219,7 @@ export const AGENTS = [
     ],
     connectors: ["Apollo.io API", "LinkedIn Sales Navigator", "Lemlist", "LaGrowthMachine", "HubSpot CRM", "Salesforce CRM", "Pipedrive CRM", "Zoho CRM", "Sellsy CRM", "Phantombuster", "Hunter.io API", "Woodpecker API", "Brevo API", "Gmail/Outlook", "Slack", "Webhook Personnalisé"],
     avatar: SVG_TARGET,
-    color: "hsl(270, 90%, 65%)", // Purple
+    color: "#D4AF37",
     welcome: "Vesta en place. Prête à remplir votre pipeline commercial. Définissez votre cible (secteur, pays, rôle) pour commencer.",
     stripeLink: ""
   },
@@ -240,7 +240,7 @@ export const AGENTS = [
     ],
     connectors: ["Nmap API", "Serveur SSH", "GitHub Repositories", "GitLab Repositories", "Bitbucket Repositories", "Cloudflare API", "AWS Inspector", "SonarQube API", "Snyk API", "Datadog API", "Slack", "Discord", "Telegram Alerts", "Webhook Personnalisé"],
     avatar: SVG_SHIELD,
-    color: "hsl(0, 85%, 60%)", // Red
+    color: "#D4AF37",
     welcome: "Ares activé. Prêt à tester la robustesse de votre système. Indiquez-moi l'adresse IP ou le dépôt GitHub à auditer.",
     stripeLink: ""
   },
@@ -261,7 +261,7 @@ export const AGENTS = [
     ],
     connectors: ["Jira Software API", "Confluence", "Notion", "Trello", "Asana", "Monday.com", "Linear API", "Basecamp API", "ClickUp API", "GitHub Projects", "GitLab Issues", "Figma API", "Productboard", "Slack", "Microsoft Teams", "Webhook Personnalisé"],
     avatar: SVG_ROBOT,
-    color: "hsl(180, 80%, 45%)", // Teal
+    color: "#D4AF37",
     welcome: "Bonjour, je suis Athena. Structurons ensemble votre prochain produit. Expliquez-moi votre idée de fonctionnalité.",
     stripeLink: ""
   },
@@ -282,7 +282,7 @@ export const AGENTS = [
     ],
     connectors: ["GitHub API", "GitLab API", "Bitbucket API", "Azure DevOps", "SonarQube", "Snyk API", "Jira Software", "Linear API", "AWS CodeCommit", "Slack", "Discord", "Telegram Bot", "Webhook Personnalisé"],
     avatar: SVG_ROBOT,
-    color: "hsl(28, 95%, 55%)", // Rusty Orange
+    color: "#D4AF37",
     welcome: "Hephaestus prêt au travail. Donnez-moi l'URL du dépôt GitHub ou le fichier de code à analyser et réparer.",
     stripeLink: ""
   },
@@ -303,7 +303,7 @@ export const AGENTS = [
     ],
     connectors: ["Scraper API", "Google Sheets", "Airtable", "Shopify API", "WooCommerce API", "Amazon Seller Central", "eBay API", "Google Shopping API", "Notion", "Slack", "Microsoft Teams", "Telegram Alerts", "Webhook Personnalisé"],
     avatar: SVG_TARGET,
-    color: "hsl(190, 95%, 50%)", // Light Blue
+    color: "#D4AF37",
     welcome: "Iris à votre service. J'ai les yeux ouverts sur vos concurrents. Donnez-moi la liste des sites à surveiller.",
     stripeLink: ""
   },
@@ -324,7 +324,7 @@ export const AGENTS = [
     ],
     connectors: ["Lokalise API", "Crowdin API", "Phrase API", "WordPress", "Shopify", "Webflow", "Notion", "Google Sheets", "Zendesk Guide", "Confluence", "GitHub Repositories", "GitLab Repositories", "Slack", "Microsoft Teams", "Webhook Personnalisé"],
     avatar: SVG_TARGET,
-    color: "hsl(50, 100%, 55%)", // Sun yellow
+    color: "#D4AF37",
     welcome: "Welcome ! Je suis Apollo. Prêt à mondialiser votre projet. Soumettez-moi un texte ou connectez votre CMS.",
     stripeLink: ""
   },
@@ -345,7 +345,7 @@ export const AGENTS = [
     ],
     connectors: ["QuickBooks", "Xero", "Pennylane", "Sellsy Finance", "Axonaut", "Qonto API", "Spendesk API", "Stripe API", "PayPal API", "Lydia Pro", "Google Drive", "Dropbox", "Microsoft OneDrive", "Slack", "Email Inboxes", "Webhook Personnalisé"],
     avatar: SVG_CARD,
-    color: "hsl(110, 80%, 50%)", // Light Green
+    color: "#D4AF37",
     welcome: "Bonjour, je suis Demeter. Envoyez-moi vos factures ou connectez votre boîte de réception pour les traiter automatiquement.",
     stripeLink: ""
   },
@@ -366,7 +366,7 @@ export const AGENTS = [
     ],
     connectors: ["Confluence", "Notion", "Google Drive", "Microsoft OneDrive", "SharePoint", "Dropbox", "Box API", "GitBook", "Zendesk Guide", "Intercom Articles", "Evernote API", "Slack Bot", "Microsoft Teams Bot", "Webhook Personnalisé"],
     avatar: SVG_LOCK,
-    color: "hsl(200, 85%, 60%)", // Sky Blue
+    color: "#D4AF37",
     welcome: "Bonjour ! Je suis Janus. J'organise et protège vos connaissances internes. Connectez un Google Drive ou Notion pour commencer.",
     stripeLink: ""
   },
@@ -387,7 +387,7 @@ export const AGENTS = [
     ],
     connectors: ["Webhooks API", "WordPress Comments", "Disqus API", "Facebook Comments API", "Instagram Comments API", "YouTube Comments API", "TikTok Comments API", "Reddit API", "Twitch Chat API", "Crisp Chat", "Discord Bot", "Telegram Bot", "Slack", "Webhook Personnalisé"],
     avatar: SVG_SHIELD,
-    color: "hsl(280, 80%, 45%)", // Deep Purple
+    color: "#D4AF37",
     welcome: "Nemesis activée. Prête à sécuriser vos espaces d'échanges. Configurez un webhook pour me soumettre vos flux de commentaires.",
     stripeLink: ""
   },
@@ -408,7 +408,7 @@ export const AGENTS = [
     ],
     connectors: ["Tous les connecteurs d'agents", "Notion API", "Airtable API", "Jira API", "ClickUp API", "Linear API", "Asana API", "Monday.com API", "HubSpot CRM", "Slack", "Microsoft Teams", "Email Alerts", "Webhook Personnalisé"],
     avatar: SVG_LAURIER,
-    color: "hsl(340, 100%, 50%)", // Crimson
+    color: "#D4AF37",
     welcome: "Je suis Zeus, superviseur de vos équipes d'agents. Indiquez-moi le projet global à réaliser et je mobiliserai les agents nécessaires.",
     stripeLink: ""
   }
