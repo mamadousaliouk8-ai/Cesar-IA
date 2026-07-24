@@ -521,7 +521,7 @@ header.navbar, .navbar { display:flex; align-items:center; justify-content:space
 .stats-card-desc, .stat-sub { font-size:11px; color:var(--text-sec); margin-top:4px; }
 
 /* Account */
-.compte-wrap { display:flex; min-height:calc(100vh - 73px); background:var(--noir); }
+.compte-wrap { display:flex; min-height:calc(100vh - 73px); }
 .compte-sidebar { width:240px; border-right:0.5px solid var(--divider); padding:24px 16px; background:var(--surface); flex-shrink:0; }
 .profile-card { text-align:center; padding:20px 12px; border-bottom:0.5px solid var(--divider); margin-bottom:16px; }
 .avatar-circle, .profile-avatar { width:56px; height:56px; border-radius:50%; background:var(--or); color:var(--noir); font-family:'Cinzel Display',serif; font-size:22px; display:flex; align-items:center; justify-content:center; margin:0 auto 12px; font-weight:700; }
@@ -549,7 +549,7 @@ header.navbar, .navbar { display:flex; align-items:center; justify-content:space
 .plan-card.popular, .pack-card-item.featured { border-color:var(--or); box-shadow:0 0 32px rgba(212,175,55,0.08); }
 
 /* Admin */
-.admin-layout, .admin-wrap { padding:32px 40px; background:var(--noir); }
+.admin-layout, .admin-wrap { padding:32px 40px; }
 .admin-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; }
 .kpi-row { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:24px; }
 .kpi-card, .admin-stat-card { background:var(--card); border:0.5px solid var(--border); border-radius:10px; padding:20px; }
