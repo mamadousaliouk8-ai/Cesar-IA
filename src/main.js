@@ -5140,11 +5140,11 @@ async function sendChatMessage() {
         }
       }
       
-      res = await fetch('/api/chat', {
+      const callChatApi = (authToken) => fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
         },
         body: JSON.stringify({
           contents: contents,
@@ -5155,11 +5155,33 @@ async function sendChatMessage() {
           agentId: agentId
         })
       });
-      
+
+      res = await callChatApi(token);
+
+      // Un token présent mais rejeté (session expirée/invalide) est rattrapable par un
+      // rafraîchissement — sans ça l'agent le plus utilisé de la plateforme échouait
+      // silencieusement dès que la session devenait périmée (voir supabaseFetch/OAuth).
+      if (res.status === 401 && token) {
+        logDebug("[Gemini Chat] Session rejetée par /api/chat, tentative de rafraîchissement...");
+        try {
+          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+          if (!refreshError && refreshData?.session) {
+            res = await callChatApi(refreshData.session.access_token);
+          } else {
+            await forceCleanSignOut();
+            return;
+          }
+        } catch (refreshFailure) {
+          logDebug(`[Gemini Chat] Rafraîchissement impossible : ${refreshFailure.message}`);
+          await forceCleanSignOut();
+          return;
+        }
+      }
+
       if (res.status === 404) {
         throw new Error("404 Not Found");
       }
-      
+
       data = await res.json();
       logDebug("[Gemini Chat] Réponse reçue via la route Serverless.");
     } catch (serverlessErr) {
@@ -7695,14 +7717,37 @@ async function initiateRealOauth(agentId, connector, domainValue = null) {
         logDebug(`[OAuth] Impossible de récupérer le token: ${e.message}`);
       }
     }
-    
-    const response = await fetch(url, {
+
+    const callOauthUrl = (authToken) => fetch(url, {
       headers: {
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
       }
     });
-    const data = await response.json();
-    
+
+    let response = await callOauthUrl(token);
+    let data = await response.json();
+
+    // Comme pour supabaseFetch : un token présent mais rejeté (session expirée/invalide) est
+    // rattrapable par un rafraîchissement, plutôt que d'échouer directement avec un message
+    // qui laisse croire à une déconnexion complète alors que la session peut être réparée.
+    if (response.status === 401 && token) {
+      logDebug(`[OAuth] Session rejetée par /api/get-oauth-url, tentative de rafraîchissement...`);
+      try {
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        if (!refreshError && refreshData?.session) {
+          response = await callOauthUrl(refreshData.session.access_token);
+          data = await response.json();
+        } else {
+          await forceCleanSignOut();
+          return;
+        }
+      } catch (refreshFailure) {
+        logDebug(`[OAuth] Rafraîchissement impossible : ${refreshFailure.message}`);
+        await forceCleanSignOut();
+        return;
+      }
+    }
+
     if (!response.ok || data.error) {
       if (data.error === 'missing_config') {
         showConfigHelpModal(connector, data.message || "Variable d'environnement manquante sur Vercel.");
