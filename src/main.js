@@ -6994,7 +6994,10 @@ const tourSteps = [
   {
     title: "Étape 1 : Le Catalogue d'Agents 📂",
     text: "Découvrez nos 15 agents spécialisés (DevOps, Data, Marketing, Relation Client) prêts à être adoptés pour accomplir vos tâches les plus complexes.",
-    target: ".nav-links [data-route='catalog']",
+    // Éclairer la grille d'agents elle-même plutôt que le petit lien de nav : sinon l'effet
+    // "spotlight" du tour (ombre 75% noire autour de la cible) laisse le catalogue — ce que
+    // cette étape est censée montrer — assombri en arrière-plan.
+    target: "#agents-catalog-grid",
     action: () => {
       navigateTo('catalog');
     }
@@ -7006,7 +7009,7 @@ const tourSteps = [
     action: () => {
       state.tourActive = true;
       navigateTo('dashboard');
-      selectDashboardAgent('sybil');
+      selectDashboardAgent('chronos');
     }
   },
   {
@@ -7016,7 +7019,7 @@ const tourSteps = [
     action: () => {
       state.tourActive = true;
       navigateTo('dashboard');
-      selectDashboardAgent('sybil');
+      selectDashboardAgent('chronos');
       const chatTab = document.querySelector('.panel-tabs [data-tab="chat"]');
       if (chatTab) chatTab.click();
     }
@@ -7028,7 +7031,7 @@ const tourSteps = [
     action: () => {
       state.tourActive = true;
       navigateTo('dashboard');
-      selectDashboardAgent('sybil');
+      selectDashboardAgent('chronos');
       const connTab = document.querySelector('.panel-tabs [data-tab="connectors"]');
       if (connTab) connTab.click();
     }
@@ -7040,7 +7043,7 @@ const tourSteps = [
     action: () => {
       state.tourActive = true;
       navigateTo('dashboard');
-      selectDashboardAgent('sybil');
+      selectDashboardAgent('chronos');
       const statsTab = document.querySelector('.panel-tabs [data-tab="stats"]');
       if (statsTab) statsTab.click();
     }
