@@ -419,67 +419,60 @@ function initApp() {
 
 function initHeroTitleRotator() {
   const titleEl = document.getElementById('hero-rotating-title');
-  const dotsEl = document.getElementById('hero-dots');
-  if (!titleEl || !dotsEl) return;
+  const subtitleEl = document.getElementById('hero-rotating-subtitle');
+  if (!titleEl || !subtitleEl) return;
 
-  const phrases = [
-    "Des agents IA qui travaillent<br>sur vos outils, <em>en autonomie</em>",
-    "Une légion d'agents IA,<br><em>à votre commandement</em>",
-    "Vos opérations, gouvernées<br>par l'<em>intelligence artificielle</em>",
-    "L'IA qui exécute,<br>pendant que <em>vous décidez</em>",
-    "Déléguez à l'IA.<br><em>Gardez le contrôle.</em>",
+  const slides = [
+    {
+      title: "Votre temps vaut mieux que ça.",
+      subtitle: "Confiez les tâches répétitives à des agents IA qui travaillent sur vos outils, en autonomie. Gardez votre énergie pour vos clients et votre métier.",
+    },
+    {
+      title: "Vos journées, allégées des tâches qui les remplissent pour rien.",
+      subtitle: "Un agent IA prend en charge vos opérations répétitives directement dans vos outils, en autonomie. Vous vous concentrez sur ce qui fait avancer votre métier.",
+    },
+    {
+      title: "Pendant que vous développez votre entreprise, votre agent gère le reste.",
+      subtitle: "Relances, rapports, saisies, suivis… Un agent IA spécialisé travaille sur vos outils, en autonomie. Vous gardez la main, il gère l'exécution.",
+    },
   ];
 
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduceMotion) return; // Garde la première accroche fixe, sans rotation automatique.
+
   let index = 0;
   let timer = null;
 
-  phrases.forEach((_, i) => {
-    const dot = document.createElement('button');
-    dot.type = 'button';
-    dot.setAttribute('role', 'tab');
-    dot.setAttribute('aria-label', `Accroche ${i + 1}`);
-    if (i === 0) dot.classList.add('active');
-    dot.addEventListener('click', () => {
-      goTo(i);
-      resetTimer();
-    });
-    dotsEl.appendChild(dot);
-  });
-  const dots = Array.from(dotsEl.children);
-
   function goTo(newIndex) {
-    if (newIndex === index) return;
     index = newIndex;
-    dots.forEach((d, i) => d.classList.toggle('active', i === index));
-    if (reduceMotion) {
-      titleEl.innerHTML = phrases[index];
-      return;
-    }
     titleEl.classList.add('is-swapping');
+    subtitleEl.classList.add('is-swapping');
     setTimeout(() => {
-      titleEl.innerHTML = phrases[index];
+      titleEl.textContent = slides[index].title;
+      subtitleEl.textContent = slides[index].subtitle;
       titleEl.classList.remove('is-swapping');
-    }, 400);
+      subtitleEl.classList.remove('is-swapping');
+    }, 500);
   }
 
   function resetTimer() {
     if (timer) clearInterval(timer);
-    timer = setInterval(() => goTo((index + 1) % phrases.length), 5000);
+    timer = setInterval(() => goTo((index + 1) % slides.length), 6500);
   }
 
-  if (!reduceMotion) {
-    resetTimer();
-    titleEl.addEventListener('mouseenter', () => timer && clearInterval(timer));
-    titleEl.addEventListener('mouseleave', resetTimer);
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        if (timer) clearInterval(timer);
-      } else {
-        resetTimer();
-      }
-    });
+  resetTimer();
+  const heroContent = titleEl.closest('.hero-content');
+  if (heroContent) {
+    heroContent.addEventListener('mouseenter', () => timer && clearInterval(timer));
+    heroContent.addEventListener('mouseleave', resetTimer);
   }
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (timer) clearInterval(timer);
+    } else {
+      resetTimer();
+    }
+  });
 }
 
 async function checkOauthCallback() {

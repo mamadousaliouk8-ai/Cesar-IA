@@ -343,46 +343,22 @@ main.content-area {
   font-weight: 400;
 }
 
-#hero-rotating-title {
+#hero-rotating-title,
+#hero-rotating-subtitle {
   opacity: 1;
   transform: translateY(0);
-  transition: opacity 0.4s ease, transform 0.4s ease;
+  transition: opacity 0.5s ease, transform 0.5s ease;
 }
 
-#hero-rotating-title.is-swapping {
+#hero-rotating-title.is-swapping,
+#hero-rotating-subtitle.is-swapping {
   opacity: 0;
   transform: translateY(8px);
 }
 
-.hero-dots {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  margin: 4px 0 20px;
-}
-
-.hero-dots button {
-  width: 7px;
-  height: 7px;
-  padding: 0;
-  border-radius: 50%;
-  border: none;
-  background: rgba(212, 175, 55, 0.25);
-  cursor: pointer;
-  transition: background 0.3s ease, transform 0.3s ease;
-}
-
-.hero-dots button:hover {
-  background: rgba(212, 175, 55, 0.55);
-}
-
-.hero-dots button.active {
-  background: var(--accent-color);
-  transform: scale(1.2);
-}
-
 @media (prefers-reduced-motion: reduce) {
-  #hero-rotating-title {
+  #hero-rotating-title,
+  #hero-rotating-subtitle {
     transition: none;
   }
 }
