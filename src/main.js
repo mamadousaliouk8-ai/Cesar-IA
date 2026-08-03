@@ -388,6 +388,7 @@ function initApp() {
     setupAccountPage();
     setupInvoiceModal();
     initOnboardingTour();
+    initHeroTitleRotator();
     updateUI();
     
     // Restaurer le rendu initial de la route si elle est publique (comme 'catalog')
@@ -413,6 +414,71 @@ function initApp() {
   } catch (error) {
     alert("Erreur d'initialisation de l'application :\n" + error.name + ": " + error.message + "\n\nStack:\n" + error.stack);
     console.error("Initialization error:", error);
+  }
+}
+
+function initHeroTitleRotator() {
+  const titleEl = document.getElementById('hero-rotating-title');
+  const dotsEl = document.getElementById('hero-dots');
+  if (!titleEl || !dotsEl) return;
+
+  const phrases = [
+    "Des agents IA qui travaillent<br>sur vos outils, <em>en autonomie</em>",
+    "Une légion d'agents IA,<br><em>à votre commandement</em>",
+    "Vos opérations, gouvernées<br>par l'<em>intelligence artificielle</em>",
+    "L'IA qui exécute,<br>pendant que <em>vous décidez</em>",
+    "Déléguez à l'IA.<br><em>Gardez le contrôle.</em>",
+  ];
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let index = 0;
+  let timer = null;
+
+  phrases.forEach((_, i) => {
+    const dot = document.createElement('button');
+    dot.type = 'button';
+    dot.setAttribute('role', 'tab');
+    dot.setAttribute('aria-label', `Accroche ${i + 1}`);
+    if (i === 0) dot.classList.add('active');
+    dot.addEventListener('click', () => {
+      goTo(i);
+      resetTimer();
+    });
+    dotsEl.appendChild(dot);
+  });
+  const dots = Array.from(dotsEl.children);
+
+  function goTo(newIndex) {
+    if (newIndex === index) return;
+    index = newIndex;
+    dots.forEach((d, i) => d.classList.toggle('active', i === index));
+    if (reduceMotion) {
+      titleEl.innerHTML = phrases[index];
+      return;
+    }
+    titleEl.classList.add('is-swapping');
+    setTimeout(() => {
+      titleEl.innerHTML = phrases[index];
+      titleEl.classList.remove('is-swapping');
+    }, 400);
+  }
+
+  function resetTimer() {
+    if (timer) clearInterval(timer);
+    timer = setInterval(() => goTo((index + 1) % phrases.length), 5000);
+  }
+
+  if (!reduceMotion) {
+    resetTimer();
+    titleEl.addEventListener('mouseenter', () => timer && clearInterval(timer));
+    titleEl.addEventListener('mouseleave', resetTimer);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        if (timer) clearInterval(timer);
+      } else {
+        resetTimer();
+      }
+    });
   }
 }
 
