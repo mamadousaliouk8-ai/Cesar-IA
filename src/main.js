@@ -5960,6 +5960,12 @@ function renderConnectorsForm() {
       } else if (connector.includes('Airtable')) {
         domainLabel = "Base & Table Airtable (baseId/nomTable)";
         domainPlaceholder = "baseId/nomTable";
+      } else if (connector.includes('Shopify')) {
+        domainLabel = "Domaine de la Boutique Shopify";
+        domainPlaceholder = "votre-boutique.myshopify.com";
+      } else if (connector.includes('Webflow')) {
+        domainLabel = "ID de Collection Webflow";
+        domainPlaceholder = "ID de votre collection CMS";
       }
 
       fieldsHtml = `

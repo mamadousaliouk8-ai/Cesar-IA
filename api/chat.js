@@ -1114,6 +1114,135 @@ async function runBrevo(connectors, to, subject, body) {
   }
 }
 
+async function runHubSpot(connectors, email, firstName, lastName, notes) {
+  const info = getConnectorInfo(connectors, "HubSpot");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur HubSpot n'est pas configuré. Veuillez connecter votre compte HubSpot dans l'onglet Connecteurs." };
+  }
+
+  const properties = { email };
+  if (firstName) properties.firstname = firstName;
+  if (lastName) properties.lastname = lastName;
+  if (notes) properties.hs_lead_status = notes.slice(0, 500);
+
+  try {
+    let res = await fetch("https://api.hubapi.com/crm/v3/objects/contacts", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${info.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ properties })
+    });
+
+    // Le contact existe déjà : on met à jour au lieu de créer.
+    if (res.status === 409) {
+      const searchRes = await fetch("https://api.hubapi.com/crm/v3/objects/contacts/search", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${info.token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          filterGroups: [{ filters: [{ propertyName: "email", operator: "EQ", value: email }] }]
+        })
+      });
+      const searchData = await searchRes.json();
+      const existingId = searchData?.results?.[0]?.id;
+      if (!existingId) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || `HTTP ${res.status}`);
+      }
+      res = await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${existingId}`, {
+        method: "PATCH",
+        headers: {
+          "Authorization": `Bearer ${info.token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ properties })
+      });
+    }
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+    return { success: true, contactId: data.id, message: `Contact HubSpot ${email} enregistré avec succès.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+async function runShopify(connectors, title, description, price) {
+  const info = getConnectorInfo(connectors, "Shopify");
+  if (!info || !info.token || !info.domain) {
+    return { error: "Erreur: Le connecteur Shopify n'est pas configuré (jeton ou domaine de boutique manquant)." };
+  }
+
+  const shop = info.domain.trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
+
+  try {
+    const res = await fetch(`https://${shop}/admin/api/2024-01/products.json`, {
+      method: "POST",
+      headers: {
+        "X-Shopify-Access-Token": info.token,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        product: {
+          title,
+          body_html: description || "",
+          variants: price ? [{ price: String(price) }] : undefined
+        }
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.errors ? JSON.stringify(data.errors) : `HTTP ${res.status}`);
+    }
+    return { success: true, productId: data.product?.id, message: `Produit "${title}" créé avec succès sur Shopify.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+async function runWebflow(connectors, collectionId, name, contentHtml) {
+  const info = getConnectorInfo(connectors, "Webflow");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur Webflow n'est pas configuré. Veuillez connecter votre compte Webflow dans l'onglet Connecteurs." };
+  }
+
+  const finalCollectionId = collectionId || info.domain;
+  if (!finalCollectionId) {
+    return { error: "Erreur: Aucun ID de collection Webflow n'a été fourni ni configuré par défaut." };
+  }
+
+  try {
+    const res = await fetch(`https://api.webflow.com/v2/collections/${finalCollectionId}/items`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${info.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        isArchived: false,
+        isDraft: true,
+        fieldData: {
+          name,
+          slug: name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+          content: contentHtml
+        }
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+    return { success: true, itemId: data.id, message: `Élément "${name}" créé en brouillon dans la collection Webflow.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
 
 export default async function handler(req, res) {
   // CORS Configuration
@@ -1911,6 +2040,76 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
               },
               required: ["to", "subject", "body"]
             }
+          },
+          {
+            name: "upsert_hubspot_contact",
+            description: "Crée ou met à jour un contact dans le CRM HubSpot de l'utilisateur.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                email: {
+                  type: "STRING",
+                  description: "Adresse e-mail du contact (identifiant principal)."
+                },
+                firstName: {
+                  type: "STRING",
+                  description: "Prénom du contact."
+                },
+                lastName: {
+                  type: "STRING",
+                  description: "Nom de famille du contact."
+                },
+                notes: {
+                  type: "STRING",
+                  description: "Notes ou contexte additionnel à enregistrer sur ce contact."
+                }
+              },
+              required: ["email"]
+            }
+          },
+          {
+            name: "create_shopify_product",
+            description: "Crée un nouveau produit dans la boutique Shopify de l'utilisateur.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                title: {
+                  type: "STRING",
+                  description: "Titre du produit."
+                },
+                description: {
+                  type: "STRING",
+                  description: "Description du produit (peut contenir du HTML)."
+                },
+                price: {
+                  type: "STRING",
+                  description: "Prix du produit (ex: \"29.99\")."
+                }
+              },
+              required: ["title", "price"]
+            }
+          },
+          {
+            name: "create_webflow_item",
+            description: "Crée un nouvel élément (article, page CMS...) dans une collection Webflow de l'utilisateur.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                collectionId: {
+                  type: "STRING",
+                  description: "ID de la collection Webflow cible (facultatif si configuré par défaut)."
+                },
+                name: {
+                  type: "STRING",
+                  description: "Nom / titre de l'élément."
+                },
+                contentHtml: {
+                  type: "STRING",
+                  description: "Contenu principal de l'élément, au format HTML ou texte riche."
+                }
+              },
+              required: ["name", "contentHtml"]
+            }
           }
         ]
       }
@@ -2002,6 +2201,12 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
             functionResult = await runTeams(connectors, functionArgs.message);
           } else if (functionName === 'send_brevo_campaign') {
             functionResult = await runBrevo(connectors, functionArgs.to, functionArgs.subject, functionArgs.body);
+          } else if (functionName === 'upsert_hubspot_contact') {
+            functionResult = await runHubSpot(connectors, functionArgs.email, functionArgs.firstName, functionArgs.lastName, functionArgs.notes);
+          } else if (functionName === 'create_shopify_product') {
+            functionResult = await runShopify(connectors, functionArgs.title, functionArgs.description, functionArgs.price);
+          } else if (functionName === 'create_webflow_item') {
+            functionResult = await runWebflow(connectors, functionArgs.collectionId, functionArgs.name, functionArgs.contentHtml);
           } else {
             functionResult = { error: `Outil ${functionName} inconnu.` };
           }
