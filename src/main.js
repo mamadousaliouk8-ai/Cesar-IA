@@ -5947,8 +5947,8 @@ function renderConnectorsForm() {
       `;
     } else {
       // Default: API Token, Webhook or SaaS credentials
-      const needsUrl = ['Zendesk', 'Jira', 'WordPress', 'Shopify', 'Webflow', 'Crisp', 'Freshdesk', 'WooCommerce', 'PrestaShop', 'ClickUp', 'Linear', 'Crowdin', 'Phrase', 'Sellsy', 'Axonaut', 'Qonto', 'Spendesk', 'GitBook', 'SharePoint', 'Grafana', 'GitHub', 'Notion', 'Airtable'].some(term => connector.includes(term));
-      
+      const needsUrl = ['Zendesk', 'Jira', 'WordPress', 'Shopify', 'Webflow', 'Crisp', 'Freshdesk', 'WooCommerce', 'PrestaShop', 'ClickUp', 'Linear', 'Crowdin', 'Phrase', 'Sellsy', 'Axonaut', 'Qonto', 'Spendesk', 'GitBook', 'SharePoint', 'Grafana', 'GitHub', 'Notion', 'Airtable', 'Google Sheets', 'Asana', 'GitLab'].some(term => connector.includes(term));
+
       let domainLabel = "URL du Logiciel (Domaine)";
       let domainPlaceholder = "https://votre-domaine.com";
       if (connector.includes('GitHub')) {
@@ -5966,6 +5966,21 @@ function renderConnectorsForm() {
       } else if (connector.includes('Webflow')) {
         domainLabel = "ID de Collection Webflow";
         domainPlaceholder = "ID de votre collection CMS";
+      } else if (connector.includes('Google Sheets')) {
+        domainLabel = "ID de la Feuille de Calcul (Spreadsheet ID)";
+        domainPlaceholder = "ID de votre feuille Google Sheets";
+      } else if (connector.includes('Zendesk')) {
+        domainLabel = "Sous-domaine Zendesk";
+        domainPlaceholder = "votre-entreprise.zendesk.com";
+      } else if (connector.includes('ClickUp')) {
+        domainLabel = "ID de Liste ClickUp";
+        domainPlaceholder = "ID de votre liste ClickUp";
+      } else if (connector.includes('Asana')) {
+        domainLabel = "ID de l'Espace de Travail Asana";
+        domainPlaceholder = "ID de votre workspace Asana";
+      } else if (connector.includes('GitLab')) {
+        domainLabel = "Projet GitLab (proprietaire/nom-depot ou ID)";
+        domainPlaceholder = "proprietaire/nom-depot";
       }
 
       fieldsHtml = `

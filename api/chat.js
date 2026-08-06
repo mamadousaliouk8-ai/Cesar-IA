@@ -1244,6 +1244,185 @@ async function runWebflow(connectors, collectionId, name, contentHtml) {
   }
 }
 
+async function runGoogleSheets(connectors, spreadsheetId, rowValues) {
+  const info = getConnectorInfo(connectors, "Google");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur Google n'est pas configuré. Veuillez connecter votre compte Google dans l'onglet Connecteurs." };
+  }
+  const finalSheetId = spreadsheetId || info.domain;
+  if (!finalSheetId) {
+    return { error: "Erreur: Aucun ID de feuille de calcul (Spreadsheet ID) n'a été fourni ni configuré par défaut." };
+  }
+
+  try {
+    const res = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${finalSheetId}/values/A1:append?valueInputOption=USER_ENTERED`,
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${info.token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ values: [rowValues] })
+      }
+    );
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error?.message || `HTTP ${res.status}`);
+    }
+    return { success: true, updatedRange: data.updates?.updatedRange, message: "Ligne ajoutée avec succès dans Google Sheets." };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+async function runZendesk(connectors, subject, description, requesterEmail) {
+  const info = getConnectorInfo(connectors, "Zendesk");
+  if (!info || !info.token || !info.domain) {
+    return { error: "Erreur: Le connecteur Zendesk n'est pas configuré (jeton ou sous-domaine manquant)." };
+  }
+  const subdomain = info.domain.trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
+
+  try {
+    const res = await fetch(`https://${subdomain}/api/v2/tickets.json`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${info.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        ticket: {
+          subject,
+          comment: { body: description },
+          requester: requesterEmail ? { email: requesterEmail } : undefined
+        }
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || data.description || `HTTP ${res.status}`);
+    }
+    return { success: true, ticketId: data.ticket?.id, message: `Ticket Zendesk #${data.ticket?.id} créé avec succès.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+async function runPipedrive(connectors, title, value, personName) {
+  const info = getConnectorInfo(connectors, "Pipedrive");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur Pipedrive n'est pas configuré. Veuillez connecter votre compte Pipedrive dans l'onglet Connecteurs." };
+  }
+
+  try {
+    const res = await fetch("https://api.pipedrive.com/api/v2/deals", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${info.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        title,
+        value: value || undefined,
+        currency: value ? "EUR" : undefined
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || `HTTP ${res.status}`);
+    }
+    return { success: true, dealId: data.data?.id, message: `Deal "${title}" créé avec succès dans Pipedrive.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+async function runAsana(connectors, workspaceId, name, notes) {
+  const info = getConnectorInfo(connectors, "Asana");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur Asana n'est pas configuré. Veuillez connecter votre compte Asana dans l'onglet Connecteurs." };
+  }
+  const finalWorkspaceId = workspaceId || info.domain;
+  if (!finalWorkspaceId) {
+    return { error: "Erreur: Aucun ID d'espace de travail (Workspace ID) Asana n'a été fourni ni configuré par défaut." };
+  }
+
+  try {
+    const res = await fetch("https://app.asana.com/api/1.0/tasks", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${info.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        data: { name, notes: notes || "", workspace: finalWorkspaceId }
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.errors?.[0]?.message || `HTTP ${res.status}`);
+    }
+    return { success: true, taskId: data.data?.gid, message: `Tâche "${name}" créée avec succès dans Asana.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+async function runClickUp(connectors, listId, name, description) {
+  const info = getConnectorInfo(connectors, "ClickUp");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur ClickUp n'est pas configuré. Veuillez connecter votre compte ClickUp dans l'onglet Connecteurs." };
+  }
+  const finalListId = listId || info.domain;
+  if (!finalListId) {
+    return { error: "Erreur: Aucun ID de liste ClickUp n'a été fourni ni configuré par défaut." };
+  }
+
+  try {
+    const res = await fetch(`https://api.clickup.com/api/v2/list/${finalListId}/task`, {
+      method: "POST",
+      headers: {
+        "Authorization": info.token,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ name, description: description || "" })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.err || `HTTP ${res.status}`);
+    }
+    return { success: true, taskId: data.id, message: `Tâche "${name}" créée avec succès dans ClickUp.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+async function runGitLab(connectors, projectPath, title, description) {
+  const info = getConnectorInfo(connectors, "GitLab");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur GitLab n'est pas configuré. Veuillez connecter votre compte GitLab dans l'onglet Connecteurs." };
+  }
+  const finalProject = projectPath || info.domain;
+  if (!finalProject) {
+    return { error: "Erreur: Aucun projet GitLab (propriétaire/nom-dépôt) n'a été fourni ni configuré par défaut." };
+  }
+  const encodedProject = encodeURIComponent(finalProject);
+
+  try {
+    const res = await fetch(`https://gitlab.com/api/v4/projects/${encodedProject}/issues?title=${encodeURIComponent(title)}&description=${encodeURIComponent(description || '')}`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${info.token}` }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message ? JSON.stringify(data.message) : `HTTP ${res.status}`);
+    }
+    return { success: true, issueId: data.iid, url: data.web_url, message: `Issue GitLab #${data.iid} créée avec succès.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
 export default async function handler(req, res) {
   // CORS Configuration
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -2110,6 +2289,90 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
               },
               required: ["name", "contentHtml"]
             }
+          },
+          {
+            name: "append_google_sheets_row",
+            description: "Ajoute une nouvelle ligne dans une feuille de calcul Google Sheets de l'utilisateur.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                spreadsheetId: {
+                  type: "STRING",
+                  description: "ID de la feuille de calcul cible (facultatif si configuré par défaut)."
+                },
+                rowValues: {
+                  type: "ARRAY",
+                  items: { type: "STRING" },
+                  description: "Liste ordonnée des valeurs de la ligne à ajouter (une entrée par colonne)."
+                }
+              },
+              required: ["rowValues"]
+            }
+          },
+          {
+            name: "create_zendesk_ticket",
+            description: "Crée un nouveau ticket de support dans Zendesk.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                subject: { type: "STRING", description: "Sujet / titre du ticket." },
+                description: { type: "STRING", description: "Description détaillée du problème ou de la demande." },
+                requesterEmail: { type: "STRING", description: "E-mail du demandeur (facultatif)." }
+              },
+              required: ["subject", "description"]
+            }
+          },
+          {
+            name: "create_pipedrive_deal",
+            description: "Crée une nouvelle affaire (deal) dans le CRM Pipedrive.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                title: { type: "STRING", description: "Titre de l'affaire." },
+                value: { type: "NUMBER", description: "Valeur monétaire estimée de l'affaire, en euros (facultatif)." },
+                personName: { type: "STRING", description: "Nom du contact associé (facultatif)." }
+              },
+              required: ["title"]
+            }
+          },
+          {
+            name: "create_asana_task",
+            description: "Crée une nouvelle tâche dans Asana.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                workspaceId: { type: "STRING", description: "ID de l'espace de travail Asana cible (facultatif si configuré par défaut)." },
+                name: { type: "STRING", description: "Nom de la tâche." },
+                notes: { type: "STRING", description: "Description / notes de la tâche (facultatif)." }
+              },
+              required: ["name"]
+            }
+          },
+          {
+            name: "create_clickup_task",
+            description: "Crée une nouvelle tâche dans une liste ClickUp.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                listId: { type: "STRING", description: "ID de la liste ClickUp cible (facultatif si configuré par défaut)." },
+                name: { type: "STRING", description: "Nom de la tâche." },
+                description: { type: "STRING", description: "Description de la tâche (facultatif)." }
+              },
+              required: ["name"]
+            }
+          },
+          {
+            name: "create_gitlab_issue",
+            description: "Crée une nouvelle issue dans un projet GitLab.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                projectPath: { type: "STRING", description: "Chemin du projet GitLab, format proprietaire/nom-depot (facultatif si configuré par défaut)." },
+                title: { type: "STRING", description: "Titre de l'issue." },
+                description: { type: "STRING", description: "Description de l'issue (facultatif)." }
+              },
+              required: ["title"]
+            }
           }
         ]
       }
@@ -2207,6 +2470,18 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
             functionResult = await runShopify(connectors, functionArgs.title, functionArgs.description, functionArgs.price);
           } else if (functionName === 'create_webflow_item') {
             functionResult = await runWebflow(connectors, functionArgs.collectionId, functionArgs.name, functionArgs.contentHtml);
+          } else if (functionName === 'append_google_sheets_row') {
+            functionResult = await runGoogleSheets(connectors, functionArgs.spreadsheetId, functionArgs.rowValues);
+          } else if (functionName === 'create_zendesk_ticket') {
+            functionResult = await runZendesk(connectors, functionArgs.subject, functionArgs.description, functionArgs.requesterEmail);
+          } else if (functionName === 'create_pipedrive_deal') {
+            functionResult = await runPipedrive(connectors, functionArgs.title, functionArgs.value, functionArgs.personName);
+          } else if (functionName === 'create_asana_task') {
+            functionResult = await runAsana(connectors, functionArgs.workspaceId, functionArgs.name, functionArgs.notes);
+          } else if (functionName === 'create_clickup_task') {
+            functionResult = await runClickUp(connectors, functionArgs.listId, functionArgs.name, functionArgs.description);
+          } else if (functionName === 'create_gitlab_issue') {
+            functionResult = await runGitLab(connectors, functionArgs.projectPath, functionArgs.title, functionArgs.description);
           } else {
             functionResult = { error: `Outil ${functionName} inconnu.` };
           }
