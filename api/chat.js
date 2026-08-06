@@ -1614,6 +1614,110 @@ async function runBox(connectors, folderName, parentFolderId) {
   }
 }
 
+// Crée un vrai lien de paiement Stripe : le client doit lui-même cliquer et
+// payer, l'agent ne débite jamais de carte ni ne déclenche de transfert seul.
+async function runStripePaymentLink(connectors, productName, amount, currency) {
+  const info = getConnectorInfo(connectors, "Stripe");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur Stripe n'est pas configuré. Veuillez connecter votre compte Stripe dans l'onglet Connecteurs." };
+  }
+  const parsedAmount = parseFloat(amount);
+  if (!productName || isNaN(parsedAmount) || parsedAmount <= 0) {
+    return { error: "Erreur: Nom de produit et montant (> 0) requis pour créer un lien de paiement." };
+  }
+  const finalCurrency = (currency || 'eur').toLowerCase();
+
+  const authHeaders = {
+    "Authorization": `Bearer ${info.token}`,
+    "Content-Type": "application/x-www-form-urlencoded"
+  };
+
+  try {
+    const productRes = await fetch("https://api.stripe.com/v1/products", {
+      method: "POST",
+      headers: authHeaders,
+      body: new URLSearchParams({ name: productName })
+    });
+    const productData = await productRes.json();
+    if (!productRes.ok) throw new Error(productData.error?.message || `HTTP ${productRes.status}`);
+
+    const priceRes = await fetch("https://api.stripe.com/v1/prices", {
+      method: "POST",
+      headers: authHeaders,
+      body: new URLSearchParams({
+        product: productData.id,
+        currency: finalCurrency,
+        unit_amount: String(Math.round(parsedAmount * 100))
+      })
+    });
+    const priceData = await priceRes.json();
+    if (!priceRes.ok) throw new Error(priceData.error?.message || `HTTP ${priceRes.status}`);
+
+    const linkRes = await fetch("https://api.stripe.com/v1/payment_links", {
+      method: "POST",
+      headers: authHeaders,
+      body: new URLSearchParams({ "line_items[0][price]": priceData.id, "line_items[0][quantity]": "1" })
+    });
+    const linkData = await linkRes.json();
+    if (!linkRes.ok) throw new Error(linkData.error?.message || `HTTP ${linkRes.status}`);
+
+    return { success: true, paymentUrl: linkData.url, message: `Lien de paiement Stripe créé pour "${productName}" (${parsedAmount} ${finalCurrency.toUpperCase()}). Le client doit cliquer sur ce lien pour payer lui-même — aucun débit automatique.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+// Crée et envoie une vraie facture PayPal : le destinataire reçoit un e-mail
+// avec un lien pour payer lui-même, aucun transfert n'est déclenché par l'agent.
+async function runPayPalInvoice(connectors, recipientEmail, description, amount, currency) {
+  const info = getConnectorInfo(connectors, "PayPal");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur PayPal n'est pas configuré. Veuillez connecter votre compte PayPal dans l'onglet Connecteurs." };
+  }
+  const parsedAmount = parseFloat(amount);
+  if (!recipientEmail || isNaN(parsedAmount) || parsedAmount <= 0) {
+    return { error: "Erreur: E-mail du destinataire et montant (> 0) requis pour créer une facture PayPal." };
+  }
+  const finalCurrency = (currency || 'EUR').toUpperCase();
+
+  try {
+    const createRes = await fetch("https://api-m.paypal.com/v2/invoicing/invoices", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${info.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        detail: { currency_code: finalCurrency, note: description || "" },
+        primary_recipients: [{ billing_info: { email_address: recipientEmail } }],
+        items: [{ name: (description || "Prestation").slice(0, 100), quantity: "1", unit_amount: { currency_code: finalCurrency, value: parsedAmount.toFixed(2) } }]
+      })
+    });
+    const createData = await createRes.json();
+    if (!createRes.ok) throw new Error(createData.message || createData.details?.[0]?.issue || `HTTP ${createRes.status}`);
+
+    const invoiceId = createData.id || createData.href?.split('/').pop();
+    if (!invoiceId) throw new Error("Facture créée mais impossible de récupérer son identifiant pour l'envoyer.");
+
+    const sendRes = await fetch(`https://api-m.paypal.com/v2/invoicing/invoices/${invoiceId}/send`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${info.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ send_to_recipient: true })
+    });
+    if (!sendRes.ok && sendRes.status !== 204) {
+      const sendData = await sendRes.json().catch(() => ({}));
+      throw new Error(sendData.message || `HTTP ${sendRes.status} lors de l'envoi`);
+    }
+
+    return { success: true, invoiceId, message: `Facture PayPal de ${parsedAmount.toFixed(2)} ${finalCurrency} envoyée à ${recipientEmail}. Il/elle doit cliquer sur le lien reçu par e-mail pour payer lui-même.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
 export default async function handler(req, res) {
   // CORS Configuration
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -2651,6 +2755,33 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
               },
               required: ["folderName"]
             }
+          },
+          {
+            name: "create_stripe_payment_link",
+            description: "Crée un vrai lien de paiement Stripe pour un produit/service donné. Le client doit lui-même cliquer sur le lien et payer — cet outil ne débite JAMAIS une carte automatiquement.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                productName: { type: "STRING", description: "Nom du produit ou service facturé." },
+                amount: { type: "STRING", description: "Montant à payer, en unité majeure (ex: \"49.99\")." },
+                currency: { type: "STRING", description: "Code devise ISO à 3 lettres (facultatif, défaut \"eur\")." }
+              },
+              required: ["productName", "amount"]
+            }
+          },
+          {
+            name: "create_paypal_invoice",
+            description: "Crée et envoie une vraie facture PayPal au client par e-mail. Le client doit lui-même cliquer sur le lien reçu et payer — cet outil ne déclenche JAMAIS un transfert automatique.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                recipientEmail: { type: "STRING", description: "E-mail du destinataire de la facture." },
+                description: { type: "STRING", description: "Description de la prestation facturée." },
+                amount: { type: "STRING", description: "Montant à facturer, en unité majeure (ex: \"49.99\")." },
+                currency: { type: "STRING", description: "Code devise ISO à 3 lettres (facultatif, défaut \"EUR\")." }
+              },
+              required: ["recipientEmail", "amount"]
+            }
           }
         ]
       }
@@ -2774,6 +2905,10 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
             functionResult = await runZoom(connectors, functionArgs.topic, functionArgs.startTimeISO, functionArgs.durationMinutes);
           } else if (functionName === 'create_box_folder') {
             functionResult = await runBox(connectors, functionArgs.folderName, functionArgs.parentFolderId);
+          } else if (functionName === 'create_stripe_payment_link') {
+            functionResult = await runStripePaymentLink(connectors, functionArgs.productName, functionArgs.amount, functionArgs.currency);
+          } else if (functionName === 'create_paypal_invoice') {
+            functionResult = await runPayPalInvoice(connectors, functionArgs.recipientEmail, functionArgs.description, functionArgs.amount, functionArgs.currency);
           } else {
             functionResult = { error: `Outil ${functionName} inconnu.` };
           }
