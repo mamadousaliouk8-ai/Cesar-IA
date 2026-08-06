@@ -2055,6 +2055,160 @@ async function runConfluence(connectors, spaceKey, title, contentHtml) {
   }
 }
 
+// Medium : jeton d'intégration personnel (Settings > Integration tokens).
+async function runMedium(connectors, title, contentMarkdown) {
+  const info = getConnectorInfo(connectors, "Medium");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur Medium n'est pas configuré. Veuillez renseigner votre jeton d'intégration Medium dans l'onglet Connecteurs." };
+  }
+
+  try {
+    const meRes = await fetch("https://api.medium.com/v1/me", {
+      headers: { "Authorization": `Bearer ${info.token}` }
+    });
+    const meData = await meRes.json();
+    if (!meRes.ok) throw new Error(meData.errors?.[0]?.message || `HTTP ${meRes.status}`);
+    const userId = meData.data?.id;
+
+    const res = await fetch(`https://api.medium.com/v1/users/${userId}/posts`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${info.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ title, contentFormat: "markdown", content: contentMarkdown, publishStatus: "draft" })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.errors?.[0]?.message || `HTTP ${res.status}`);
+    }
+    return { success: true, postId: data.data?.id, url: data.data?.url, message: `Brouillon "${title}" créé avec succès sur Medium.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+// GitBook : jeton d'API personnel. Le champ "domaine" attend l'ID de l'espace
+// (space) GitBook cible.
+async function runGitBook(connectors, spaceId, pagePath, contentMarkdown) {
+  const info = getConnectorInfo(connectors, "GitBook");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur GitBook n'est pas configuré. Veuillez renseigner votre jeton d'API GitBook dans l'onglet Connecteurs." };
+  }
+  const finalSpaceId = spaceId || info.domain;
+  if (!finalSpaceId) {
+    return { error: "Erreur: Aucun ID d'espace GitBook n'a été fourni ni configuré par défaut." };
+  }
+
+  try {
+    const res = await fetch(`https://api.gitbook.com/v1/spaces/${finalSpaceId}/content/path/${encodeURIComponent(pagePath)}`, {
+      method: "PUT",
+      headers: {
+        "Authorization": `Bearer ${info.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ title: pagePath.split('/').pop(), markdown: contentMarkdown })
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error?.message || `HTTP ${res.status}`);
+    }
+    return { success: true, message: `Page "${pagePath}" créée/mise à jour avec succès sur GitBook.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+// Dropbox : jeton d'accès généré depuis la console développeur Dropbox.
+async function runDropbox(connectors, folderPath) {
+  const info = getConnectorInfo(connectors, "Dropbox");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur Dropbox n'est pas configuré. Veuillez renseigner votre jeton d'accès Dropbox dans l'onglet Connecteurs." };
+  }
+
+  try {
+    const res = await fetch("https://api.dropboxapi.com/2/files/create_folder_v2", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${info.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ path: folderPath.startsWith('/') ? folderPath : `/${folderPath}` })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error_summary || `HTTP ${res.status}`);
+    }
+    return { success: true, path: data.metadata?.path_display, message: `Dossier "${folderPath}" créé avec succès sur Dropbox.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+// Productboard : jeton d'accès personnel (Settings > Integrations > Public API).
+async function runProductboard(connectors, title, content, customerEmail) {
+  const info = getConnectorInfo(connectors, "Productboard");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur Productboard n'est pas configuré. Veuillez renseigner votre jeton d'API Productboard dans l'onglet Connecteurs." };
+  }
+
+  try {
+    const res = await fetch("https://api.productboard.com/notes", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${info.token}`,
+        "Content-Type": "application/json",
+        "X-Version": "1"
+      },
+      body: JSON.stringify({
+        title,
+        content,
+        user: customerEmail ? { email: customerEmail } : undefined
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.errors?.[0]?.detail || `HTTP ${res.status}`);
+    }
+    return { success: true, noteId: data.data?.id, message: `Note "${title}" créée avec succès dans Productboard.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+// Lokalise : jeton d'API personnel. Le champ "domaine" attend l'ID du projet
+// Lokalise cible.
+async function runLokalise(connectors, projectId, keyName, translationValue) {
+  const info = getConnectorInfo(connectors, "Lokalise");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur Lokalise n'est pas configuré. Veuillez renseigner votre jeton d'API Lokalise dans l'onglet Connecteurs." };
+  }
+  const finalProjectId = projectId || info.domain;
+  if (!finalProjectId) {
+    return { error: "Erreur: Aucun ID de projet Lokalise n'a été fourni ni configuré par défaut." };
+  }
+
+  try {
+    const res = await fetch(`https://api.lokalise.com/api2/projects/${finalProjectId}/keys`, {
+      method: "POST",
+      headers: {
+        "X-Api-Token": info.token,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        keys: [{ key_name: keyName, platforms: ["web"], translations: translationValue ? [{ language_iso: "en", translation: translationValue }] : undefined }]
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error?.message || `HTTP ${res.status}`);
+    }
+    return { success: true, keyId: data.keys?.[0]?.key_id, message: `Clé "${keyName}" créée avec succès dans Lokalise.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
 export default async function handler(req, res) {
   // CORS Configuration
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -3248,6 +3402,68 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
               },
               required: ["title", "contentHtml"]
             }
+          },
+          {
+            name: "create_medium_draft",
+            description: "Crée un brouillon d'article sur Medium.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                title: { type: "STRING", description: "Titre de l'article." },
+                contentMarkdown: { type: "STRING", description: "Contenu de l'article au format Markdown." }
+              },
+              required: ["title", "contentMarkdown"]
+            }
+          },
+          {
+            name: "create_gitbook_page",
+            description: "Crée ou met à jour une page dans un espace GitBook.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                spaceId: { type: "STRING", description: "ID de l'espace GitBook cible (facultatif si configuré par défaut)." },
+                pagePath: { type: "STRING", description: "Chemin de la page (ex: guides/demarrage)." },
+                contentMarkdown: { type: "STRING", description: "Contenu de la page au format Markdown." }
+              },
+              required: ["pagePath", "contentMarkdown"]
+            }
+          },
+          {
+            name: "create_dropbox_folder",
+            description: "Crée un nouveau dossier dans Dropbox.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                folderPath: { type: "STRING", description: "Chemin du dossier à créer (ex: /Projets/NouveauDossier)." }
+              },
+              required: ["folderPath"]
+            }
+          },
+          {
+            name: "create_productboard_note",
+            description: "Crée une note de retour client (feedback) dans Productboard.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                title: { type: "STRING", description: "Titre de la note." },
+                content: { type: "STRING", description: "Contenu du retour client." },
+                customerEmail: { type: "STRING", description: "E-mail du client à l'origine du retour (facultatif)." }
+              },
+              required: ["title", "content"]
+            }
+          },
+          {
+            name: "create_lokalise_key",
+            description: "Crée une nouvelle clé de traduction dans un projet Lokalise.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                projectId: { type: "STRING", description: "ID du projet Lokalise cible (facultatif si configuré par défaut)." },
+                keyName: { type: "STRING", description: "Nom de la clé à créer." },
+                translationValue: { type: "STRING", description: "Valeur de traduction initiale, en anglais (facultatif)." }
+              },
+              required: ["keyName"]
+            }
           }
         ]
       }
@@ -3395,6 +3611,16 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
             functionResult = await runJira(connectors, functionArgs.projectKey, functionArgs.summary, functionArgs.description);
           } else if (functionName === 'create_confluence_page') {
             functionResult = await runConfluence(connectors, functionArgs.spaceKey, functionArgs.title, functionArgs.contentHtml);
+          } else if (functionName === 'create_medium_draft') {
+            functionResult = await runMedium(connectors, functionArgs.title, functionArgs.contentMarkdown);
+          } else if (functionName === 'create_gitbook_page') {
+            functionResult = await runGitBook(connectors, functionArgs.spaceId, functionArgs.pagePath, functionArgs.contentMarkdown);
+          } else if (functionName === 'create_dropbox_folder') {
+            functionResult = await runDropbox(connectors, functionArgs.folderPath);
+          } else if (functionName === 'create_productboard_note') {
+            functionResult = await runProductboard(connectors, functionArgs.title, functionArgs.content, functionArgs.customerEmail);
+          } else if (functionName === 'create_lokalise_key') {
+            functionResult = await runLokalise(connectors, functionArgs.projectId, functionArgs.keyName, functionArgs.translationValue);
           } else {
             functionResult = { error: `Outil ${functionName} inconnu.` };
           }

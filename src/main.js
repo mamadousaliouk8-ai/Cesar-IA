@@ -5947,7 +5947,7 @@ function renderConnectorsForm() {
       `;
     } else {
       // Default: API Token, Webhook or SaaS credentials
-      const needsUrl = ['Zendesk', 'Jira', 'WordPress', 'Shopify', 'Webflow', 'Crisp', 'Freshdesk', 'WooCommerce', 'PrestaShop', 'ClickUp', 'Linear', 'Crowdin', 'Phrase', 'Sellsy', 'Axonaut', 'Qonto', 'Spendesk', 'GitBook', 'SharePoint', 'Grafana', 'GitHub', 'Notion', 'Airtable', 'Google Sheets', 'Asana', 'GitLab', 'Salesforce', 'Bitbucket', 'Cloudflare', 'Trello', 'Sentry', 'Figma', 'Confluence'].some(term => connector.includes(term));
+      const needsUrl = ['Zendesk', 'Jira', 'WordPress', 'Shopify', 'Webflow', 'Crisp', 'Freshdesk', 'WooCommerce', 'PrestaShop', 'ClickUp', 'Linear', 'Crowdin', 'Phrase', 'Sellsy', 'Axonaut', 'Qonto', 'Spendesk', 'GitBook', 'SharePoint', 'Grafana', 'GitHub', 'Notion', 'Airtable', 'Google Sheets', 'Asana', 'GitLab', 'Salesforce', 'Bitbucket', 'Cloudflare', 'Trello', 'Sentry', 'Figma', 'Confluence', 'Lokalise'].some(term => connector.includes(term));
 
       let domainLabel = "URL du Logiciel (Domaine)";
       let domainPlaceholder = "https://votre-domaine.com";
@@ -6008,6 +6008,9 @@ function renderConnectorsForm() {
       } else if (connector.includes('Confluence')) {
         domainLabel = "Clé d'Espace Confluence";
         domainPlaceholder = "ex: SPACE";
+      } else if (connector.includes('Lokalise')) {
+        domainLabel = "ID de Projet Lokalise";
+        domainPlaceholder = "ID de votre projet Lokalise";
       }
 
       let tokenLabel = connector.includes('Webhook') ? "URL du Webhook / Clé secrète" : "Clé d'API / Jeton d'Accès";
