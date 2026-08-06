@@ -5947,7 +5947,7 @@ function renderConnectorsForm() {
       `;
     } else {
       // Default: API Token, Webhook or SaaS credentials
-      const needsUrl = ['Zendesk', 'Jira', 'WordPress', 'Shopify', 'Webflow', 'Crisp', 'Freshdesk', 'WooCommerce', 'PrestaShop', 'ClickUp', 'Linear', 'Crowdin', 'Phrase', 'Sellsy', 'Axonaut', 'Qonto', 'Spendesk', 'GitBook', 'SharePoint', 'Grafana', 'GitHub', 'Notion', 'Airtable', 'Google Sheets', 'Asana', 'GitLab', 'Salesforce', 'Bitbucket'].some(term => connector.includes(term));
+      const needsUrl = ['Zendesk', 'Jira', 'WordPress', 'Shopify', 'Webflow', 'Crisp', 'Freshdesk', 'WooCommerce', 'PrestaShop', 'ClickUp', 'Linear', 'Crowdin', 'Phrase', 'Sellsy', 'Axonaut', 'Qonto', 'Spendesk', 'GitBook', 'SharePoint', 'Grafana', 'GitHub', 'Notion', 'Airtable', 'Google Sheets', 'Asana', 'GitLab', 'Salesforce', 'Bitbucket', 'Cloudflare', 'Trello'].some(term => connector.includes(term));
 
       let domainLabel = "URL du Logiciel (Domaine)";
       let domainPlaceholder = "https://votre-domaine.com";
@@ -5987,12 +5987,31 @@ function renderConnectorsForm() {
       } else if (connector.includes('Bitbucket')) {
         domainLabel = "Dépôt Bitbucket (espace-de-travail/nom-depot)";
         domainPlaceholder = "espace-de-travail/nom-depot";
+      } else if (connector.includes('Linear')) {
+        domainLabel = "ID d'Équipe Linear";
+        domainPlaceholder = "ID de votre équipe Linear";
+      } else if (connector.includes('Cloudflare')) {
+        domainLabel = "ID de Zone Cloudflare";
+        domainPlaceholder = "ID de la zone (domaine) Cloudflare";
+      } else if (connector.includes('Trello')) {
+        domainLabel = "ID de Liste Trello";
+        domainPlaceholder = "ID de votre liste Trello";
+      }
+
+      let tokenLabel = connector.includes('Webhook') ? "URL du Webhook / Clé secrète" : "Clé d'API / Jeton d'Accès";
+      let tokenPlaceholder = connector.includes('Webhook') ? 'https://votre-serveur.com/webhook' : 'sk_live_••••••••••••••••';
+      if (connector.includes('Trello')) {
+        tokenLabel = "Clé API et Jeton Trello (format cléAPI:jeton)";
+        tokenPlaceholder = "cléAPI:jeton";
+      } else if (connector.includes('Datadog')) {
+        tokenLabel = "Clé API et Clé Application Datadog (format apiKey:appKey)";
+        tokenPlaceholder = "apiKey:appKey";
       }
 
       fieldsHtml = `
         <div class="form-group">
-          <label>${connector.includes('Webhook') ? "URL du Webhook / Clé secrète" : "Clé d'API / Jeton d'Accès"}</label>
-          <input type="password" data-conn="${connector}" data-field="token" value="${connectorData.token || ''}" placeholder="${connector.includes('Webhook') ? 'https://votre-serveur.com/webhook' : 'sk_live_••••••••••••••••'}" />
+          <label>${tokenLabel}</label>
+          <input type="password" data-conn="${connector}" data-field="token" value="${connectorData.token || ''}" placeholder="${tokenPlaceholder}" />
         </div>
         ${needsUrl ? `
         <div class="form-group">

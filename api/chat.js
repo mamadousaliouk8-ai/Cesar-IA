@@ -1718,6 +1718,138 @@ async function runPayPalInvoice(connectors, recipientEmail, description, amount,
   }
 }
 
+// Linear n'a pas de flux OAuth codé ici : l'utilisateur colle une clé API
+// personnelle (Settings > API dans Linear) dans le champ "Clé d'API" générique.
+async function runLinear(connectors, teamId, title, description) {
+  const info = getConnectorInfo(connectors, "Linear");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur Linear n'est pas configuré. Veuillez renseigner votre clé API Linear dans l'onglet Connecteurs." };
+  }
+  const finalTeamId = teamId || info.domain;
+  if (!finalTeamId) {
+    return { error: "Erreur: Aucun ID d'équipe Linear n'a été fourni ni configuré par défaut." };
+  }
+
+  try {
+    const res = await fetch("https://api.linear.app/graphql", {
+      method: "POST",
+      headers: {
+        "Authorization": info.token,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        query: `mutation($teamId: String!, $title: String!, $description: String) {
+          issueCreate(input: { teamId: $teamId, title: $title, description: $description }) {
+            success
+            issue { id identifier url }
+          }
+        }`,
+        variables: { teamId: finalTeamId, title, description: description || "" }
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || data.errors) {
+      throw new Error(data.errors?.[0]?.message || `HTTP ${res.status}`);
+    }
+    const issue = data.data?.issueCreate?.issue;
+    return { success: true, issueId: issue?.identifier, url: issue?.url, message: `Issue Linear ${issue?.identifier || ''} créée avec succès.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+// Cloudflare : jeton API personnel (Bearer). Le champ "domaine" attend l'ID
+// de zone Cloudflare (Zone ID), visible dans le tableau de bord du domaine.
+async function runCloudflare(connectors, zoneId, recordType, recordName, recordContent) {
+  const info = getConnectorInfo(connectors, "Cloudflare");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur Cloudflare n'est pas configuré. Veuillez renseigner votre jeton API Cloudflare dans l'onglet Connecteurs." };
+  }
+  const finalZoneId = zoneId || info.domain;
+  if (!finalZoneId) {
+    return { error: "Erreur: Aucun ID de zone (Zone ID) Cloudflare n'a été fourni ni configuré par défaut." };
+  }
+
+  try {
+    const res = await fetch(`https://api.cloudflare.com/client/v4/zones/${finalZoneId}/dns_records`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${info.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ type: recordType || "TXT", name: recordName, content: recordContent, ttl: 3600 })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.errors?.[0]?.message || `HTTP ${res.status}`);
+    }
+    return { success: true, recordId: data.result?.id, message: `Enregistrement DNS ${recordType || 'TXT'} "${recordName}" créé avec succès sur Cloudflare.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+// Trello n'a pas de flux OAuth codé ici : l'utilisateur colle "cléAPI:jeton"
+// (obtenus sur trello.com/power-ups/admin) dans le champ "Clé d'API" générique.
+async function runTrello(connectors, listId, name, description) {
+  const info = getConnectorInfo(connectors, "Trello");
+  if (!info || !info.token || !info.token.includes(':')) {
+    return { error: "Erreur: Le connecteur Trello n'est pas configuré correctement (format attendu : cléAPI:jeton)." };
+  }
+  const [apiKey, apiToken] = info.token.split(':');
+  const finalListId = listId || info.domain;
+  if (!finalListId) {
+    return { error: "Erreur: Aucun ID de liste Trello n'a été fourni ni configuré par défaut." };
+  }
+
+  try {
+    const params = new URLSearchParams({
+      key: apiKey,
+      token: apiToken,
+      idList: finalListId,
+      name,
+      desc: description || ""
+    });
+    const res = await fetch(`https://api.trello.com/1/cards?${params.toString()}`, { method: "POST" });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+    return { success: true, cardId: data.id, url: data.shortUrl, message: `Carte Trello "${name}" créée avec succès.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+// Datadog : le champ "Clé d'API" attend "apiKey:appKey" (clés API + Application
+// générées dans Organization Settings > API Keys / Application Keys).
+async function runDatadog(connectors, title, text, alertType) {
+  const info = getConnectorInfo(connectors, "Datadog");
+  if (!info || !info.token || !info.token.includes(':')) {
+    return { error: "Erreur: Le connecteur Datadog n'est pas configuré correctement (format attendu : apiKey:appKey)." };
+  }
+  const [apiKey, appKey] = info.token.split(':');
+
+  try {
+    const res = await fetch("https://api.datadoghq.com/api/v1/events", {
+      method: "POST",
+      headers: {
+        "DD-API-KEY": apiKey,
+        "DD-APPLICATION-KEY": appKey,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ title, text, alert_type: alertType || "info" })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.errors?.[0] || `HTTP ${res.status}`);
+    }
+    return { success: true, eventId: data.event?.id, message: `Événement "${title}" publié avec succès sur Datadog.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
 export default async function handler(req, res) {
   // CORS Configuration
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -2782,6 +2914,59 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
               },
               required: ["recipientEmail", "amount"]
             }
+          },
+          {
+            name: "create_linear_issue",
+            description: "Crée une nouvelle issue dans une équipe Linear.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                teamId: { type: "STRING", description: "ID de l'équipe Linear cible (facultatif si configuré par défaut)." },
+                title: { type: "STRING", description: "Titre de l'issue." },
+                description: { type: "STRING", description: "Description de l'issue (facultatif)." }
+              },
+              required: ["title"]
+            }
+          },
+          {
+            name: "create_cloudflare_dns_record",
+            description: "Crée un nouvel enregistrement DNS sur une zone Cloudflare.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                zoneId: { type: "STRING", description: "ID de la zone Cloudflare cible (facultatif si configuré par défaut)." },
+                recordType: { type: "STRING", description: "Type d'enregistrement (A, CNAME, TXT...). Défaut TXT." },
+                recordName: { type: "STRING", description: "Nom de l'enregistrement (ex: sous-domaine)." },
+                recordContent: { type: "STRING", description: "Contenu / valeur de l'enregistrement." }
+              },
+              required: ["recordName", "recordContent"]
+            }
+          },
+          {
+            name: "create_trello_card",
+            description: "Crée une nouvelle carte dans une liste Trello.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                listId: { type: "STRING", description: "ID de la liste Trello cible (facultatif si configuré par défaut)." },
+                name: { type: "STRING", description: "Nom de la carte." },
+                description: { type: "STRING", description: "Description de la carte (facultatif)." }
+              },
+              required: ["name"]
+            }
+          },
+          {
+            name: "post_datadog_event",
+            description: "Publie un événement (alerte, note, incident) sur Datadog.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                title: { type: "STRING", description: "Titre de l'événement." },
+                text: { type: "STRING", description: "Contenu détaillé de l'événement." },
+                alertType: { type: "STRING", description: "Type d'alerte : info, warning, error ou success (facultatif, défaut info)." }
+              },
+              required: ["title", "text"]
+            }
           }
         ]
       }
@@ -2909,6 +3094,14 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
             functionResult = await runStripePaymentLink(connectors, functionArgs.productName, functionArgs.amount, functionArgs.currency);
           } else if (functionName === 'create_paypal_invoice') {
             functionResult = await runPayPalInvoice(connectors, functionArgs.recipientEmail, functionArgs.description, functionArgs.amount, functionArgs.currency);
+          } else if (functionName === 'create_linear_issue') {
+            functionResult = await runLinear(connectors, functionArgs.teamId, functionArgs.title, functionArgs.description);
+          } else if (functionName === 'create_cloudflare_dns_record') {
+            functionResult = await runCloudflare(connectors, functionArgs.zoneId, functionArgs.recordType, functionArgs.recordName, functionArgs.recordContent);
+          } else if (functionName === 'create_trello_card') {
+            functionResult = await runTrello(connectors, functionArgs.listId, functionArgs.name, functionArgs.description);
+          } else if (functionName === 'post_datadog_event') {
+            functionResult = await runDatadog(connectors, functionArgs.title, functionArgs.text, functionArgs.alertType);
           } else {
             functionResult = { error: `Outil ${functionName} inconnu.` };
           }
