@@ -5947,7 +5947,7 @@ function renderConnectorsForm() {
       `;
     } else {
       // Default: API Token, Webhook or SaaS credentials
-      const needsUrl = ['Zendesk', 'Jira', 'WordPress', 'Shopify', 'Webflow', 'Crisp', 'Freshdesk', 'WooCommerce', 'PrestaShop', 'ClickUp', 'Linear', 'Crowdin', 'Phrase', 'Sellsy', 'Axonaut', 'Qonto', 'Spendesk', 'GitBook', 'SharePoint', 'Grafana', 'GitHub', 'Notion', 'Airtable', 'Google Sheets', 'Asana', 'GitLab'].some(term => connector.includes(term));
+      const needsUrl = ['Zendesk', 'Jira', 'WordPress', 'Shopify', 'Webflow', 'Crisp', 'Freshdesk', 'WooCommerce', 'PrestaShop', 'ClickUp', 'Linear', 'Crowdin', 'Phrase', 'Sellsy', 'Axonaut', 'Qonto', 'Spendesk', 'GitBook', 'SharePoint', 'Grafana', 'GitHub', 'Notion', 'Airtable', 'Google Sheets', 'Asana', 'GitLab', 'Salesforce', 'Bitbucket'].some(term => connector.includes(term));
 
       let domainLabel = "URL du Logiciel (Domaine)";
       let domainPlaceholder = "https://votre-domaine.com";
@@ -5981,6 +5981,12 @@ function renderConnectorsForm() {
       } else if (connector.includes('GitLab')) {
         domainLabel = "Projet GitLab (proprietaire/nom-depot ou ID)";
         domainPlaceholder = "proprietaire/nom-depot";
+      } else if (connector.includes('Salesforce')) {
+        domainLabel = "URL d'Instance Salesforce";
+        domainPlaceholder = "https://votre-entreprise.my.salesforce.com";
+      } else if (connector.includes('Bitbucket')) {
+        domainLabel = "Dépôt Bitbucket (espace-de-travail/nom-depot)";
+        domainPlaceholder = "espace-de-travail/nom-depot";
       }
 
       fieldsHtml = `

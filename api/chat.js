@@ -1423,6 +1423,169 @@ async function runGitLab(connectors, projectPath, title, description) {
   }
 }
 
+async function runSalesforce(connectors, lastName, company, email) {
+  const info = getConnectorInfo(connectors, "Salesforce");
+  if (!info || !info.token || !info.domain) {
+    return { error: "Erreur: Le connecteur Salesforce n'est pas configuré (jeton ou URL d'instance manquant)." };
+  }
+  const instanceUrl = info.domain.trim().replace(/\/$/, '');
+  const baseUrl = instanceUrl.startsWith('http') ? instanceUrl : `https://${instanceUrl}`;
+
+  try {
+    const res = await fetch(`${baseUrl}/services/data/v59.0/sobjects/Lead`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${info.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ LastName: lastName, Company: company, Email: email || undefined })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(Array.isArray(data) ? (data[0]?.message || `HTTP ${res.status}`) : `HTTP ${res.status}`);
+    }
+    return { success: true, leadId: data.id, message: `Lead "${lastName}" (${company}) créé avec succès dans Salesforce.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+async function runZoho(connectors, lastName, company, email) {
+  const info = getConnectorInfo(connectors, "Zoho");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur Zoho n'est pas configuré. Veuillez connecter votre compte Zoho dans l'onglet Connecteurs." };
+  }
+  const apiDomain = (info.domain && info.domain.trim()) || 'www.zohoapis.com';
+
+  try {
+    const res = await fetch(`https://${apiDomain.replace(/^https?:\/\//, '')}/crm/v2/Leads`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Zoho-oauthtoken ${info.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ data: [{ Last_Name: lastName, Company: company, Email: email || undefined }] })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+    return { success: true, leadId: data.data?.[0]?.details?.id, message: `Lead "${lastName}" (${company}) créé avec succès dans Zoho CRM.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+async function runSellsy(connectors, companyName) {
+  const info = getConnectorInfo(connectors, "Sellsy");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur Sellsy n'est pas configuré. Veuillez connecter votre compte Sellsy dans l'onglet Connecteurs." };
+  }
+
+  try {
+    const res = await fetch("https://api.sellsy.com/v2/companies", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${info.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ name: companyName })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+    return { success: true, companyId: data.id, message: `Société "${companyName}" créée avec succès dans Sellsy.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+async function runIntercom(connectors, email, name) {
+  const info = getConnectorInfo(connectors, "Intercom");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur Intercom n'est pas configuré. Veuillez connecter votre compte Intercom dans l'onglet Connecteurs." };
+  }
+
+  try {
+    const res = await fetch("https://api.intercom.io/contacts", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${info.token}`,
+        "Content-Type": "application/json",
+        "Intercom-Version": "2.11"
+      },
+      body: JSON.stringify({ role: "lead", email, name: name || undefined })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.errors?.[0]?.message || `HTTP ${res.status}`);
+    }
+    return { success: true, contactId: data.id, message: `Contact ${email} créé avec succès dans Intercom.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+async function runBitbucket(connectors, repoPath, title, description) {
+  const info = getConnectorInfo(connectors, "Bitbucket");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur Bitbucket n'est pas configuré. Veuillez connecter votre compte Bitbucket dans l'onglet Connecteurs." };
+  }
+  const finalRepo = repoPath || info.domain;
+  if (!finalRepo) {
+    return { error: "Erreur: Aucun dépôt Bitbucket (espace-de-travail/nom-depot) n'a été fourni ni configuré par défaut." };
+  }
+
+  try {
+    const res = await fetch(`https://api.bitbucket.org/2.0/repositories/${finalRepo}/issues`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${info.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ title, content: { raw: description || "", markup: "markdown" } })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error?.message || `HTTP ${res.status}`);
+    }
+    return { success: true, issueId: data.id, message: `Issue Bitbucket #${data.id} créée avec succès.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+async function runZoom(connectors, topic, startTimeISO, durationMinutes) {
+  const info = getConnectorInfo(connectors, "Zoom");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur Zoom n'est pas configuré. Veuillez connecter votre compte Zoom dans l'onglet Connecteurs." };
+  }
+
+  try {
+    const res = await fetch("https://api.zoom.us/v2/users/me/meetings", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${info.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        topic,
+        type: startTimeISO ? 2 : 1,
+        start_time: startTimeISO || undefined,
+        duration: durationMinutes || 30
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+    return { success: true, meetingId: data.id, joinUrl: data.join_url, message: `Réunion Zoom "${topic}" créée avec succès.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
 export default async function handler(req, res) {
   // CORS Configuration
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -2373,6 +2536,81 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
               },
               required: ["title"]
             }
+          },
+          {
+            name: "create_salesforce_lead",
+            description: "Crée un nouveau lead dans Salesforce.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                lastName: { type: "STRING", description: "Nom de famille du lead." },
+                company: { type: "STRING", description: "Nom de l'entreprise du lead." },
+                email: { type: "STRING", description: "E-mail du lead (facultatif)." }
+              },
+              required: ["lastName", "company"]
+            }
+          },
+          {
+            name: "create_zoho_lead",
+            description: "Crée un nouveau lead dans Zoho CRM.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                lastName: { type: "STRING", description: "Nom de famille du lead." },
+                company: { type: "STRING", description: "Nom de l'entreprise du lead." },
+                email: { type: "STRING", description: "E-mail du lead (facultatif)." }
+              },
+              required: ["lastName", "company"]
+            }
+          },
+          {
+            name: "create_sellsy_company",
+            description: "Crée une nouvelle fiche société dans Sellsy.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                companyName: { type: "STRING", description: "Nom de la société à créer." }
+              },
+              required: ["companyName"]
+            }
+          },
+          {
+            name: "create_intercom_contact",
+            description: "Crée un nouveau contact (lead) dans Intercom.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                email: { type: "STRING", description: "E-mail du contact." },
+                name: { type: "STRING", description: "Nom du contact (facultatif)." }
+              },
+              required: ["email"]
+            }
+          },
+          {
+            name: "create_bitbucket_issue",
+            description: "Crée une nouvelle issue dans un dépôt Bitbucket.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                repoPath: { type: "STRING", description: "Dépôt Bitbucket, format espace-de-travail/nom-depot (facultatif si configuré par défaut)." },
+                title: { type: "STRING", description: "Titre de l'issue." },
+                description: { type: "STRING", description: "Description de l'issue (facultatif)." }
+              },
+              required: ["title"]
+            }
+          },
+          {
+            name: "create_zoom_meeting",
+            description: "Crée une nouvelle réunion Zoom (instantanée ou planifiée).",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                topic: { type: "STRING", description: "Sujet / titre de la réunion." },
+                startTimeISO: { type: "STRING", description: "Date et heure de début au format ISO 8601 (facultatif ; si absent, réunion instantanée)." },
+                durationMinutes: { type: "NUMBER", description: "Durée en minutes (facultatif, défaut 30)." }
+              },
+              required: ["topic"]
+            }
           }
         ]
       }
@@ -2482,6 +2720,18 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
             functionResult = await runClickUp(connectors, functionArgs.listId, functionArgs.name, functionArgs.description);
           } else if (functionName === 'create_gitlab_issue') {
             functionResult = await runGitLab(connectors, functionArgs.projectPath, functionArgs.title, functionArgs.description);
+          } else if (functionName === 'create_salesforce_lead') {
+            functionResult = await runSalesforce(connectors, functionArgs.lastName, functionArgs.company, functionArgs.email);
+          } else if (functionName === 'create_zoho_lead') {
+            functionResult = await runZoho(connectors, functionArgs.lastName, functionArgs.company, functionArgs.email);
+          } else if (functionName === 'create_sellsy_company') {
+            functionResult = await runSellsy(connectors, functionArgs.companyName);
+          } else if (functionName === 'create_intercom_contact') {
+            functionResult = await runIntercom(connectors, functionArgs.email, functionArgs.name);
+          } else if (functionName === 'create_bitbucket_issue') {
+            functionResult = await runBitbucket(connectors, functionArgs.repoPath, functionArgs.title, functionArgs.description);
+          } else if (functionName === 'create_zoom_meeting') {
+            functionResult = await runZoom(connectors, functionArgs.topic, functionArgs.startTimeISO, functionArgs.durationMinutes);
           } else {
             functionResult = { error: `Outil ${functionName} inconnu.` };
           }
