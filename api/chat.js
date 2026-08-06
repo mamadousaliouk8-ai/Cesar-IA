@@ -1586,6 +1586,34 @@ async function runZoom(connectors, topic, startTimeISO, durationMinutes) {
   }
 }
 
+async function runBox(connectors, folderName, parentFolderId) {
+  const info = getConnectorInfo(connectors, "Box");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur Box n'est pas configuré. Veuillez connecter votre compte Box dans l'onglet Connecteurs." };
+  }
+
+  try {
+    const res = await fetch("https://api.box.com/2.0/folders", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${info.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        name: folderName,
+        parent: { id: parentFolderId || info.domain || "0" }
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+    return { success: true, folderId: data.id, message: `Dossier "${folderName}" créé avec succès dans Box.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
 export default async function handler(req, res) {
   // CORS Configuration
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -2611,6 +2639,18 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
               },
               required: ["topic"]
             }
+          },
+          {
+            name: "create_box_folder",
+            description: "Crée un nouveau dossier dans l'espace Box de l'utilisateur.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                folderName: { type: "STRING", description: "Nom du dossier à créer." },
+                parentFolderId: { type: "STRING", description: "ID du dossier parent (facultatif ; racine par défaut)." }
+              },
+              required: ["folderName"]
+            }
           }
         ]
       }
@@ -2732,6 +2772,8 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
             functionResult = await runBitbucket(connectors, functionArgs.repoPath, functionArgs.title, functionArgs.description);
           } else if (functionName === 'create_zoom_meeting') {
             functionResult = await runZoom(connectors, functionArgs.topic, functionArgs.startTimeISO, functionArgs.durationMinutes);
+          } else if (functionName === 'create_box_folder') {
+            functionResult = await runBox(connectors, functionArgs.folderName, functionArgs.parentFolderId);
           } else {
             functionResult = { error: `Outil ${functionName} inconnu.` };
           }
