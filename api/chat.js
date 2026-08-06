@@ -2103,7 +2103,12 @@ Réponds uniquement avec un JSON de la forme {"facts": ["fait court 1", "fait co
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ role: 'user', parts: [{ text: extractionPrompt }] }],
-        generationConfig: { temperature: 0.1, maxOutputTokens: 400, responseMimeType: 'application/json' }
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 1024,
+          responseMimeType: 'application/json',
+          thinkingConfig: { thinkingBudget: 0 }
+        }
       })
     });
 
