@@ -1457,7 +1457,20 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
         console.error("Erreur lors de la récupération automatique du style LinkedIn :", errStyle);
       }
     }
-    
+
+    // Mémoire partagée du compte : ce que les AUTRES agents ont appris pour cet
+    // utilisateur (voir getAccountMemoryContext / updateAccountMemory plus bas).
+    if (userId) {
+      try {
+        const memoryContext = await getAccountMemoryContext(userId);
+        if (memoryContext) {
+          finalSystemInstruction += `\n\n### MÉMOIRE PARTAGÉE DU COMPTE (issue des échanges avec les autres agents César-IA de ce client) :\n${memoryContext}\n\nUtilise ces informations si elles sont pertinentes, sans les répéter mot pour mot inutilement.`;
+        }
+      } catch (errMem) {
+        console.error("Erreur lors de la récupération de la mémoire partagée :", errMem);
+      }
+    }
+
     let cleanClientApiKey = (typeof clientApiKey === 'string' ? clientApiKey.trim() : '');
     if (
       !cleanClientApiKey || 
@@ -1904,6 +1917,9 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
     let latestResponse = null;
     const executionLogs = [];
 
+    const lastUserMessage = [...contents].reverse().find(c => c.role === 'user');
+    const lastUserMessageText = lastUserMessage?.parts?.map(p => p.text).filter(Boolean).join('\n') || '';
+
     while (loopCount < 3) {
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
@@ -2014,6 +2030,10 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
       } else {
         // No function call (regular text), return to client
         data.executionLogs = executionLogs;
+        if (userId) {
+          const replyText = part?.text || '';
+          await updateAccountMemory(apiKey, userId, agentId, agentName, lastUserMessageText, replyText);
+        }
         return res.status(200).json(data);
       }
     }
@@ -2021,11 +2041,92 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
     // If recursion limit is hit, return the last data we have
     if (latestResponse) {
       latestResponse.executionLogs = executionLogs;
+      if (userId) {
+        const replyText = latestResponse.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        await updateAccountMemory(apiKey, userId, agentId, agentName, lastUserMessageText, replyText);
+      }
     }
     return res.status(200).json(latestResponse);
   } catch (error) {
     console.error('[API Chat Error]:', error);
     return res.status(500).json({ error: { message: error.message || 'Internal Server Error' } });
+  }
+}
+
+// Récupère les derniers faits mémorisés pour ce compte (tous agents confondus)
+// et les formate pour injection dans le system prompt de l'agent en cours.
+async function getAccountMemoryContext(userId) {
+  if (!supabase || !userId) return '';
+  try {
+    const { data, error } = await supabase
+      .from('account_memory')
+      .select('agent_name, fact, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(25);
+
+    if (error || !data || data.length === 0) return '';
+
+    return data
+      .slice()
+      .reverse()
+      .map(row => `- [${row.agent_name || row.agent_id || 'Agent'}] ${row.fact}`)
+      .join('\n');
+  } catch (err) {
+    console.error('[Account Memory] Erreur de lecture:', err);
+    return '';
+  }
+}
+
+// Après un échange, demande au modèle d'extraire 0 à 3 faits durables (décisions,
+// données client, tâches en cours...) et les stocke pour que les AUTRES agents du
+// même compte en héritent lors de leurs propres conversations.
+async function updateAccountMemory(apiKey, userId, agentId, agentName, userMessageText, agentReplyText) {
+  if (!supabase || !userId || !apiKey || !userMessageText || !agentReplyText) return;
+  try {
+    const extractionPrompt = `Voici un échange entre un utilisateur et l'agent IA "${agentName}" (${agentId}) sur la plateforme César-IA.
+
+Message utilisateur : "${userMessageText.slice(0, 1500)}"
+Réponse de l'agent : "${agentReplyText.slice(0, 1500)}"
+
+Extrait 0 à 3 faits DURABLES et utiles à partager avec les AUTRES agents IA de ce même compte (ex : identité de l'entreprise, décision prise, donnée client, tâche en cours, préférence exprimée). Ignore le small talk et tout ce qui n'a pas de valeur au-delà de cet échange.
+
+Réponds uniquement avec un JSON de la forme {"facts": ["fait court 1", "fait court 2"]}. Si rien n'est notable, réponds {"facts": []}.`;
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: extractionPrompt }] }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 400, responseMimeType: 'application/json' }
+      })
+    });
+
+    if (!response.ok) return;
+    const data = await response.json();
+    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!rawText) return;
+
+    let parsed;
+    try {
+      parsed = JSON.parse(rawText);
+    } catch (e) {
+      return;
+    }
+
+    const facts = Array.isArray(parsed?.facts) ? parsed.facts.filter(f => typeof f === 'string' && f.trim()) : [];
+    if (facts.length === 0) return;
+
+    await supabase.from('account_memory').insert(
+      facts.map(fact => ({
+        user_id: userId,
+        agent_id: agentId,
+        agent_name: agentName,
+        fact: fact.trim().slice(0, 500)
+      }))
+    );
+  } catch (err) {
+    console.error('[Account Memory] Erreur d\'extraction:', err);
   }
 }
 
