@@ -2209,6 +2209,128 @@ async function runLokalise(connectors, projectId, keyName, translationValue) {
   }
 }
 
+// Crowdin : jeton d'API personnel. Le champ "domaine" attend l'ID du projet
+// Crowdin cible.
+async function runCrowdin(connectors, projectId, sourceText, identifier) {
+  const info = getConnectorInfo(connectors, "Crowdin");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur Crowdin n'est pas configuré. Veuillez renseigner votre jeton d'API Crowdin dans l'onglet Connecteurs." };
+  }
+  const finalProjectId = projectId || info.domain;
+  if (!finalProjectId) {
+    return { error: "Erreur: Aucun ID de projet Crowdin n'a été fourni ni configuré par défaut." };
+  }
+
+  try {
+    const res = await fetch(`https://api.crowdin.com/api/v2/projects/${finalProjectId}/strings`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${info.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ text: sourceText, identifier })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.errors?.[0]?.error?.errors?.[0]?.message || `HTTP ${res.status}`);
+    }
+    return { success: true, stringId: data.data?.id, message: `Chaîne "${identifier}" créée avec succès dans Crowdin.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+// Phrase : jeton d'accès personnel. Le champ "domaine" attend l'ID du projet
+// Phrase cible.
+async function runPhrase(connectors, projectId, keyName, translationText) {
+  const info = getConnectorInfo(connectors, "Phrase");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur Phrase n'est pas configuré. Veuillez renseigner votre jeton d'accès Phrase dans l'onglet Connecteurs." };
+  }
+  const finalProjectId = projectId || info.domain;
+  if (!finalProjectId) {
+    return { error: "Erreur: Aucun ID de projet Phrase n'a été fourni ni configuré par défaut." };
+  }
+
+  try {
+    const res = await fetch(`https://api.phrase.com/v2/projects/${finalProjectId}/keys`, {
+      method: "POST",
+      headers: {
+        "Authorization": `token ${info.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ name: keyName, description: translationText || "" })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+    return { success: true, keyId: data.id, message: `Clé "${keyName}" créée avec succès dans Phrase.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+// Lemlist : clé API personnelle en Basic Auth (clé:vide).
+async function runLemlist(connectors, campaignId, email, firstName, lastName) {
+  const info = getConnectorInfo(connectors, "Lemlist");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur Lemlist n'est pas configuré. Veuillez renseigner votre clé API Lemlist dans l'onglet Connecteurs." };
+  }
+  const finalCampaignId = campaignId || info.domain;
+  if (!finalCampaignId) {
+    return { error: "Erreur: Aucun ID de campagne Lemlist n'a été fourni ni configuré par défaut." };
+  }
+  const basicAuth = Buffer.from(`:${info.token}`).toString('base64');
+
+  try {
+    const res = await fetch(`https://api.lemlist.com/api/campaigns/${finalCampaignId}/leads/${encodeURIComponent(email)}`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Basic ${basicAuth}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ firstName: firstName || "", lastName: lastName || "" })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+    return { success: true, leadId: data._id, message: `Lead ${email} ajouté avec succès à la campagne Lemlist.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+// Grafana : jeton d'API (Service Account Token). Le champ "domaine" attend
+// l'URL de l'instance Grafana.
+async function runGrafana(connectors, text, tags) {
+  const info = getConnectorInfo(connectors, "Grafana");
+  if (!info || !info.token || !info.domain) {
+    return { error: "Erreur: Le connecteur Grafana n'est pas configuré (jeton ou URL d'instance manquant)." };
+  }
+  const instance = info.domain.trim().replace(/\/$/, '');
+  const baseUrl = instance.startsWith('http') ? instance : `https://${instance}`;
+
+  try {
+    const res = await fetch(`${baseUrl}/api/annotations`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${info.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ text, tags: tags || [], time: Date.now() })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+    return { success: true, annotationId: data.id, message: "Annotation créée avec succès sur Grafana." };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
 export default async function handler(req, res) {
   // CORS Configuration
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -3464,6 +3586,58 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
               },
               required: ["keyName"]
             }
+          },
+          {
+            name: "create_crowdin_string",
+            description: "Crée une nouvelle chaîne source à traduire dans un projet Crowdin.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                projectId: { type: "STRING", description: "ID du projet Crowdin cible (facultatif si configuré par défaut)." },
+                sourceText: { type: "STRING", description: "Texte source à traduire." },
+                identifier: { type: "STRING", description: "Identifiant unique de la chaîne." }
+              },
+              required: ["sourceText", "identifier"]
+            }
+          },
+          {
+            name: "create_phrase_key",
+            description: "Crée une nouvelle clé de traduction dans un projet Phrase.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                projectId: { type: "STRING", description: "ID du projet Phrase cible (facultatif si configuré par défaut)." },
+                keyName: { type: "STRING", description: "Nom de la clé à créer." },
+                translationText: { type: "STRING", description: "Description ou texte de référence de la clé (facultatif)." }
+              },
+              required: ["keyName"]
+            }
+          },
+          {
+            name: "add_lemlist_lead",
+            description: "Ajoute un prospect à une campagne d'e-mailing Lemlist.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                campaignId: { type: "STRING", description: "ID de la campagne Lemlist cible (facultatif si configuré par défaut)." },
+                email: { type: "STRING", description: "E-mail du prospect." },
+                firstName: { type: "STRING", description: "Prénom du prospect (facultatif)." },
+                lastName: { type: "STRING", description: "Nom du prospect (facultatif)." }
+              },
+              required: ["email"]
+            }
+          },
+          {
+            name: "create_grafana_annotation",
+            description: "Ajoute une annotation (marqueur d'événement) sur les tableaux de bord Grafana.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                text: { type: "STRING", description: "Texte de l'annotation." },
+                tags: { type: "ARRAY", items: { type: "STRING" }, description: "Étiquettes associées à l'annotation (facultatif)." }
+              },
+              required: ["text"]
+            }
           }
         ]
       }
@@ -3621,6 +3795,14 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
             functionResult = await runProductboard(connectors, functionArgs.title, functionArgs.content, functionArgs.customerEmail);
           } else if (functionName === 'create_lokalise_key') {
             functionResult = await runLokalise(connectors, functionArgs.projectId, functionArgs.keyName, functionArgs.translationValue);
+          } else if (functionName === 'create_crowdin_string') {
+            functionResult = await runCrowdin(connectors, functionArgs.projectId, functionArgs.sourceText, functionArgs.identifier);
+          } else if (functionName === 'create_phrase_key') {
+            functionResult = await runPhrase(connectors, functionArgs.projectId, functionArgs.keyName, functionArgs.translationText);
+          } else if (functionName === 'add_lemlist_lead') {
+            functionResult = await runLemlist(connectors, functionArgs.campaignId, functionArgs.email, functionArgs.firstName, functionArgs.lastName);
+          } else if (functionName === 'create_grafana_annotation') {
+            functionResult = await runGrafana(connectors, functionArgs.text, functionArgs.tags);
           } else {
             functionResult = { error: `Outil ${functionName} inconnu.` };
           }
