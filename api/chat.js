@@ -1966,6 +1966,95 @@ async function runFreshdesk(connectors, subject, description, requesterEmail) {
   }
 }
 
+// Les API Jira/Confluence Cloud s'appellent via un "cloud ID" propre au site
+// Atlassian de l'utilisateur, retrouvé depuis le jeton OAuth (pas besoin de le
+// redemander à l'utilisateur).
+async function getAtlassianCloudId(token) {
+  const res = await fetch("https://api.atlassian.com/oauth/token/accessible-resources", {
+    headers: { "Authorization": `Bearer ${token}`, "Accept": "application/json" }
+  });
+  if (!res.ok) throw new Error(`Impossible de récupérer le site Atlassian (HTTP ${res.status}).`);
+  const sites = await res.json();
+  if (!sites || sites.length === 0) throw new Error("Aucun site Atlassian accessible avec ce compte.");
+  return sites[0].id;
+}
+
+async function runJira(connectors, projectKey, summary, description) {
+  const info = getConnectorInfo(connectors, "Jira");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur Jira n'est pas configuré. Veuillez connecter votre compte Atlassian dans l'onglet Connecteurs." };
+  }
+  const finalProjectKey = projectKey || info.domain;
+  if (!finalProjectKey) {
+    return { error: "Erreur: Aucune clé de projet Jira n'a été fournie ni configurée par défaut." };
+  }
+
+  try {
+    const cloudId = await getAtlassianCloudId(info.token);
+    const res = await fetch(`https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${info.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        fields: {
+          project: { key: finalProjectKey },
+          summary,
+          issuetype: { name: "Task" },
+          description: {
+            type: "doc",
+            version: 1,
+            content: [{ type: "paragraph", content: [{ type: "text", text: description || "" }] }]
+          }
+        }
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.errorMessages?.join(', ') || JSON.stringify(data.errors) || `HTTP ${res.status}`);
+    }
+    return { success: true, issueKey: data.key, message: `Ticket Jira ${data.key} créé avec succès.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+async function runConfluence(connectors, spaceKey, title, contentHtml) {
+  const info = getConnectorInfo(connectors, "Confluence");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur Confluence n'est pas configuré. Veuillez connecter votre compte Atlassian dans l'onglet Connecteurs." };
+  }
+  const finalSpaceKey = spaceKey || info.domain;
+  if (!finalSpaceKey) {
+    return { error: "Erreur: Aucune clé d'espace Confluence n'a été fournie ni configurée par défaut." };
+  }
+
+  try {
+    const cloudId = await getAtlassianCloudId(info.token);
+    const res = await fetch(`https://api.atlassian.com/ex/confluence/${cloudId}/wiki/rest/api/content`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${info.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        type: "page",
+        title,
+        space: { key: finalSpaceKey },
+        body: { storage: { value: contentHtml, representation: "storage" } }
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+    return { success: true, pageId: data.id, url: data._links?.webui, message: `Page Confluence "${title}" créée avec succès.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
 export default async function handler(req, res) {
   // CORS Configuration
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -3133,6 +3222,32 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
               },
               required: ["subject", "description", "requesterEmail"]
             }
+          },
+          {
+            name: "create_jira_issue",
+            description: "Crée un nouveau ticket (issue) dans un projet Jira.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                projectKey: { type: "STRING", description: "Clé du projet Jira cible (facultatif si configuré par défaut)." },
+                summary: { type: "STRING", description: "Titre / résumé du ticket." },
+                description: { type: "STRING", description: "Description détaillée du ticket (facultatif)." }
+              },
+              required: ["summary"]
+            }
+          },
+          {
+            name: "create_confluence_page",
+            description: "Crée une nouvelle page dans un espace Confluence.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                spaceKey: { type: "STRING", description: "Clé de l'espace Confluence cible (facultatif si configuré par défaut)." },
+                title: { type: "STRING", description: "Titre de la page." },
+                contentHtml: { type: "STRING", description: "Contenu de la page au format HTML." }
+              },
+              required: ["title", "contentHtml"]
+            }
           }
         ]
       }
@@ -3276,6 +3391,10 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
             functionResult = await runWooCommerce(connectors, functionArgs.name, functionArgs.description, functionArgs.price);
           } else if (functionName === 'create_freshdesk_ticket') {
             functionResult = await runFreshdesk(connectors, functionArgs.subject, functionArgs.description, functionArgs.requesterEmail);
+          } else if (functionName === 'create_jira_issue') {
+            functionResult = await runJira(connectors, functionArgs.projectKey, functionArgs.summary, functionArgs.description);
+          } else if (functionName === 'create_confluence_page') {
+            functionResult = await runConfluence(connectors, functionArgs.spaceKey, functionArgs.title, functionArgs.contentHtml);
           } else {
             functionResult = { error: `Outil ${functionName} inconnu.` };
           }
