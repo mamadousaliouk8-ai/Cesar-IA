@@ -1460,11 +1460,15 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
 
     // Mémoire partagée du compte : ce que les AUTRES agents ont appris pour cet
     // utilisateur (voir getAccountMemoryContext / updateAccountMemory plus bas).
+    // Placée en tête du prompt (et non à la fin) pour qu'elle prime sur les
+    // consignes "connecteur non configuré → simule" plus loin dans le prompt :
+    // sans ça, l'agent suit ces consignes de simulation avant même d'avoir lu
+    // la mémoire, et répond à côté alors que l'info était déjà disponible.
     if (userId) {
       try {
         const memoryContext = await getAccountMemoryContext(userId);
         if (memoryContext) {
-          finalSystemInstruction += `\n\n### MÉMOIRE PARTAGÉE DU COMPTE (issue des échanges avec les autres agents César-IA de ce client) :\n${memoryContext}\n\nUtilise ces informations si elles sont pertinentes, sans les répéter mot pour mot inutilement.`;
+          finalSystemInstruction = `### MÉMOIRE PARTAGÉE DU COMPTE (issue des échanges avec les autres agents César-IA de ce client) :\n${memoryContext}\n\nConsigne prioritaire : si l'information demandée par l'utilisateur figure ci-dessus, réponds directement avec cette information — n'appelle AUCUN outil et ne mentionne PAS de connecteur manquant pour cette information précise, même si une consigne plus bas dans ce prompt semble le suggérer. N'utilise les outils / ne parle de connecteurs que pour ce qui n'est réellement pas couvert par la mémoire ci-dessus.\n\n---\n\n${finalSystemInstruction}`;
         }
       } catch (errMem) {
         console.error("Erreur lors de la récupération de la mémoire partagée :", errMem);
