@@ -1850,6 +1850,122 @@ async function runDatadog(connectors, title, text, alertType) {
   }
 }
 
+// Sentry : jeton d'authentification personnel (Bearer). Le champ "domaine"
+// attend le slug de l'organisation Sentry (Settings > General > Organization Slug).
+async function runSentry(connectors, version, projects) {
+  const info = getConnectorInfo(connectors, "Sentry");
+  if (!info || !info.token || !info.domain) {
+    return { error: "Erreur: Le connecteur Sentry n'est pas configuré (jeton ou slug d'organisation manquant)." };
+  }
+
+  try {
+    const res = await fetch(`https://sentry.io/api/0/organizations/${info.domain}/releases/`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${info.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ version, projects: projects || [] })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.detail || JSON.stringify(data) || `HTTP ${res.status}`);
+    }
+    return { success: true, version: data.version, message: `Release Sentry "${version}" créée avec succès.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+// Figma : jeton d'accès personnel (Settings > Personal Access Tokens). Le champ
+// "domaine" attend la clé du fichier Figma (visible dans l'URL du fichier).
+async function runFigma(connectors, fileKey, message) {
+  const info = getConnectorInfo(connectors, "Figma");
+  if (!info || !info.token) {
+    return { error: "Erreur: Le connecteur Figma n'est pas configuré. Veuillez renseigner votre jeton d'accès Figma dans l'onglet Connecteurs." };
+  }
+  const finalFileKey = fileKey || info.domain;
+  if (!finalFileKey) {
+    return { error: "Erreur: Aucune clé de fichier Figma n'a été fournie ni configurée par défaut." };
+  }
+
+  try {
+    const res = await fetch(`https://api.figma.com/v1/files/${finalFileKey}/comments`, {
+      method: "POST",
+      headers: {
+        "X-Figma-Token": info.token,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ message })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+    return { success: true, commentId: data.id, message: "Commentaire ajouté avec succès sur le fichier Figma." };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+// WooCommerce : clé consommateur + secret (Basic Auth), format "consumerKey:consumerSecret"
+// dans le champ "Clé d'API". Le champ "domaine" attend l'URL du site WordPress/WooCommerce.
+async function runWooCommerce(connectors, name, description, price) {
+  const info = getConnectorInfo(connectors, "WooCommerce");
+  if (!info || !info.token || !info.token.includes(':') || !info.domain) {
+    return { error: "Erreur: Le connecteur WooCommerce n'est pas configuré correctement (format attendu : consumerKey:consumerSecret, et URL du site)." };
+  }
+  const site = info.domain.trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
+  const basicAuth = Buffer.from(info.token).toString('base64');
+
+  try {
+    const res = await fetch(`https://${site}/wp-json/wc/v3/products`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Basic ${basicAuth}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ name, description: description || "", regular_price: price ? String(price) : undefined })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+    return { success: true, productId: data.id, message: `Produit "${name}" créé avec succès sur WooCommerce.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+// Freshdesk : clé API personnelle en Basic Auth (clé:X). Le champ "domaine"
+// attend le sous-domaine Freshdesk (votre-entreprise.freshdesk.com).
+async function runFreshdesk(connectors, subject, description, requesterEmail) {
+  const info = getConnectorInfo(connectors, "Freshdesk");
+  if (!info || !info.token || !info.domain) {
+    return { error: "Erreur: Le connecteur Freshdesk n'est pas configuré (jeton ou sous-domaine manquant)." };
+  }
+  const subdomain = info.domain.trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
+  const basicAuth = Buffer.from(`${info.token}:X`).toString('base64');
+
+  try {
+    const res = await fetch(`https://${subdomain}/api/v2/tickets`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Basic ${basicAuth}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ subject, description, email: requesterEmail, priority: 1, status: 2 })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.description || JSON.stringify(data.errors) || `HTTP ${res.status}`);
+    }
+    return { success: true, ticketId: data.id, message: `Ticket Freshdesk #${data.id} créé avec succès.` };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
 export default async function handler(req, res) {
   // CORS Configuration
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -2967,6 +3083,56 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
               },
               required: ["title", "text"]
             }
+          },
+          {
+            name: "create_sentry_release",
+            description: "Crée une nouvelle release dans Sentry.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                version: { type: "STRING", description: "Identifiant de version de la release (ex: un hash de commit ou un numéro de version)." },
+                projects: { type: "ARRAY", items: { type: "STRING" }, description: "Liste des slugs de projets Sentry concernés (facultatif)." }
+              },
+              required: ["version"]
+            }
+          },
+          {
+            name: "add_figma_comment",
+            description: "Ajoute un commentaire sur un fichier Figma.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                fileKey: { type: "STRING", description: "Clé du fichier Figma cible (facultatif si configuré par défaut)." },
+                message: { type: "STRING", description: "Contenu du commentaire." }
+              },
+              required: ["message"]
+            }
+          },
+          {
+            name: "create_woocommerce_product",
+            description: "Crée un nouveau produit dans une boutique WooCommerce.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                name: { type: "STRING", description: "Nom du produit." },
+                description: { type: "STRING", description: "Description du produit (facultatif)." },
+                price: { type: "STRING", description: "Prix régulier du produit (facultatif)." }
+              },
+              required: ["name"]
+            }
+          },
+          {
+            name: "create_freshdesk_ticket",
+            description: "Crée un nouveau ticket de support dans Freshdesk.",
+            parameters: {
+              type: "OBJECT",
+              properties: {
+                subject: { type: "STRING", description: "Sujet / titre du ticket." },
+                description: { type: "STRING", description: "Description détaillée du problème ou de la demande." },
+                requesterEmail: { type: "STRING", description: "E-mail du demandeur." }
+              },
+              required: ["subject", "description", "requesterEmail"]
+            }
           }
         ]
       }
@@ -3102,6 +3268,14 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
             functionResult = await runTrello(connectors, functionArgs.listId, functionArgs.name, functionArgs.description);
           } else if (functionName === 'post_datadog_event') {
             functionResult = await runDatadog(connectors, functionArgs.title, functionArgs.text, functionArgs.alertType);
+          } else if (functionName === 'create_sentry_release') {
+            functionResult = await runSentry(connectors, functionArgs.version, functionArgs.projects);
+          } else if (functionName === 'add_figma_comment') {
+            functionResult = await runFigma(connectors, functionArgs.fileKey, functionArgs.message);
+          } else if (functionName === 'create_woocommerce_product') {
+            functionResult = await runWooCommerce(connectors, functionArgs.name, functionArgs.description, functionArgs.price);
+          } else if (functionName === 'create_freshdesk_ticket') {
+            functionResult = await runFreshdesk(connectors, functionArgs.subject, functionArgs.description, functionArgs.requesterEmail);
           } else {
             functionResult = { error: `Outil ${functionName} inconnu.` };
           }

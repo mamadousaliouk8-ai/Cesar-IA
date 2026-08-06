@@ -5947,7 +5947,7 @@ function renderConnectorsForm() {
       `;
     } else {
       // Default: API Token, Webhook or SaaS credentials
-      const needsUrl = ['Zendesk', 'Jira', 'WordPress', 'Shopify', 'Webflow', 'Crisp', 'Freshdesk', 'WooCommerce', 'PrestaShop', 'ClickUp', 'Linear', 'Crowdin', 'Phrase', 'Sellsy', 'Axonaut', 'Qonto', 'Spendesk', 'GitBook', 'SharePoint', 'Grafana', 'GitHub', 'Notion', 'Airtable', 'Google Sheets', 'Asana', 'GitLab', 'Salesforce', 'Bitbucket', 'Cloudflare', 'Trello'].some(term => connector.includes(term));
+      const needsUrl = ['Zendesk', 'Jira', 'WordPress', 'Shopify', 'Webflow', 'Crisp', 'Freshdesk', 'WooCommerce', 'PrestaShop', 'ClickUp', 'Linear', 'Crowdin', 'Phrase', 'Sellsy', 'Axonaut', 'Qonto', 'Spendesk', 'GitBook', 'SharePoint', 'Grafana', 'GitHub', 'Notion', 'Airtable', 'Google Sheets', 'Asana', 'GitLab', 'Salesforce', 'Bitbucket', 'Cloudflare', 'Trello', 'Sentry', 'Figma'].some(term => connector.includes(term));
 
       let domainLabel = "URL du Logiciel (Domaine)";
       let domainPlaceholder = "https://votre-domaine.com";
@@ -5996,6 +5996,12 @@ function renderConnectorsForm() {
       } else if (connector.includes('Trello')) {
         domainLabel = "ID de Liste Trello";
         domainPlaceholder = "ID de votre liste Trello";
+      } else if (connector.includes('Sentry')) {
+        domainLabel = "Slug de l'Organisation Sentry";
+        domainPlaceholder = "ID de votre organisation Sentry";
+      } else if (connector.includes('Figma')) {
+        domainLabel = "Clé de Fichier Figma";
+        domainPlaceholder = "Clé du fichier (dans l'URL Figma)";
       }
 
       let tokenLabel = connector.includes('Webhook') ? "URL du Webhook / Clé secrète" : "Clé d'API / Jeton d'Accès";
@@ -6006,6 +6012,9 @@ function renderConnectorsForm() {
       } else if (connector.includes('Datadog')) {
         tokenLabel = "Clé API et Clé Application Datadog (format apiKey:appKey)";
         tokenPlaceholder = "apiKey:appKey";
+      } else if (connector.includes('WooCommerce')) {
+        tokenLabel = "Clé Consommateur et Secret WooCommerce (format consumerKey:consumerSecret)";
+        tokenPlaceholder = "ck_•••:cs_•••";
       }
 
       fieldsHtml = `
