@@ -1467,6 +1467,7 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
     if (userId) {
       try {
         const memoryContext = await getAccountMemoryContext(userId);
+        console.log(`[Account Memory][DEBUG] userId=${userId} agentId=${agentId} contextLength=${memoryContext.length}`, memoryContext ? memoryContext.slice(0, 300) : '(vide)');
         if (memoryContext) {
           finalSystemInstruction = `### MÉMOIRE PARTAGÉE DU COMPTE (issue des échanges avec les autres agents César-IA de ce client) :\n${memoryContext}\n\nConsigne prioritaire : si l'information demandée par l'utilisateur figure ci-dessus, réponds directement avec cette information — n'appelle AUCUN outil et ne mentionne PAS de connecteur manquant pour cette information précise, même si une consigne plus bas dans ce prompt semble le suggérer. N'utilise les outils / ne parle de connecteurs que pour ce qui n'est réellement pas couvert par la mémoire ci-dessus.\n\n---\n\n${finalSystemInstruction}`;
         }
@@ -2106,22 +2107,28 @@ Réponds uniquement avec un JSON de la forme {"facts": ["fait court 1", "fait co
       })
     });
 
-    if (!response.ok) return;
+    if (!response.ok) {
+      console.log('[Account Memory][DEBUG] Extraction call failed, status', response.status);
+      return;
+    }
     const data = await response.json();
     const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    console.log('[Account Memory][DEBUG] Extraction raw response:', rawText);
     if (!rawText) return;
 
     let parsed;
     try {
       parsed = JSON.parse(rawText);
     } catch (e) {
+      console.log('[Account Memory][DEBUG] JSON parse failed for:', rawText);
       return;
     }
 
     const facts = Array.isArray(parsed?.facts) ? parsed.facts.filter(f => typeof f === 'string' && f.trim()) : [];
+    console.log(`[Account Memory][DEBUG] ${facts.length} fait(s) extrait(s) pour agentId=${agentId}:`, facts);
     if (facts.length === 0) return;
 
-    await supabase.from('account_memory').insert(
+    const { error: insertErr } = await supabase.from('account_memory').insert(
       facts.map(fact => ({
         user_id: userId,
         agent_id: agentId,
@@ -2129,6 +2136,11 @@ Réponds uniquement avec un JSON de la forme {"facts": ["fait court 1", "fait co
         fact: fact.trim().slice(0, 500)
       }))
     );
+    if (insertErr) {
+      console.log('[Account Memory][DEBUG] Insert error:', insertErr);
+    } else {
+      console.log('[Account Memory][DEBUG] Insert OK');
+    }
   } catch (err) {
     console.error('[Account Memory] Erreur d\'extraction:', err);
   }
