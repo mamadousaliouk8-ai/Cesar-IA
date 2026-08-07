@@ -2402,11 +2402,11 @@ export default async function handler(req, res) {
             });
             
             if (matchedConnectorRecord) {
-              console.log(`[WhatsApp Webhook] Utilisateur identifié: ${matchedConnectorRecord.user_id}`);
+              console.log(`[WhatsApp Webhook] Organisation identifiée: ${matchedConnectorRecord.org_id}`);
               const { data: allConn, error: allConnErr } = await supabase
                 .from('connectors')
                 .select('*')
-                .eq('user_id', matchedConnectorRecord.user_id)
+                .eq('org_id', matchedConnectorRecord.org_id)
                 .eq('agent_id', matchedConnectorRecord.agent_id);
                 
               if (!allConnErr && allConn) {
@@ -2571,6 +2571,7 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
     
     const isLocalMock = !supabaseUrl || !supabaseKey || supabaseUrl.includes('YOUR_SUPABASE_PROJECT_URL');
     let userId = null;
+    let orgId = null;
     let isAdmin = false;
     
     if (!isLocalMock && supabase) {
@@ -2583,7 +2584,7 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
             return res.status(401).json({ error: { message: "Session expirée ou invalide. Veuillez vous reconnecter." } });
           }
           userId = user.id;
-          
+
           // Check if admin (ASCII, accented, and punycode variations)
           const adminEmails = [
             'contact@cesar-ia.com',
@@ -2596,47 +2597,72 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
             'manel.cheraiti@gmail.com'
           ];
           const isAdminEmail = user.email && adminEmails.includes(user.email.trim().toLowerCase());
-          
+
           let isAdminProfile = false;
+          let orgRole = 'owner';
           try {
             const { data: profile } = await supabase
               .from('profiles')
-              .select('is_admin')
+              .select('is_admin, org_id, role, status')
               .eq('id', userId)
               .single();
             if (profile) {
               isAdminProfile = profile.is_admin;
+              orgId = profile.org_id;
+              orgRole = profile.role;
+              if (profile.status !== 'active') {
+                return res.status(403).json({ error: { message: "Ce compte a été désactivé par le propriétaire de l'organisation." } });
+              }
             }
           } catch (e) {
             console.warn("[Auth check] Error checking profiles:", e);
           }
-          
+
           isAdmin = isAdminEmail || isAdminProfile;
-          
-          // Check if the agent is adopted
+
+          // Check if the agent is adopted by the organization, and — for a
+          // collaborator (non-owner) — that the owner has assigned it to them.
+          // Purchases/entitlements live at the org level; the owner always has
+          // access to everything the org has adopted.
           const targetAgentId = agentId || body.agentId || body.agentName?.toLowerCase();
           if (!isAdmin && targetAgentId) {
             const { data: adoption, error: adoptErr } = await supabase
               .from('adopted_agents')
               .select('*')
-              .eq('user_id', userId)
+              .eq('org_id', orgId)
               .eq('agent_id', targetAgentId)
               .single();
-              
+
             if (adoptErr || !adoption) {
               return res.status(403).json({ error: { message: "Vous devez adopter cet agent avant de pouvoir l'utiliser." } });
             }
+
+            if (orgRole === 'member') {
+              const { data: assignment, error: assignErr } = await supabase
+                .from('agent_assignments')
+                .select('*')
+                .eq('org_id', orgId)
+                .eq('agent_id', targetAgentId)
+                .eq('member_user_id', userId)
+                .single();
+
+              if (assignErr || !assignment) {
+                return res.status(403).json({ error: { message: "Cet agent ne vous a pas été attribué par le propriétaire de l'organisation." } });
+              }
+            }
           }
-          
-          // Securely load connectors from the database
+
+          // Securely load connectors from the database — partagés à l'échelle
+          // de l'organisation pour que tous les collaborateurs autorisés
+          // utilisent la même connexion (Slack, Notion, HubSpot...).
           if (targetAgentId) {
             try {
               const { data: dbConn, error: connErr } = await supabase
                 .from('connectors')
                 .select('*')
-                .eq('user_id', userId)
+                .eq('org_id', orgId)
                 .eq('agent_id', targetAgentId);
-                
+
               if (!connErr && dbConn) {
                 verifiedConnectors = {};
                 dbConn.forEach(c => {
@@ -2680,9 +2706,9 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
     // consignes "connecteur non configuré → simule" plus loin dans le prompt :
     // sans ça, l'agent suit ces consignes de simulation avant même d'avoir lu
     // la mémoire, et répond à côté alors que l'info était déjà disponible.
-    if (userId) {
+    if (orgId) {
       try {
-        const memoryContext = await getAccountMemoryContext(userId);
+        const memoryContext = await getAccountMemoryContext(orgId);
         if (memoryContext) {
           finalSystemInstruction = `### MÉMOIRE PARTAGÉE DU COMPTE (issue des échanges avec les autres agents César-IA de ce client) :\n${memoryContext}\n\nConsigne prioritaire : si l'information demandée par l'utilisateur figure ci-dessus, réponds directement avec cette information — n'appelle AUCUN outil et ne mentionne PAS de connecteur manquant pour cette information précise, même si une consigne plus bas dans ce prompt semble le suggérer. N'utilise les outils / ne parle de connecteurs que pour ce qui n'est réellement pas couvert par la mémoire ci-dessus.\n\n---\n\n${finalSystemInstruction}`;
         }
@@ -3835,9 +3861,9 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
       } else {
         // No function call (regular text), return to client
         data.executionLogs = executionLogs;
-        if (userId) {
+        if (orgId) {
           const replyText = part?.text || '';
-          await updateAccountMemory(apiKey, userId, agentId, agentName, lastUserMessageText, replyText);
+          await updateAccountMemory(apiKey, orgId, userId, agentId, agentName, lastUserMessageText, replyText);
         }
         return res.status(200).json(data);
       }
@@ -3846,9 +3872,9 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
     // If recursion limit is hit, return the last data we have
     if (latestResponse) {
       latestResponse.executionLogs = executionLogs;
-      if (userId) {
+      if (orgId) {
         const replyText = latestResponse.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        await updateAccountMemory(apiKey, userId, agentId, agentName, lastUserMessageText, replyText);
+        await updateAccountMemory(apiKey, orgId, userId, agentId, agentName, lastUserMessageText, replyText);
       }
     }
     return res.status(200).json(latestResponse);
@@ -3858,15 +3884,16 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
   }
 }
 
-// Récupère les derniers faits mémorisés pour ce compte (tous agents confondus)
-// et les formate pour injection dans le system prompt de l'agent en cours.
-async function getAccountMemoryContext(userId) {
-  if (!supabase || !userId) return '';
+// Récupère les derniers faits mémorisés pour cette organisation (tous agents
+// et tous collaborateurs confondus) et les formate pour injection dans le
+// system prompt de l'agent en cours.
+async function getAccountMemoryContext(orgId) {
+  if (!supabase || !orgId) return '';
   try {
     const { data, error } = await supabase
       .from('account_memory')
       .select('agent_name, fact, created_at')
-      .eq('user_id', userId)
+      .eq('org_id', orgId)
       .order('created_at', { ascending: false })
       .limit(25);
 
@@ -3884,10 +3911,11 @@ async function getAccountMemoryContext(userId) {
 }
 
 // Après un échange, demande au modèle d'extraire 0 à 3 faits durables (décisions,
-// données client, tâches en cours...) et les stocke pour que les AUTRES agents du
-// même compte en héritent lors de leurs propres conversations.
-async function updateAccountMemory(apiKey, userId, agentId, agentName, userMessageText, agentReplyText) {
-  if (!supabase || !userId || !apiKey || !userMessageText || !agentReplyText) return;
+// données client, tâches en cours...) et les stocke pour que les AUTRES agents et
+// AUTRES collaborateurs de la même organisation en héritent dans leurs propres
+// conversations.
+async function updateAccountMemory(apiKey, orgId, userId, agentId, agentName, userMessageText, agentReplyText) {
+  if (!supabase || !orgId || !userId || !apiKey || !userMessageText || !agentReplyText) return;
   try {
     const extractionPrompt = `Voici un échange entre un utilisateur et l'agent IA "${agentName}" (${agentId}) sur la plateforme César-IA.
 
@@ -3929,6 +3957,7 @@ Réponds uniquement avec un JSON de la forme {"facts": ["fait court 1", "fait co
 
     await supabase.from('account_memory').insert(
       facts.map(fact => ({
+        org_id: orgId,
         user_id: userId,
         agent_id: agentId,
         agent_name: agentName,

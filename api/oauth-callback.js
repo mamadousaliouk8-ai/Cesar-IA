@@ -340,15 +340,20 @@ export default async function handler(req, res) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Verify user exists and has adopted the agent (or is admin)
+    // Verify user exists and has adopted the agent (or is admin). org_id is
+    // resolved fresh from the profile here rather than trusted from the
+    // (unsigned) OAuth state, since it gates which organization's shared
+    // connector credentials get overwritten.
     let isAdmin = false;
+    let orgId = null;
+    let orgRole = 'owner';
     try {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('is_admin,email')
+        .select('is_admin,email,org_id,role,status')
         .eq('id', userId)
         .single();
-        
+
       if (profile) {
         const adminEmails = [
           'contact@cesar-ia.com',
@@ -362,21 +367,40 @@ export default async function handler(req, res) {
         ];
         const isAdminEmail = profile.email && adminEmails.includes(profile.email.trim().toLowerCase());
         isAdmin = profile.is_admin || isAdminEmail;
+        orgId = profile.org_id;
+        orgRole = profile.role;
+        if (profile.status !== 'active') {
+          return renderHTMLResponse(res, false, "Ce compte a été désactivé par le propriétaire de l'organisation.", agentId, connector);
+        }
       }
     } catch (e) {
       console.warn('[OAuth Callback] Error checking profile:', e);
     }
-    
+
     if (!isAdmin) {
       const { data: adoption, error: adoptErr } = await supabase
         .from('adopted_agents')
         .select('*')
-        .eq('user_id', userId)
+        .eq('org_id', orgId)
         .eq('agent_id', agentId)
         .single();
-        
+
       if (adoptErr || !adoption) {
         return renderHTMLResponse(res, false, "Vous devez adopter cet agent avant de pouvoir y associer ce connecteur.", agentId, connector);
+      }
+
+      if (orgRole === 'member') {
+        const { data: assignment, error: assignErr } = await supabase
+          .from('agent_assignments')
+          .select('*')
+          .eq('org_id', orgId)
+          .eq('agent_id', agentId)
+          .eq('member_user_id', userId)
+          .single();
+
+        if (assignErr || !assignment) {
+          return renderHTMLResponse(res, false, "Cet agent ne vous a pas été attribué par le propriétaire de l'organisation.", agentId, connector);
+        }
       }
     }
 
@@ -402,12 +426,13 @@ export default async function handler(req, res) {
     const { error: dbError } = await supabase
       .from('connectors')
       .upsert({
+        org_id: orgId,
         user_id: userId,
         agent_id: agentId,
         connector_name: connector,
         credentials: credentials
       }, {
-        onConflict: 'user_id,agent_id,connector_name'
+        onConflict: 'org_id,agent_id,connector_name'
       });
 
     if (dbError) {

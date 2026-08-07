@@ -227,34 +227,57 @@ export default async function handler(req, res) {
           'manel.cheraiti@gmail.com'
         ];
         const isAdminEmail = user.email && adminEmails.includes(user.email.trim().toLowerCase());
-        
+
         let isAdminProfile = false;
+        let orgId = null;
+        let orgRole = 'owner';
         try {
           const { data: profile } = await supabase
             .from('profiles')
-            .select('is_admin')
+            .select('is_admin, org_id, role, status')
             .eq('id', user.id)
             .single();
           if (profile) {
             isAdminProfile = profile.is_admin;
+            orgId = profile.org_id;
+            orgRole = profile.role;
+            if (profile.status !== 'active') {
+              return res.status(403).json({ error: "Ce compte a été désactivé par le propriétaire de l'organisation." });
+            }
           }
         } catch (e) {}
-        
+
         const isAdmin = isAdminEmail || isAdminProfile;
 
         if (!isAdmin) {
-          // Verify agent adoption
+          // Verify the organization has adopted this agent — entitlements now
+          // live at the organization level, not per individual user.
           const { data: adoption, error: adoptErr } = await supabase
             .from('adopted_agents')
             .select('*')
-            .eq('user_id', user.id)
+            .eq('org_id', orgId)
             .eq('agent_id', agentId)
             .single();
-            
+
           if (adoptErr || !adoption) {
             return res.status(403).json({ error: "Vous devez adopter cet agent avant de pouvoir lier un connecteur." });
           }
+
+          if (orgRole === 'member') {
+            const { data: assignment, error: assignErr } = await supabase
+              .from('agent_assignments')
+              .select('*')
+              .eq('org_id', orgId)
+              .eq('agent_id', agentId)
+              .eq('member_user_id', user.id)
+              .single();
+
+            if (assignErr || !assignment) {
+              return res.status(403).json({ error: "Cet agent ne vous a pas été attribué par le propriétaire de l'organisation." });
+            }
+          }
         }
+
       } catch (err) {
         return res.status(401).json({ error: `Erreur d'authentification : ${err.message}` });
       }

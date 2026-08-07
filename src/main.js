@@ -386,6 +386,7 @@ function initApp() {
     setupBilling();
     setupModals();
     setupAccountPage();
+    setupOrganizationPage();
     setupInvoiceModal();
     initOnboardingTour();
     initHeroTitleRotator();
@@ -644,6 +645,9 @@ function navigateTo(route) {
   if ((route === 'billing' || route === 'account') && !state.currentUser) {
     route = 'home';
   }
+  if (route === 'organization' && (!state.currentUser || state.currentUser.orgRole !== 'owner')) {
+    route = 'home';
+  }
 
   state.activeRoute = route;
   try {
@@ -679,65 +683,73 @@ function navigateTo(route) {
     renderAdminPanel();
   } else if (route === 'account') {
     renderAccountPage();
+  } else if (route === 'organization') {
+    renderOrganizationPage();
   }
 }
 
 // AUTHENTICATION LOGIC (Supabase + Demo Fallback)
 let isSignupMode = true;
+// Un lien d'invitation Supabase (`inviteUserByEmail`) redirige avec
+// `#access_token=...&type=invite` : on le détecte une fois au chargement pour
+// forcer la définition d'un mot de passe avant de laisser entrer le collaborateur.
+let pendingInviteSetup = typeof window !== 'undefined' && window.location.hash.includes('type=invite');
 
 function setupAuth() {
   setupAuthNav();
   setupAuthModal();
+  setupInvitePasswordModal();
   initSupabaseAuth();
 }
 
-function triggerInstantTrial(email = 'essai-gratuit@cesar-ia.com') {
-  logDebug(`triggerInstantTrial démarré pour email: ${email}`);
-  
-  // 1. Force simulation mode
-  localStorage.setItem('cesar_ia_force_mock', 'true');
-  
-  const normalizedEmail = email.trim().toLowerCase();
-  
-  // 2. Set user
-  const currentUser = {
-    email: normalizedEmail,
-    uid: "usr_" + Math.random().toString(36).substr(2, 9),
-    isAdmin: false
-  };
-  localStorage.setItem('cesar_ia_mock_user', JSON.stringify(currentUser));
-  
-  // Enregistrer également dans la base d'utilisateurs locale fictive pour permettre une reconnexion
-  let mockUsers = [];
-  try {
-    const savedUsers = localStorage.getItem('cesar_ia_mock_users');
-    if (savedUsers) {
-      mockUsers = JSON.parse(savedUsers);
+function setupInvitePasswordModal() {
+  const modal = document.getElementById('invite-password-modal');
+  const form = document.getElementById('invite-password-form');
+  if (!modal || !form) return;
+
+  // On empêche la fermeture par Échap : tant que le mot de passe n'est pas défini,
+  // le collaborateur resterait ensuite connecté sans jamais pouvoir se reconnecter.
+  modal.addEventListener('cancel', (e) => e.preventDefault());
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById('invite-password-error');
+    const newPassword = document.getElementById('invite-password-new').value;
+    const confirmPassword = document.getElementById('invite-password-confirm').value;
+    if (errEl) { errEl.style.display = 'none'; errEl.innerText = ''; }
+
+    if (newPassword.length < 6) {
+      if (errEl) { errEl.innerText = "Le mot de passe doit comporter au moins 6 caractères."; errEl.style.display = 'block'; }
+      return;
     }
-  } catch (e) {}
-  
-  if (!mockUsers.some(u => u.email === normalizedEmail)) {
-    mockUsers.push({
-      email: normalizedEmail,
-      password: "password", // Mot de passe par défaut pour l'inscription en un clic
-      uid: currentUser.uid,
-      isAdmin: false
-    });
-    localStorage.setItem('cesar_ia_mock_users', JSON.stringify(mockUsers));
-  }
-  
-  // Fermer la modale
-  const authModal = document.getElementById('auth-modal');
-  if (authModal) {
-    authModal.close();
-  }
-  
-  showToast("Inscription réussie (Mode Essai Gratuit activé) !", "success");
-  
-  setTimeout(() => {
-    // Recharger la page pour appliquer le mode simulation
-    window.location.reload();
-  }, 800);
+    if (newPassword !== confirmPassword) {
+      if (errEl) { errEl.innerText = "Les mots de passe ne correspondent pas."; errEl.style.display = 'block'; }
+      return;
+    }
+
+    const btnSubmit = document.getElementById('btn-invite-password-submit');
+    const originalText = btnSubmit.innerText;
+    btnSubmit.disabled = true;
+    btnSubmit.innerHTML = `<span class="spinner"></span> Activation...`;
+
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+
+      pendingInviteSetup = false;
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+      modal.close();
+      showToast("Mot de passe défini, bienvenue !", "success");
+      await loadUserData();
+      updateUI();
+      navigateTo('catalog');
+    } catch (err) {
+      if (errEl) { errEl.innerText = err.message || "Impossible de définir le mot de passe."; errEl.style.display = 'block'; }
+    } finally {
+      btnSubmit.disabled = false;
+      btnSubmit.innerText = originalText;
+    }
+  });
 }
 
 function setupAuthNav() {
@@ -783,6 +795,17 @@ function setupAuthModal() {
 
   authForm.addEventListener('submit', handleAuthSubmit);
 
+  document.querySelectorAll('input[name="auth-account-type"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      const orgNameGroup = document.getElementById('auth-org-name-group');
+      if (orgNameGroup) {
+        orgNameGroup.style.display = radio.value === 'organization' && radio.checked ? 'block' : orgNameGroup.style.display;
+      }
+      if (radio.checked && radio.value === 'individual') {
+        document.getElementById('auth-org-name-group').style.display = 'none';
+      }
+    });
+  });
 }
 
 function toggleAuthMode(signup) {
@@ -792,6 +815,8 @@ function toggleAuthMode(signup) {
   const submitBtn = document.getElementById('btn-auth-submit');
   const toggleMsg = document.getElementById('auth-toggle-msg');
   const toggleLink = document.getElementById('auth-toggle-link');
+  const accountTypeGroup = document.getElementById('auth-account-type-group');
+  const orgNameGroup = document.getElementById('auth-org-name-group');
 
   if (isSignupMode) {
     title.innerText = 'Créer un compte';
@@ -799,12 +824,15 @@ function toggleAuthMode(signup) {
     submitBtn.innerText = 'Continuer';
     toggleMsg.innerText = 'Déjà un compte ?';
     toggleLink.innerText = 'Se connecter';
+    if (accountTypeGroup) accountTypeGroup.style.display = 'block';
   } else {
     title.innerText = 'Connexion';
     desc.innerText = 'Connectez-vous pour retrouver vos agents.';
     submitBtn.innerText = 'Se connecter';
     toggleMsg.innerText = 'Pas encore de compte ?';
     toggleLink.innerText = 'Créer un compte';
+    if (accountTypeGroup) accountTypeGroup.style.display = 'none';
+    if (orgNameGroup) orgNameGroup.style.display = 'none';
   }
 }
 
@@ -856,17 +884,43 @@ async function handleAuthSubmit(e) {
         logDebug("Tentative d'inscription réelle via Supabase...");
         localStorage.removeItem('cesar_ia_force_mock');
         
+        const accountTypeInput = document.querySelector('input[name="auth-account-type"]:checked');
+        const accountType = accountTypeInput ? accountTypeInput.value : 'individual';
+        const orgNameInput = document.getElementById('auth-org-name');
+        const orgName = orgNameInput ? orgNameInput.value.trim() : '';
+
         const { data, error } = await supabase.auth.signUp({
           email,
           password
         });
-        
+
         logDebug(`Inscription Supabase retournée. Erreur: ${error ? error.message : "aucune"}`);
         if (error) throw error;
-        
+
         localStorage.removeItem('cesar_ia_mock_user');
-        
+
         if (data.session) {
+          // Le trigger côté base crée automatiquement une organisation individuelle
+          // pour ce nouveau compte ; si l'utilisateur a choisi "Organisation", on la
+          // renomme avec le nom qu'il a saisi.
+          if (accountType === 'organization' && orgName) {
+            try {
+              const newProfile = await supabaseFetch('profiles', {
+                queryParams: `?id=eq.${data.session.user.id}&select=org_id`
+              });
+              const newOrgId = newProfile && newProfile[0] ? newProfile[0].org_id : null;
+              if (newOrgId) {
+                await supabaseFetch('organizations', {
+                  method: 'PATCH',
+                  queryParams: `?id=eq.${newOrgId}`,
+                  body: { name: orgName }
+                });
+              }
+            } catch (errOrgName) {
+              logDebug(`Impossible de renommer l'organisation à l'inscription : ${errOrgName.message}`);
+            }
+          }
+
           showToast("Inscription réussie !", "success");
           document.getElementById('auth-modal').close();
           updateUI();
@@ -1061,7 +1115,16 @@ async function initSupabaseAuth() {
       }
       
       logDebug(`Session utilisateur détectée pour email: ${state.currentUser.email}, Admin: ${state.currentUser.isAdmin}`);
-      
+
+      // Lien d'invitation collaborateur : on bloque sur la définition du mot de passe
+      // avant de charger quoi que ce soit d'autre (voir setupInvitePasswordModal).
+      if (pendingInviteSetup) {
+        authInitialized = true;
+        const inviteModal = document.getElementById('invite-password-modal');
+        if (inviteModal && !inviteModal.open) inviteModal.showModal();
+        return;
+      }
+
       // Exécuter loadUserData et handleStripeCallback hors du lock synchrone de Supabase Auth
       setTimeout(async () => {
         try {
@@ -1204,40 +1267,69 @@ async function loadUserData() {
       let errProfile = null;
       try {
         const data = await supabaseFetch('profiles', {
-          queryParams: `?id=eq.${state.currentUser.uid}&select=is_admin`
+          queryParams: `?id=eq.${state.currentUser.uid}&select=is_admin,org_id,role,status,organizations(name)`
         });
         logDebug(`Données reçues de la table profiles: ${JSON.stringify(data)}`);
         profile = data && data.length > 0 ? data[0] : null;
       } catch (err) {
         errProfile = err;
       }
-        
+
       if (!errProfile && profile) {
         state.currentUser.isAdmin = profile.is_admin || state.currentUser.isAdmin || false;
-        logDebug(`Profil utilisateur chargé. Admin de la base de données : ${profile.is_admin}. Sticky Admin global : ${state.currentUser.isAdmin}`);
+        state.currentUser.orgId = profile.org_id;
+        state.currentUser.orgRole = profile.role || 'owner';
+        state.currentUser.orgStatus = profile.status || 'active';
+        state.currentUser.orgName = profile.organizations?.name || '';
+        logDebug(`Profil utilisateur chargé. Admin de la base de données : ${profile.is_admin}. Sticky Admin global : ${state.currentUser.isAdmin}. Organisation : ${state.currentUser.orgId} (${state.currentUser.orgRole}).`);
       } else {
         logDebug(`Erreur profiles ou non trouvé, conservation du statut admin actuel (erreur: ${errProfile ? errProfile.message : 'aucune'})`);
         state.currentUser.isAdmin = state.currentUser.isAdmin || false;
       }
-      
+
+      // Un compte désactivé par le propriétaire de son organisation est déconnecté
+      // immédiatement : il ne doit plus pouvoir consulter la moindre donnée partagée.
+      if (state.currentUser.orgStatus === 'disabled') {
+        showToast("Votre accès a été désactivé par le propriétaire de votre organisation.", "error");
+        await supabase.auth.signOut();
+        window.location.reload();
+        return;
+      }
+
       // Fallback de sécurité robuste par email pour César-IA admin
       if (isAdminEmail(state.currentUser.email)) {
         state.currentUser.isAdmin = true;
         logDebug(`[loadUserData] Force de l'état Admin via l'adresse e-mail : ${state.currentUser.email}`);
       }
 
-      logDebug("Chargement des agents adoptés...");
+      logDebug("Chargement des agents adoptés par l'organisation...");
       let adopted = [];
       try {
         adopted = await supabaseFetch('adopted_agents', {
-          queryParams: `?user_id=eq.${state.currentUser.uid}&select=agent_id`
+          queryParams: `?org_id=eq.${state.currentUser.orgId}&select=agent_id`
         }) || [];
       } catch (errAdopted) {
         logDebug(`Erreur lors du chargement des agents adoptés: ${errAdopted.message}`);
         throw errAdopted;
       }
-      
+
       state.adoptedAgents = adopted.map(a => a.agent_id);
+
+      // Un collaborateur (role "member") ne voit que les agents que le propriétaire
+      // de l'organisation lui a explicitement attribués — le owner, lui, a accès à
+      // tout ce que l'organisation a adopté.
+      if (state.currentUser.orgRole === 'member' && !state.currentUser.isAdmin) {
+        try {
+          const assignments = await supabaseFetch('agent_assignments', {
+            queryParams: `?org_id=eq.${state.currentUser.orgId}&member_user_id=eq.${state.currentUser.uid}&select=agent_id`
+          }) || [];
+          const assignedIds = new Set(assignments.map(a => a.agent_id));
+          state.adoptedAgents = state.adoptedAgents.filter(id => assignedIds.has(id));
+        } catch (errAssignments) {
+          logDebug(`Erreur lors du chargement des agents attribués: ${errAssignments.message}`);
+          state.adoptedAgents = [];
+        }
+      }
 
       // Seul le compte admin reçoit automatiquement les 15 agents (avec factures internes "Payée").
       // Un client normal ne doit obtenir que les agents qu'il a réellement souscrits via Stripe —
@@ -1270,21 +1362,22 @@ async function loadUserData() {
             for (const agentId of missingIds) {
               const { error: errAdopt } = await supabase
                 .from('adopted_agents')
-                .insert({ user_id: state.currentUser.uid, agent_id: agentId });
-                
+                .insert({ org_id: state.currentUser.orgId, user_id: state.currentUser.uid, agent_id: agentId });
+
               if (errAdopt && errAdopt.code !== '23505') {
                 console.warn(`Erreur lors de l'auto-adoption de ${agentId}:`, errAdopt);
                 continue;
               }
-              
+
               // Si l'agent a été inséré avec succès, on crée la facture correspondante
               if (!errAdopt) {
                 const agentMeta = AGENTS.find(a => a.id === agentId);
                 const invoiceNo = "INV-" + Math.floor(100000 + Math.random() * 900000);
-                
+
                 await supabase
                   .from('invoices')
                   .insert({
+                    org_id: state.currentUser.orgId,
                     user_id: state.currentUser.uid,
                     invoice_number: invoiceNo,
                     agent_name: agentMeta ? agentMeta.name : agentId.toUpperCase(),
@@ -1308,7 +1401,7 @@ async function loadUserData() {
       let connectors = [];
       try {
         connectors = await supabaseFetch('connectors', {
-          queryParams: `?user_id=eq.${state.currentUser.uid}&select=*`
+          queryParams: `?org_id=eq.${state.currentUser.orgId}&select=*`
         }) || [];
       } catch (errConnectors) {
         logDebug(`Erreur lors du chargement des connecteurs: ${errConnectors.message}`);
@@ -1352,7 +1445,7 @@ async function loadUserData() {
       let invoices = [];
       try {
         invoices = await supabaseFetch('invoices', {
-          queryParams: `?user_id=eq.${state.currentUser.uid}&select=*&order=created_at.desc`
+          queryParams: `?org_id=eq.${state.currentUser.orgId}&select=*&order=created_at.desc`
         }) || [];
       } catch (errInvoices) {
         logDebug(`Erreur lors du chargement des factures: ${errInvoices.message}`);
@@ -1554,6 +1647,36 @@ function updateUI() {
       if (state.activeRoute === 'admin') {
         navigateTo('home');
       }
+    }
+  }
+
+  // Lien "Mon organisation" : uniquement pour le propriétaire d'une organisation.
+  let orgLink = document.getElementById('nav-organization-link');
+  if (state.currentUser && state.currentUser.orgRole === 'owner') {
+    if (!orgLink) {
+      orgLink = document.createElement('a');
+      orgLink.href = '#';
+      orgLink.className = 'nav-link';
+      orgLink.id = 'nav-organization-link';
+      orgLink.setAttribute('data-route', 'organization');
+      orgLink.innerText = 'Mon organisation';
+
+      orgLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        navigateTo('organization');
+      });
+
+      const billingLink = document.getElementById('nav-billing-link');
+      if (billingLink) {
+        navLinks.insertBefore(orgLink, billingLink);
+      } else {
+        navLinks.appendChild(orgLink);
+      }
+    }
+  } else if (orgLink) {
+    orgLink.remove();
+    if (state.activeRoute === 'organization') {
+      navigateTo('home');
     }
   }
 
@@ -1865,7 +1988,14 @@ function renderCatalog() {
         openAuthModal('Créer un compte', 'Créez votre compte pour commencer le déploiement.');
         return;
       }
-      
+
+      // Seul le propriétaire de l'organisation achète des agents ; les collaborateurs
+      // reçoivent leur accès par attribution, pas par achat direct.
+      if (state.currentUser.orgRole === 'member' && !state.currentUser.isAdmin) {
+        showToast("Seul le propriétaire de votre organisation peut adopter de nouveaux agents. Contactez-le pour qu'il vous y donne accès.", "warning");
+        return;
+      }
+
       openAdoptModal(agentId);
     });
   });
@@ -2104,8 +2234,9 @@ function setupModals() {
 
       // client_reference_id permet au webhook Stripe côté serveur de savoir qui a payé
       // quoi une fois le paiement réellement confirmé — l'accès n'est plus jamais accordé
-      // sur la seule base d'un retour depuis Stripe.
-      const refId = `${state.currentUser.uid}::${agentId}`;
+      // sur la seule base d'un retour depuis Stripe. L'agent est acheté au niveau de
+      // l'organisation (partagé entre collaborateurs) ; userId ne sert plus qu'à l'audit.
+      const refId = `${state.currentUser.orgId}::${agentId}::${state.currentUser.uid}`;
       const separator = stripeUrl.includes('?') ? '&' : '?';
       const finalStripeUrl = `${stripeUrl}${separator}client_reference_id=${encodeURIComponent(refId)}&prefilled_email=${encodeURIComponent(state.currentUser.email)}`;
 
@@ -3094,6 +3225,7 @@ async function saveChatMessage(agentId, sender, text, executionLogs = [], mediaU
       await supabaseFetch('chat_messages', {
         method: 'POST',
         body: {
+          org_id: state.currentUser.orgId,
           user_id: uid,
           agent_id: agentId,
           sender: sender,
@@ -3761,7 +3893,7 @@ function setupAdminTools() {
           try {
             await supabaseFetch('adopted_agents', {
               method: 'POST',
-              body: { user_id: state.currentUser.uid, agent_id: agent.id }
+              body: { org_id: state.currentUser.orgId, user_id: state.currentUser.uid, agent_id: agent.id }
             });
           } catch (errAdopt) {
             if (!errAdopt.message.includes('23505') && !errAdopt.message.includes('409') && !errAdopt.message.includes('duplicate')) {
@@ -3777,6 +3909,7 @@ function setupAdminTools() {
             await supabaseFetch('invoices', {
               method: 'POST',
               body: {
+                org_id: state.currentUser.orgId,
                 user_id: state.currentUser.uid,
                 invoice_number: invoiceNo,
                 agent_name: agent.name,
@@ -6173,11 +6306,12 @@ async function saveConnectors() {
       for (const [connName, credentials] of Object.entries(agentConnectors)) {
         await supabaseFetch('connectors', {
           method: 'POST',
-          queryParams: '?on_conflict=user_id,agent_id,connector_name',
+          queryParams: '?on_conflict=org_id,agent_id,connector_name',
           headers: {
             'Prefer': 'resolution=merge-duplicates'
           },
           body: {
+            org_id: state.currentUser.orgId,
             user_id: state.currentUser.uid,
             agent_id: agentId,
             connector_name: connName,
@@ -6221,10 +6355,10 @@ async function disconnectAgent() {
     saveMockState();
   } else {
     try {
-      // In real mode, delete all credentials for this user and agent from Supabase 'connectors' table
+      // In real mode, delete all credentials for this organization and agent from Supabase 'connectors' table
       await supabaseFetch('connectors', {
         method: 'DELETE',
-        queryParams: `?user_id=eq.${state.currentUser.uid}&agent_id=eq.${agentId}`
+        queryParams: `?org_id=eq.${state.currentUser.orgId}&agent_id=eq.${agentId}`
       });
     } catch (error) {
       console.error("Erreur lors de la déconnexion de l'agent sur Supabase :", error);
@@ -7021,6 +7155,238 @@ function lightenDarkenColor(col, amt) {
 // ==========================================
 // PANNEAU DE CONTRÔLE D'ADMINISTRATION
 // ==========================================
+// Appelle un des endpoints serveur de gestion d'organisation (invite/manage/assign),
+// tous protégés côté serveur : seul le propriétaire de l'organisation appelant peut agir.
+async function callOrgApi(endpoint, body) {
+  let token = null;
+  try {
+    const { data } = await supabase.auth.getSession();
+    token = data?.session?.access_token;
+  } catch (e) {}
+
+  const response = await fetch(`/api/${endpoint}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    },
+    body: JSON.stringify(body)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || `Erreur serveur (${response.status})`);
+  }
+  return data;
+}
+
+async function renderOrganizationPage() {
+  if (!state.currentUser || state.currentUser.orgRole !== 'owner') {
+    navigateTo('home');
+    return;
+  }
+
+  document.getElementById('org-page-title').innerText = state.currentUser.orgName || 'Mon organisation';
+
+  const membersListBody = document.getElementById('org-members-list');
+  membersListBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:14px;"><span class="spinner"></span> Chargement...</td></tr>';
+
+  try {
+    const [members, assignments] = await Promise.all([
+      supabaseFetch('profiles', {
+        queryParams: `?org_id=eq.${state.currentUser.orgId}&select=id,email,role,status&order=role.asc`
+      }).catch(() => []),
+      supabaseFetch('agent_assignments', {
+        queryParams: `?org_id=eq.${state.currentUser.orgId}&select=agent_id,member_user_id`
+      }).catch(() => [])
+    ]);
+
+    const activeCount = (members || []).filter(m => m.status !== 'disabled').length;
+    const banner = document.getElementById('org-onboarding-banner');
+    if (banner) banner.style.display = activeCount < 3 ? 'block' : 'none';
+
+    const orgAgents = state.adoptedAgents
+      .map(id => AGENTS.find(a => a.id === id))
+      .filter(Boolean);
+
+    membersListBody.innerHTML = '';
+    (members || []).forEach(member => {
+      const row = document.createElement('tr');
+      const isOwner = member.role === 'owner';
+      const memberAssignedIds = new Set(
+        assignments.filter(a => a.member_user_id === member.id).map(a => a.agent_id)
+      );
+
+      const statusLabel = member.status === 'disabled'
+        ? '<span style="color:#f87171;">Désactivé</span>'
+        : (member.status === 'invited' ? '<span style="color:#f59e0b;">Invitation envoyée</span>' : '<span style="color:#4ade80;">Actif</span>');
+
+      const agentsCell = isOwner
+        ? '<span style="color: var(--text-muted);">Tous (propriétaire)</span>'
+        : (orgAgents.length === 0
+          ? '<span style="color: var(--text-muted);">Aucun agent adopté par l\'organisation</span>'
+          : orgAgents.map(agent => `
+            <label style="display:inline-flex; align-items:center; gap:4px; margin-right:10px; font-size:0.8rem; font-weight:400;">
+              <input type="checkbox" class="org-agent-assign-toggle" data-member-id="${member.id}" data-agent-id="${agent.id}" ${memberAssignedIds.has(agent.id) ? 'checked' : ''} />
+              ${agent.name}
+            </label>
+          `).join(''));
+
+      const actionsCell = isOwner
+        ? '<span style="color: var(--text-muted);">—</span>'
+        : `
+          <button class="btn btn-secondary btn-sm org-member-view-activity" data-member-id="${member.id}" data-member-email="${member.email}" style="margin-right:6px;">Voir l'activité</button>
+          ${member.status === 'disabled'
+            ? `<button class="btn btn-secondary btn-sm org-member-action" data-member-id="${member.id}" data-action="enable">Réactiver</button>`
+            : `<button class="btn btn-secondary btn-sm org-member-action" data-member-id="${member.id}" data-action="disable">Désactiver</button>`}
+        `;
+
+      row.innerHTML = `
+        <td style="padding:10px;">${member.email}${isOwner ? ' <span style="font-size:0.7rem; background: var(--accent-color); color:#fff; padding:2px 6px; border-radius:4px;">Propriétaire</span>' : ''}</td>
+        <td style="padding:10px;">${statusLabel}</td>
+        <td style="padding:10px;">${agentsCell}</td>
+        <td style="padding:10px; white-space: nowrap;">${actionsCell}</td>
+      `;
+      membersListBody.appendChild(row);
+    });
+
+    membersListBody.querySelectorAll('.org-agent-assign-toggle').forEach(checkbox => {
+      checkbox.addEventListener('change', async () => {
+        checkbox.disabled = true;
+        try {
+          await callOrgApi('assign-agent', {
+            memberId: checkbox.getAttribute('data-member-id'),
+            agentId: checkbox.getAttribute('data-agent-id'),
+            assign: checkbox.checked
+          });
+          showToast(checkbox.checked ? "Agent attribué." : "Attribution retirée.", "success");
+        } catch (err) {
+          checkbox.checked = !checkbox.checked;
+          showToast(err.message || "Impossible de mettre à jour l'attribution.", "error");
+        } finally {
+          checkbox.disabled = false;
+        }
+      });
+    });
+
+    membersListBody.querySelectorAll('.org-member-action').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const memberId = btn.getAttribute('data-member-id');
+        const action = btn.getAttribute('data-action');
+        btn.disabled = true;
+        try {
+          await callOrgApi('manage-member', { memberId, action });
+          showToast("Statut du membre mis à jour.", "success");
+          renderOrganizationPage();
+        } catch (err) {
+          showToast(err.message || "Impossible de mettre à jour ce membre.", "error");
+          btn.disabled = false;
+        }
+      });
+    });
+
+    membersListBody.querySelectorAll('.org-member-view-activity').forEach(btn => {
+      btn.addEventListener('click', () => {
+        openOrgActivityViewer(btn.getAttribute('data-member-id'), btn.getAttribute('data-member-email'));
+      });
+    });
+  } catch (err) {
+    membersListBody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:14px; color:#f87171;">Erreur de chargement : ${err.message}</td></tr>`;
+  }
+}
+
+function openOrgActivityViewer(memberId, memberEmail) {
+  const viewer = document.getElementById('org-activity-viewer');
+  const label = document.getElementById('org-activity-member-label');
+  const tabsContainer = document.getElementById('org-activity-agent-tabs');
+  const messagesContainer = document.getElementById('org-activity-messages');
+  if (!viewer) return;
+
+  label.innerText = memberEmail;
+  viewer.style.display = 'block';
+  viewer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  const orgAgents = state.adoptedAgents.map(id => AGENTS.find(a => a.id === id)).filter(Boolean);
+  tabsContainer.innerHTML = orgAgents.map((agent, idx) =>
+    `<button class="btn btn-secondary btn-sm org-activity-agent-tab" data-agent-id="${agent.id}" style="${idx === 0 ? 'border-color: var(--accent-color);' : ''}">${agent.name}</button>`
+  ).join('');
+
+  const loadForAgent = async (agentId) => {
+    messagesContainer.innerHTML = '<div style="text-align:center; padding:14px;"><span class="spinner"></span> Chargement...</div>';
+    try {
+      const data = await supabaseFetch('chat_messages', {
+        queryParams: `?user_id=eq.${memberId}&agent_id=eq.${agentId}&order=created_at.asc`
+      }) || [];
+      if (data.length === 0) {
+        messagesContainer.innerHTML = '<div style="text-align:center; color:var(--text-muted); padding:14px;">Aucune conversation avec cet agent pour le moment.</div>';
+        return;
+      }
+      messagesContainer.innerHTML = data.map(msg => {
+        const parsed = extractMessageLogs(msg.text);
+        const isUser = msg.sender === 'user';
+        return `
+          <div style="align-self: ${isUser ? 'flex-end' : 'flex-start'}; max-width: 80%; background: ${isUser ? 'var(--accent-color)' : 'rgba(255,255,255,0.05)'}; color: ${isUser ? '#fff' : 'var(--text-primary)'}; padding: 8px 12px; border-radius: 8px; font-size: 0.85rem;">
+            ${parseMarkdown(parsed.text)}
+          </div>
+        `;
+      }).join('');
+    } catch (err) {
+      messagesContainer.innerHTML = `<div style="text-align:center; color:#f87171; padding:14px;">Erreur de chargement : ${err.message}</div>`;
+    }
+  };
+
+  tabsContainer.querySelectorAll('.org-activity-agent-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      tabsContainer.querySelectorAll('.org-activity-agent-tab').forEach(t => t.style.borderColor = '');
+      tab.style.borderColor = 'var(--accent-color)';
+      loadForAgent(tab.getAttribute('data-agent-id'));
+    });
+  });
+
+  const closeBtn = document.getElementById('btn-org-activity-close');
+  if (closeBtn) {
+    closeBtn.onclick = () => { viewer.style.display = 'none'; };
+  }
+
+  if (orgAgents.length > 0) {
+    loadForAgent(orgAgents[0].id);
+  } else {
+    messagesContainer.innerHTML = '<div style="text-align:center; color:var(--text-muted); padding:14px;">Aucun agent adopté par l\'organisation.</div>';
+  }
+}
+
+function setupOrganizationPage() {
+  const form = document.getElementById('org-invite-form');
+  if (!form) return;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const emailInput = document.getElementById('org-invite-email');
+    const statusEl = document.getElementById('org-invite-status');
+    const btnSubmit = document.getElementById('btn-org-invite-submit');
+    const email = emailInput.value.trim();
+    if (!email) return;
+
+    btnSubmit.disabled = true;
+    const originalText = btnSubmit.innerText;
+    btnSubmit.innerHTML = `<span class="spinner"></span> Envoi...`;
+    statusEl.innerText = '';
+
+    try {
+      await callOrgApi('invite-member', { email });
+      statusEl.style.color = '#4ade80';
+      statusEl.innerText = `Invitation envoyée à ${email}.`;
+      emailInput.value = '';
+      renderOrganizationPage();
+    } catch (err) {
+      statusEl.style.color = '#f87171';
+      statusEl.innerText = err.message || "Échec de l'envoi de l'invitation.";
+    } finally {
+      btnSubmit.disabled = false;
+      btnSubmit.innerText = originalText;
+    }
+  });
+}
+
 async function renderAdminPanel() {
   if (!state.currentUser || !state.currentUser.isAdmin) {
     navigateTo('home');
@@ -7988,9 +8354,10 @@ function activateCanvaDemoMode(agentId, connector, domainValue = null) {
   
   // Exécuter l'enregistrement local ou distant en arrière-plan
   const uid = state.currentUser ? state.currentUser.uid : null;
+  const orgId = state.currentUser ? state.currentUser.orgId : null;
   if (uid) {
     supabaseFetch('connectors', {
-      queryParams: `?user_id=eq.${uid}&agent_id=eq.${agentId}&connector_name=eq.${encodeURIComponent(connector)}`
+      queryParams: `?org_id=eq.${orgId}&agent_id=eq.${agentId}&connector_name=eq.${encodeURIComponent(connector)}`
     }).then(data => {
       if (data && data.length > 0) {
         const connectorId = data[0].id;
@@ -8004,6 +8371,7 @@ function activateCanvaDemoMode(agentId, connector, domainValue = null) {
         supabaseFetch('connectors', {
           method: 'POST',
           body: {
+            org_id: orgId,
             user_id: uid,
             agent_id: agentId,
             connector_name: connector,
@@ -8081,13 +8449,14 @@ async function saveWhatsAppConnector(agentId, connector, phone) {
   if (!isMock) {
     try {
       const uid = state.currentUser ? state.currentUser.uid : null;
+      const orgId = state.currentUser ? state.currentUser.orgId : null;
       if (uid) {
         const data = await supabaseFetch('connectors', {
-          queryParams: `?user_id=eq.${uid}&agent_id=eq.${agentId}&connector_name=eq.${connector}`
+          queryParams: `?org_id=eq.${orgId}&agent_id=eq.${agentId}&connector_name=eq.${connector}`
         });
-        
+
         const credentials = { phone: phone, drafts: [] };
-        
+
         if (data && data.length > 0) {
           const connectorId = data[0].id;
           await supabaseFetch(`connectors?id=eq.${connectorId}`, {
@@ -8098,6 +8467,7 @@ async function saveWhatsAppConnector(agentId, connector, phone) {
           await supabaseFetch('connectors', {
             method: 'POST',
             body: {
+              org_id: orgId,
               user_id: uid,
               agent_id: agentId,
               connector_name: connector,

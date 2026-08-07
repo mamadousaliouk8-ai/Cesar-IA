@@ -1014,6 +1014,64 @@
           </div>
         </section>
 
+        <section id="route-organization" class="route-section">
+          <div class="admin-layout admin-wrap">
+            <div class="admin-header">
+              <div>
+                <div class="section-label" style="margin-bottom:6px;">Compte parent</div>
+                <h2 class="page-title" id="org-page-title">Mon organisation</h2>
+              </div>
+            </div>
+
+            <div id="org-onboarding-banner" style="display: none; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 8px; padding: 14px 18px; margin-bottom: 24px; font-size: 0.9rem; color: var(--text-secondary);">
+              Votre organisation démarre avec un minimum recommandé de 3 comptes (vous + 2 collaborateurs). Invitez vos collaborateurs ci-dessous.
+            </div>
+
+            <div class="billing-card" style="margin-bottom: 30px;">
+              <h3>Inviter un collaborateur</h3>
+              <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 16px;">
+                Le collaborateur recevra un e-mail pour définir son mot de passe et rejoindre votre organisation.
+              </p>
+              <form id="org-invite-form" style="display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap;">
+                <div class="form-group" style="flex: 1; min-width: 240px; margin-bottom: 0;">
+                  <label for="org-invite-email">Adresse e-mail</label>
+                  <input type="email" id="org-invite-email" required placeholder="collaborateur@entreprise.com" />
+                </div>
+                <button type="submit" class="btn btn-primary" style="height: 42px;" id="btn-org-invite-submit">Envoyer l'invitation</button>
+              </form>
+              <div id="org-invite-status" style="font-size: 0.85rem; font-weight: 500; margin-top: 10px;"></div>
+            </div>
+
+            <div class="billing-card">
+              <h3>Membres de l'organisation</h3>
+              <div style="overflow-x: auto;">
+                <table class="admin-table" style="width: 100%; border-collapse: collapse;">
+                  <thead>
+                    <tr>
+                      <th style="text-align:left; padding: 10px;">Membre</th>
+                      <th style="text-align:left; padding: 10px;">Statut</th>
+                      <th style="text-align:left; padding: 10px;">Agents attribués</th>
+                      <th style="text-align:left; padding: 10px;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="org-members-list">
+                    <!-- Injecté dynamiquement -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="billing-card" id="org-activity-viewer" style="display: none; margin-top: 30px;">
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 12px;">
+                <h3 style="margin:0;">Activité de <span id="org-activity-member-label"></span></h3>
+                <button class="btn btn-secondary btn-sm" id="btn-org-activity-close">Fermer</button>
+              </div>
+              <div id="org-activity-agent-tabs" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom: 16px;"></div>
+              <div id="org-activity-messages" style="max-height: 420px; overflow-y: auto; display:flex; flex-direction:column; gap: 10px;"></div>
+            </div>
+          </div>
+        </section>
+
       </main>
     </div>
 
@@ -1034,7 +1092,23 @@
           <label for="auth-password">Mot de passe</label>
           <input type="password" id="auth-password" required placeholder="••••••••" minlength="6" />
         </div>
-        
+
+        <div class="form-group" id="auth-account-type-group">
+          <label>Type de compte</label>
+          <div style="display: flex; gap: 10px; margin-top: 4px;">
+            <label style="display: flex; align-items: center; gap: 6px; font-weight: 400; font-size: 0.85rem; cursor: pointer;">
+              <input type="radio" name="auth-account-type" value="individual" checked /> Individuel
+            </label>
+            <label style="display: flex; align-items: center; gap: 6px; font-weight: 400; font-size: 0.85rem; cursor: pointer;">
+              <input type="radio" name="auth-account-type" value="organization" /> Organisation
+            </label>
+          </div>
+        </div>
+        <div class="form-group" id="auth-org-name-group" style="display: none;">
+          <label for="auth-org-name">Nom de l'organisation</label>
+          <input type="text" id="auth-org-name" placeholder="Nom de votre entreprise" />
+        </div>
+
         <div id="auth-modal-error" style="color: #ff5252; background: rgba(255, 82, 82, 0.08); border: 1px solid rgba(255, 82, 82, 0.15); padding: 8px 12px; border-radius: 6px; font-size: 0.85rem; margin-top: 12px; display: none; text-align: center; font-weight: 500;"></div>
         <div id="auth-debug-log" style="display: none; font-family: monospace; font-size: 0.8rem; background: #111; color: #00ff00; padding: 10px; margin-top: 12px; border: 1px solid #333; border-radius: 6px; max-height: 120px; overflow-y: auto; text-align: left;">[Système] Prêt à enregistrer les diagnostics...</div>
         
@@ -1061,6 +1135,27 @@
         <span id="auth-toggle-msg">Pas encore de compte ?</span>
         <a href="#" id="auth-toggle-link">Créer un compte</a>
       </div>
+    </dialog>
+
+    <!-- ================= INVITE PASSWORD SETUP MODAL (DIALOG) ================= -->
+    <dialog id="invite-password-modal" class="auth-dialog" aria-labelledby="invite-password-title">
+      <div class="dialog-header">
+        <h3 id="invite-password-title">Bienvenue dans l'organisation</h3>
+        <p>Définissez votre mot de passe pour accéder à votre compte collaborateur.</p>
+      </div>
+
+      <form id="invite-password-form">
+        <div class="form-group">
+          <label for="invite-password-new">Nouveau mot de passe</label>
+          <input type="password" id="invite-password-new" required minlength="6" placeholder="••••••••" />
+        </div>
+        <div class="form-group">
+          <label for="invite-password-confirm">Confirmer le mot de passe</label>
+          <input type="password" id="invite-password-confirm" required minlength="6" placeholder="••••••••" />
+        </div>
+        <div id="invite-password-error" style="color: #ff5252; background: rgba(255, 82, 82, 0.08); border: 1px solid rgba(255, 82, 82, 0.15); padding: 8px 12px; border-radius: 6px; font-size: 0.85rem; margin-top: 12px; display: none; text-align: center; font-weight: 500;"></div>
+        <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 14px;" id="btn-invite-password-submit">Activer mon compte</button>
+      </form>
     </dialog>
 
     <!-- ================= ADOPT/CHECKOUT MODAL (DIALOG) ================= -->

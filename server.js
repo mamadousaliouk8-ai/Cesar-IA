@@ -6,6 +6,9 @@ import { fileURLToPath } from 'url';
 // Import serverless handlers
 import chatHandler from './api/chat.js';
 import testKeyHandler from './api/test-key.js';
+import inviteMemberHandler from './api/invite-member.js';
+import manageMemberHandler from './api/manage-member.js';
+import assignAgentHandler from './api/assign-agent.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,6 +23,9 @@ app.use(express.json());
 // Register API routes
 app.post('/api/chat', chatHandler);
 app.post('/api/test-key', testKeyHandler);
+app.post('/api/invite-member', inviteMemberHandler);
+app.post('/api/manage-member', manageMemberHandler);
+app.post('/api/assign-agent', assignAgentHandler);
 
 // Serve static build files
 app.use(express.static(path.join(__dirname, 'dist')));

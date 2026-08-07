@@ -61,11 +61,14 @@ export default async function handler(req, res) {
     return res.status(200).json({ received: true, ignored: 'not paid yet' });
   }
 
-  // On encode "userId::agentId" dans client_reference_id côté client avant la redirection Stripe.
+  // On encode "orgId::agentId::userId" dans client_reference_id côté client avant
+  // la redirection Stripe : l'entitlement est acheté au niveau de l'organisation
+  // (partagé entre collaborateurs), userId ne sert plus qu'à l'attribution
+  // (qui a cliqué "adopter" — toujours le owner, voir main.js).
   const refId = session.client_reference_id || '';
-  const [userId, agentId] = refId.split('::');
+  const [orgId, agentId, userId] = refId.split('::');
 
-  if (!userId || !agentId) {
+  if (!orgId || !agentId) {
     console.error(`[Stripe Webhook] client_reference_id invalide ou absent sur la session ${session.id}: "${refId}"`);
     return res.status(200).json({ received: true, ignored: 'missing client_reference_id' });
   }
@@ -78,7 +81,7 @@ export default async function handler(req, res) {
   try {
     const { error: adoptErr } = await supabase
       .from('adopted_agents')
-      .insert({ user_id: userId, agent_id: agentId });
+      .insert({ org_id: orgId, user_id: userId || null, agent_id: agentId });
 
     if (adoptErr && adoptErr.code !== '23505') {
       throw adoptErr;
@@ -95,7 +98,8 @@ export default async function handler(req, res) {
 
     if (!existingInvErr && !existingInv) {
       await supabase.from('invoices').insert({
-        user_id: userId,
+        org_id: orgId,
+        user_id: userId || null,
         invoice_number: invoiceNo,
         agent_name: agentId.charAt(0).toUpperCase() + agentId.slice(1),
         price: amount,
@@ -103,7 +107,7 @@ export default async function handler(req, res) {
       });
     }
 
-    console.log(`[Stripe Webhook] Paiement confirmé et agent "${agentId}" adopté pour l'utilisateur ${userId}.`);
+    console.log(`[Stripe Webhook] Paiement confirmé et agent "${agentId}" adopté pour l'organisation ${orgId}.`);
     return res.status(200).json({ received: true });
   } catch (err) {
     console.error('[Stripe Webhook] Erreur lors de la finalisation de l\'adoption :', err);
