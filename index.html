@@ -941,6 +941,45 @@
               </div>
             </div>
 
+            <!-- Santé des connecteurs -->
+            <div class="billing-card" style="margin-bottom: 30px;">
+              <h3>Santé des connecteurs</h3>
+              <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 16px;">
+                Chaque action réelle tentée par un agent (tous clients confondus, 30 derniers jours) est journalisée ici — pour repérer un connecteur mal configuré avant qu'un client ne s'en plaigne.
+              </p>
+              <div class="kpi-row features-grid" style="margin-bottom: 20px;">
+                <div class="kpi-card feature-card">
+                  <div class="kpi-label">Tentatives (30j)</div>
+                  <div class="kpi-value" id="admin-stat-connector-attempts">–</div>
+                </div>
+                <div class="kpi-card feature-card">
+                  <div class="kpi-label">Taux de réussite</div>
+                  <div class="kpi-value" id="admin-stat-connector-success-rate" style="color:#4ade80;">–</div>
+                </div>
+                <div class="kpi-card feature-card">
+                  <div class="kpi-label">Connecteurs en échec</div>
+                  <div class="kpi-value" id="admin-stat-connector-failing" style="color:#f87171;">–</div>
+                </div>
+              </div>
+              <div style="max-height: 350px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; background: rgba(0, 0, 0, 0.2);">
+                <table class="invoice-table" style="margin: 0; border: none; width: 100%;">
+                  <thead style="position: sticky; top: 0; background: rgba(15, 15, 20, 0.95); z-index: 1;">
+                    <tr>
+                      <th style="padding: 10px 14px;">Connecteur</th>
+                      <th style="padding: 10px 14px; text-align: center;">Tentatives</th>
+                      <th style="padding: 10px 14px; text-align: center;">Réussies</th>
+                      <th style="padding: 10px 14px; text-align: center;">Échecs</th>
+                      <th style="padding: 10px 14px;">Dernière erreur</th>
+                      <th style="padding: 10px 14px;">Dernière utilisation</th>
+                    </tr>
+                  </thead>
+                  <tbody id="admin-connector-health-tbody">
+                    <tr><td colspan="6" style="text-align: center; padding: 14px;"><span class="spinner"></span> Chargement...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
             <!-- Gemini API Configuration Card -->
             <div class="billing-card" style="margin-bottom: 30px;">
               <h3>Configuration de l'API Google Gemini</h3>

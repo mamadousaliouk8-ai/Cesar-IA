@@ -7466,6 +7466,75 @@ async function renderAdminPanel() {
       adoptionsListBody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 14px;">Erreur de connexion.</td></tr>';
     }
   }
+
+  renderConnectorHealthPanel();
+}
+
+// Étape 2 du plan "Santé des connecteurs" : lit /api/admin-connector-health
+// (qui utilise la clé service_role pour agréger les logs de TOUS les
+// comptes) pour que l'admin repère un connecteur cassé avant ses clients.
+async function renderConnectorHealthPanel() {
+  const tbody = document.getElementById('admin-connector-health-tbody');
+  const attemptsEl = document.getElementById('admin-stat-connector-attempts');
+  const successRateEl = document.getElementById('admin-stat-connector-success-rate');
+  const failingEl = document.getElementById('admin-stat-connector-failing');
+  if (!tbody) return;
+
+  const escapeHtml = (str) => String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  const renderRows = (summary) => {
+    if (!summary || summary.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 14px;">Aucune action réelle enregistrée sur les 30 derniers jours.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = summary.map(row => `
+      <tr>
+        <td style="padding: 10px 14px; font-weight: 600;">${escapeHtml(row.connector)}</td>
+        <td style="padding: 10px 14px; text-align: center;">${row.attempts}</td>
+        <td style="padding: 10px 14px; text-align: center; color: #4ade80;">${row.success}</td>
+        <td style="padding: 10px 14px; text-align: center; color: ${row.failures > 0 ? '#f87171' : 'var(--text-muted)'};">${row.failures}</td>
+        <td style="padding: 10px 14px; font-size: 0.82rem; color: var(--text-muted); max-width: 260px;">${row.lastError ? escapeHtml(row.lastError) : '—'}</td>
+        <td style="padding: 10px 14px; font-size: 0.82rem; color: var(--text-muted); white-space: nowrap;">${row.lastUsedAt ? new Date(row.lastUsedAt).toLocaleString('fr-FR') : '—'}</td>
+      </tr>
+    `).join('');
+  };
+
+  if (isMock) {
+    // Mode démo : quelques lignes représentatives pour montrer le fonctionnement.
+    const mockSummary = [
+      { connector: 'Slack', attempts: 14, success: 14, failures: 0, lastError: null, lastUsedAt: new Date().toISOString() },
+      { connector: 'Zendesk', attempts: 3, success: 1, failures: 2, lastError: "Erreur: Le connecteur Zendesk n'est pas configuré (jeton ou sous-domaine manquant).", lastUsedAt: new Date(Date.now() - 3600000).toISOString() }
+    ];
+    attemptsEl.innerText = '17';
+    successRateEl.innerText = '88%';
+    failingEl.innerText = '1';
+    renderRows(mockSummary);
+    return;
+  }
+
+  try {
+    let token = null;
+    const { data } = await supabase.auth.getSession();
+    token = data?.session?.access_token;
+    if (!token) throw new Error('Session introuvable.');
+
+    const res = await fetch('/api/admin-connector-health', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const payload = await res.json();
+    if (!res.ok) throw new Error(payload.error?.message || `HTTP ${res.status}`);
+
+    attemptsEl.innerText = String(payload.totals.attempts);
+    successRateEl.innerText = `${payload.totals.successRate}%`;
+    failingEl.innerText = String(payload.totals.failingConnectors);
+    renderRows(payload.summary);
+  } catch (err) {
+    console.error('Erreur lors du chargement de la santé des connecteurs :', err);
+    attemptsEl.innerText = '–';
+    successRateEl.innerText = '–';
+    failingEl.innerText = '–';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 14px;">Erreur de connexion.</td></tr>';
+  }
 }
 
 
