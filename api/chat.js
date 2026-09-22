@@ -246,6 +246,90 @@ function getConnectorInfo(connectors, name) {
   return entry ? entry[1] : null;
 }
 
+// Fait le lien entre le nom technique de l'outil (ex: "create_zendesk_ticket")
+// et le nom du connecteur tel qu'affiché dans l'onglet Connecteurs (ex:
+// "Zendesk"), pour que le journal "Santé des connecteurs" (étape 1) reste
+// lisible sans avoir à toucher chaque fonction run* individuellement.
+const TOOL_TO_CONNECTOR = {
+  add_figma_comment: "Figma",
+  add_lemlist_lead: "Lemlist",
+  append_google_sheets_row: "Google Sheets",
+  create_asana_task: "Asana",
+  create_bitbucket_issue: "Bitbucket",
+  create_box_folder: "Box",
+  create_clickup_task: "ClickUp",
+  create_cloudflare_dns_record: "Cloudflare",
+  create_confluence_page: "Confluence",
+  create_crowdin_string: "Crowdin",
+  create_dropbox_folder: "Dropbox",
+  create_freshdesk_ticket: "Freshdesk",
+  create_gitbook_page: "GitBook",
+  create_github_issue: "GitHub",
+  create_gitlab_issue: "GitLab",
+  create_grafana_annotation: "Grafana",
+  create_intercom_contact: "Intercom",
+  create_jira_issue: "Jira",
+  create_linear_issue: "Linear",
+  create_lokalise_key: "Lokalise",
+  create_medium_draft: "Medium",
+  create_notion_page: "Notion",
+  create_paypal_invoice: "PayPal",
+  create_phrase_key: "Phrase",
+  create_pipedrive_deal: "Pipedrive",
+  create_productboard_note: "Productboard",
+  create_salesforce_lead: "Salesforce",
+  create_sellsy_company: "Sellsy",
+  create_sentry_release: "Sentry",
+  create_shopify_product: "Shopify",
+  create_stripe_payment_link: "Stripe",
+  create_trello_card: "Trello",
+  create_webflow_item: "Webflow",
+  create_woocommerce_product: "WooCommerce",
+  create_wordpress_draft: "WordPress",
+  create_zendesk_ticket: "Zendesk",
+  create_zoho_lead: "Zoho",
+  create_zoom_meeting: "Zoom",
+  design_with_canva: "Canva",
+  execute_postgres_query: "PostgreSQL",
+  get_discord_profile: "Discord",
+  insert_airtable_record: "Airtable",
+  post_datadog_event: "Datadog",
+  post_to_facebook_instagram: "Facebook/Instagram",
+  post_to_linkedin: "LinkedIn",
+  post_to_pinterest: "Pinterest",
+  post_to_threads: "Threads",
+  post_to_tiktok: "TikTok",
+  post_to_twitter: "X/Twitter",
+  post_to_youtube: "YouTube",
+  run_ssh_command: "SSH",
+  schedule_via_buffer: "Buffer",
+  send_brevo_campaign: "Brevo",
+  send_email: "E-mail",
+  send_mailchimp_campaign: "Mailchimp",
+  send_slack_message: "Slack",
+  send_teams_message: "Microsoft Teams",
+  send_whatsapp_message: "WhatsApp",
+  trigger_workflow_action: "Webhook/n8n",
+  upsert_hubspot_contact: "HubSpot"
+};
+
+async function logConnectorAction(userId, agentId, agentName, toolName, functionResult) {
+  if (!supabase || !userId) return;
+  try {
+    await supabase.from('connector_action_logs').insert({
+      user_id: userId,
+      agent_id: agentId,
+      agent_name: agentName,
+      tool_name: toolName,
+      connector_name: TOOL_TO_CONNECTOR[toolName] || toolName,
+      success: !functionResult?.error,
+      error_message: functionResult?.error ? String(functionResult.error).slice(0, 500) : null
+    });
+  } catch (err) {
+    console.error('[Connector Action Log] Erreur d\'écriture:', err);
+  }
+}
+
 // Helper executors for tools
 async function runSSH(connectors, command) {
   const connInfo = getConnectorInfo(connectors, "SSH");
@@ -3844,6 +3928,16 @@ J'ai analysé votre contenu en direct. Il a été ${publishStatus}
           args: functionArgs,
           result: functionResult
         });
+
+        // Journal "Santé des connecteurs" (étape 1) : un point d'entrée unique
+        // pour tous les outils, plutôt qu'un log ajouté dans chacune des ~50
+        // fonctions run*. Awaited (pas fire-and-forget) car Vercel peut geler
+        // la fonction dès que la réponse part, avant qu'une promesse en vol
+        // n'ait fini d'écrire — la fonction interne avale ses propres erreurs
+        // donc ça ne ralentit ni ne casse jamais la réponse à l'utilisateur.
+        if (userId) {
+          await logConnectorAction(userId, agentId, agentName, functionName, functionResult);
+        }
 
         // Update conversation history with the model's tool request and the tool's result
         currentContents.push(candidate.content);
