@@ -6080,7 +6080,7 @@ function renderConnectorsForm() {
       `;
     } else {
       // Default: API Token, Webhook or SaaS credentials
-      const needsUrl = ['Zendesk', 'Jira', 'WordPress', 'Shopify', 'Webflow', 'Crisp', 'Freshdesk', 'WooCommerce', 'PrestaShop', 'ClickUp', 'Linear', 'Crowdin', 'Phrase', 'Sellsy', 'Axonaut', 'Qonto', 'Spendesk', 'GitBook', 'SharePoint', 'Grafana', 'GitHub', 'Notion', 'Airtable', 'Google Sheets', 'Asana', 'GitLab', 'Salesforce', 'Bitbucket', 'Cloudflare', 'Trello', 'Sentry', 'Figma', 'Confluence', 'Lokalise', 'Lemlist'].some(term => connector.includes(term));
+      const needsUrl = ['Zendesk', 'Jira', 'WordPress', 'Shopify', 'Webflow', 'Crisp', 'Freshdesk', 'WooCommerce', 'PrestaShop', 'ClickUp', 'Linear', 'Crowdin', 'Phrase', 'Sellsy', 'Axonaut', 'Qonto', 'Spendesk', 'GitBook', 'SharePoint', 'Grafana', 'GitHub', 'Notion', 'Airtable', 'Google Sheets', 'Asana', 'GitLab', 'Salesforce', 'Bitbucket', 'Cloudflare', 'Trello', 'Sentry', 'Figma', 'Confluence', 'Lokalise', 'Lemlist', 'Pinterest', 'Buffer', 'Mailchimp'].some(term => connector.includes(term));
 
       let domainLabel = "URL du Logiciel (Domaine)";
       let domainPlaceholder = "https://votre-domaine.com";
@@ -6147,6 +6147,15 @@ function renderConnectorsForm() {
       } else if (connector.includes('Lemlist')) {
         domainLabel = "ID de Campagne Lemlist";
         domainPlaceholder = "ID de votre campagne Lemlist";
+      } else if (connector.includes('Pinterest')) {
+        domainLabel = "ID de Tableau Pinterest (Board ID)";
+        domainPlaceholder = "ID de votre tableau par défaut";
+      } else if (connector.includes('Buffer')) {
+        domainLabel = "ID(s) de Profil Buffer (séparés par une virgule)";
+        domainPlaceholder = "profileId1,profileId2";
+      } else if (connector.includes('Mailchimp')) {
+        domainLabel = "ID de Liste (Audience ID) Mailchimp";
+        domainPlaceholder = "ID de votre audience par défaut";
       }
 
       let tokenLabel = connector.includes('Webhook') ? "URL du Webhook / Clé secrète" : "Clé d'API / Jeton d'Accès";

@@ -536,7 +536,10 @@ async function runEmail(connectors, to, subject, body) {
 
 // n8n Webhook Action
 async function runN8N(connectors, action, details, payload, agentName) {
-  const n8nInfo = getConnectorInfo(connectors, "n8n");
+  // "n8n" ne correspond au nom d'aucun connecteur réel du catalogue (ils
+  // s'appellent tous "Webhook ...") : cette recherche ne trouvait donc jamais
+  // rien, quoi que l'utilisateur configure.
+  const n8nInfo = getConnectorInfo(connectors, "Webhook");
   if (!n8nInfo || !n8nInfo.token) {
     return { error: "Erreur: Le connecteur n8n Webhook n'est pas configuré. Veuillez insérer l'URL de votre Webhook n8n." };
   }
@@ -757,16 +760,6 @@ async function runLinkedIn(connectors, text) {
 
   const token = liInfo.token.trim();
 
-  if (token.startsWith("mock_") || token.startsWith("oauth_") || token === "oauth_2_live_z") {
-    return { 
-      success: true, 
-      id: `li_activity_mock_${Math.random().toString(36).substring(2, 10)}`, 
-      urn: "urn:li:person:mock_person_id", 
-      profileName: "Cheraiti Manel",
-      message: "Publication publiée avec succès en direct sur votre profil LinkedIn !" 
-    };
-  }
-
   try {
     // 1. Fetch user's URN profile ID (OIDC first, fallback to legacy me)
     let personId = null;
@@ -881,14 +874,6 @@ async function runTwitter(connectors, text) {
     return { error: "Erreur: Le connecteur X/Twitter API n'est pas configuré. Veuillez insérer votre jeton d'accès X." };
   }
   const token = info.token.trim();
-  if (token.startsWith("mock_") || token.startsWith("oauth_")) {
-    return {
-      success: true,
-      message: "Publication simulée avec succès en direct sur votre compte X/Twitter !",
-      tweet: text,
-      id: `tweet_mock_${Math.random().toString(36).substring(2, 10)}`
-    };
-  }
   try {
     const res = await fetch("https://api.twitter.com/2/tweets", {
       method: "POST",
@@ -919,15 +904,6 @@ async function runFacebookInstagram(connectors, text, imageUrl = null) {
     return { error: "Erreur: Le connecteur Instagram/Facebook API n'est pas configuré. Veuillez insérer votre jeton d'accès Facebook." };
   }
   const token = info.token.trim();
-  if (token.startsWith("mock_") || token.startsWith("oauth_")) {
-    return {
-      success: true,
-      message: "Publication simulée avec succès en direct sur votre page Facebook !",
-      post: text,
-      imageUrl: imageUrl,
-      id: `fb_post_mock_${Math.random().toString(36).substring(2, 10)}`
-    };
-  }
   try {
     const pageId = info.pageId || "me";
     let url = `https://graph.facebook.com/v18.0/${pageId}/feed`;
@@ -982,13 +958,7 @@ async function runWhatsApp(connectors, to, text, mediaUrl = null) {
   }
 
   if (!token || token.startsWith("mock_") || token.startsWith("oauth_") || token.startsWith("wa_") || token === 'cesar_verify_token_default') {
-    return {
-      success: true,
-      message: `Message WhatsApp simulé avec succès pour le destinataire ${to} !`,
-      text: text,
-      mediaUrl: mediaUrl,
-      id: `wa_msg_mock_${Math.random().toString(36).substring(2, 10)}`
-    };
+    return { error: "Erreur: Aucun jeton d'accès WhatsApp valide n'est configuré (ni sur le compte, ni au niveau de la plateforme)." };
   }
   try {
     const body = {
@@ -1029,28 +999,65 @@ async function runTikTok(connectors, videoUrl, title) {
   if (!info || !info.token) {
     return { error: "Erreur: Le connecteur TikTok API n'est pas configuré. Veuillez insérer votre jeton d'accès TikTok." };
   }
-  return {
-    success: true,
-    message: "Publication vidéo TikTok simulée avec succès en direct sur votre profil !",
-    videoUrl: videoUrl,
-    title: title,
-    id: `tiktok_post_mock_${Math.random().toString(36).substring(2, 10)}`
-  };
+  try {
+    const res = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${info.token.trim()}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        post_info: { title, privacy_level: "PUBLIC_TO_EVERYONE" },
+        source_info: { source: "PULL_FROM_URL", video_url: videoUrl }
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error?.code !== 'ok') {
+      throw new Error(data.error?.message || `HTTP ${res.status}`);
+    }
+    return { success: true, publishId: data.data?.publish_id, message: "Publication vidéo TikTok envoyée avec succès (traitement en cours côté TikTok)." };
+  } catch (e) {
+    return { error: e.message };
+  }
 }
 
+// L'API YouTube exige les octets réels de la vidéo, pas juste son URL : on la
+// télécharge d'abord puis on l'envoie en upload multipart. À utiliser avec des
+// vidéos raisonnablement courtes (le temps d'exécution serverless est limité).
 async function runYouTube(connectors, videoUrl, title, description) {
-  const info = getConnectorInfo(connectors, "YouTube");
+  const info = getConnectorInfo(connectors, "YouTube") || getConnectorInfo(connectors, "Google");
   if (!info || !info.token) {
     return { error: "Erreur: Le connecteur YouTube API n'est pas configuré. Veuillez insérer votre jeton d'accès Google/YouTube." };
   }
-  return {
-    success: true,
-    message: "Publication vidéo YouTube simulée avec succès en direct sur votre chaîne !",
-    videoUrl: videoUrl,
-    title: title,
-    description: description,
-    id: `yt_video_mock_${Math.random().toString(36).substring(2, 10)}`
-  };
+  try {
+    const videoRes = await fetch(videoUrl);
+    if (!videoRes.ok) throw new Error(`Impossible de télécharger la vidéo source (HTTP ${videoRes.status}).`);
+    const videoBuffer = Buffer.from(await videoRes.arrayBuffer());
+
+    const metadata = { snippet: { title, description: description || "" }, status: { privacyStatus: "public" } };
+    const boundary = "cesaria_youtube_boundary";
+    const multipartBody = Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: video/*\r\n\r\n`),
+      videoBuffer,
+      Buffer.from(`\r\n--${boundary}--`)
+    ]);
+
+    const res = await fetch("https://www.googleapis.com/upload/youtube/v3/videos?part=snippet,status&uploadType=multipart", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${info.token.trim()}`,
+        "Content-Type": `multipart/related; boundary=${boundary}`
+      },
+      body: multipartBody
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error?.message || `HTTP ${res.status}`);
+    }
+    return { success: true, videoId: data.id, message: `Vidéo "${title}" publiée avec succès sur YouTube.` };
+  } catch (e) {
+    return { error: e.message };
+  }
 }
 
 async function runPinterest(connectors, imageUrl, note, boardId = null, link = null) {
@@ -1058,14 +1065,32 @@ async function runPinterest(connectors, imageUrl, note, boardId = null, link = n
   if (!info || !info.token) {
     return { error: "Erreur: Le connecteur Pinterest API n'est pas configuré. Veuillez insérer votre jeton d'accès Pinterest." };
   }
-  return {
-    success: true,
-    message: "Épingle Pinterest (Pin) simulée avec succès en direct sur votre tableau !",
-    imageUrl: imageUrl,
-    note: note,
-    boardId: boardId || "Default Board",
-    id: `pin_mock_${Math.random().toString(36).substring(2, 10)}`
-  };
+  const finalBoardId = boardId || info.domain;
+  if (!finalBoardId) {
+    return { error: "Erreur: Aucun ID de tableau Pinterest n'a été fourni ni configuré par défaut." };
+  }
+  try {
+    const res = await fetch("https://api.pinterest.com/v5/pins", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${info.token.trim()}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        board_id: finalBoardId,
+        description: note,
+        link: link || undefined,
+        media_source: { source_type: "image_url", url: imageUrl }
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+    return { success: true, pinId: data.id, message: "Épingle Pinterest créée avec succès." };
+  } catch (e) {
+    return { error: e.message };
+  }
 }
 
 async function runThreads(connectors, text) {
@@ -1073,12 +1098,25 @@ async function runThreads(connectors, text) {
   if (!info || !info.token) {
     return { error: "Erreur: Le connecteur Threads API n'est pas configuré. Veuillez insérer votre jeton d'accès Threads." };
   }
-  return {
-    success: true,
-    message: "Publication simulée avec succès en direct sur votre compte Threads !",
-    post: text,
-    id: `threads_post_mock_${Math.random().toString(36).substring(2, 10)}`
-  };
+  const token = info.token.trim();
+  try {
+    const meRes = await fetch(`https://graph.threads.net/v1.0/me?fields=id&access_token=${token}`);
+    const meData = await meRes.json();
+    if (!meRes.ok) throw new Error(meData.error?.message || `HTTP ${meRes.status}`);
+    const userId = meData.id;
+
+    const createRes = await fetch(`https://graph.threads.net/v1.0/${userId}/threads?media_type=TEXT&text=${encodeURIComponent(text)}&access_token=${token}`, { method: "POST" });
+    const createData = await createRes.json();
+    if (!createRes.ok) throw new Error(createData.error?.message || `HTTP ${createRes.status}`);
+
+    const publishRes = await fetch(`https://graph.threads.net/v1.0/${userId}/threads_publish?creation_id=${createData.id}&access_token=${token}`, { method: "POST" });
+    const publishData = await publishRes.json();
+    if (!publishRes.ok) throw new Error(publishData.error?.message || `HTTP ${publishRes.status}`);
+
+    return { success: true, postId: publishData.id, message: "Publication Threads publiée avec succès." };
+  } catch (e) {
+    return { error: e.message };
+  }
 }
 
 async function runBuffer(connectors, text, profiles = null) {
@@ -1086,41 +1124,104 @@ async function runBuffer(connectors, text, profiles = null) {
   if (!info || !info.token) {
     return { error: "Erreur: Le connecteur Buffer/Hootsuite n'est pas configuré. Veuillez insérer votre jeton d'accès." };
   }
-  return {
-    success: true,
-    message: "Planification multi-réseaux simulée avec succès via Buffer !",
-    text: text,
-    profiles: profiles || ["LinkedIn", "X/Twitter", "Facebook"],
-    id: `buffer_update_mock_${Math.random().toString(36).substring(2, 10)}`
-  };
+  const profileIds = (profiles && profiles.length > 0 ? profiles : (info.domain || '').split(','))
+    .map(p => p.trim()).filter(Boolean);
+  if (profileIds.length === 0) {
+    return { error: "Erreur: Aucun profil Buffer (profile_id) n'a été fourni ni configuré par défaut." };
+  }
+  try {
+    const params = new URLSearchParams({ access_token: info.token.trim(), text });
+    profileIds.forEach(id => params.append('profile_ids[]', id));
+    const res = await fetch("https://api.bufferapp.com/1/updates/create.json", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+    return { success: true, updateIds: data.updates?.map(u => u.id), message: "Publication planifiée avec succès via Buffer." };
+  } catch (e) {
+    return { error: e.message };
+  }
 }
 
+// Le rôle décrit pour cet outil est de récupérer un visuel/charte existant
+// depuis Canva (pas d'en créer un) : on lit les métadonnées + la miniature
+// exportable du design via l'API Connect.
 async function runCanva(connectors, designId) {
   const info = getConnectorInfo(connectors, "Canva");
   if (!info || !info.token) {
     return { error: "Erreur: Le connecteur Canva API n'est pas configuré." };
   }
-  return {
-    success: true,
-    message: "Synchronisation réussie avec Canva ! Visuels et chartes graphiques récupérés.",
-    designId: designId,
-    previewUrl: "https://canva.com/design/mock_preview.png"
-  };
+  try {
+    const res = await fetch(`https://api.canva.com/rest/v1/designs/${designId}`, {
+      headers: { "Authorization": `Bearer ${info.token.trim()}` }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+    return {
+      success: true,
+      designId: data.design?.id || designId,
+      title: data.design?.title,
+      previewUrl: data.design?.thumbnail?.url,
+      message: "Design Canva récupéré avec succès."
+    };
+  } catch (e) {
+    return { error: e.message };
+  }
 }
 
+// Mailchimp encode le datacenter (ex: "us21") dans le suffixe de la clé API
+// elle-même — pas besoin de le redemander à l'utilisateur.
 async function runMailchimp(connectors, subject, body, listId = null) {
   const info = getConnectorInfo(connectors, "Mailchimp");
-  if (!info || !info.token) {
-    return { error: "Erreur: Le connecteur Mailchimp API n'est pas configuré. Veuillez insérer votre jeton d'accès Mailchimp." };
+  if (!info || !info.token || !info.token.includes('-')) {
+    return { error: "Erreur: Le connecteur Mailchimp API n'est pas configuré correctement (clé API invalide, doit se terminer par -usXX)." };
   }
-  return {
-    success: true,
-    message: "Campagne e-mailing simulée avec succès via Mailchimp !",
-    subject: subject,
-    body: body,
-    listId: listId || "Default List",
-    id: `mc_campaign_mock_${Math.random().toString(36).substring(2, 10)}`
-  };
+  const token = info.token.trim();
+  const dc = token.split('-').pop();
+  const finalListId = listId || info.domain;
+  if (!finalListId) {
+    return { error: "Erreur: Aucune liste (Audience ID) Mailchimp n'a été fournie ni configurée par défaut." };
+  }
+  const authHeader = { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" };
+
+  try {
+    const createRes = await fetch(`https://${dc}.api.mailchimp.com/3.0/campaigns`, {
+      method: "POST",
+      headers: authHeader,
+      body: JSON.stringify({ type: "regular", recipients: { list_id: finalListId }, settings: { subject_line: subject, from_name: "César-IA", reply_to: "contact@cesar-ia.com" } })
+    });
+    const createData = await createRes.json();
+    if (!createRes.ok) throw new Error(createData.detail || `HTTP ${createRes.status}`);
+
+    const contentRes = await fetch(`https://${dc}.api.mailchimp.com/3.0/campaigns/${createData.id}/content`, {
+      method: "PUT",
+      headers: authHeader,
+      body: JSON.stringify({ html: body })
+    });
+    if (!contentRes.ok) {
+      const contentErr = await contentRes.json().catch(() => ({}));
+      throw new Error(contentErr.detail || `HTTP ${contentRes.status} lors de l'ajout du contenu`);
+    }
+
+    const sendRes = await fetch(`https://${dc}.api.mailchimp.com/3.0/campaigns/${createData.id}/actions/send`, {
+      method: "POST",
+      headers: authHeader
+    });
+    if (!sendRes.ok && sendRes.status !== 204) {
+      const sendErr = await sendRes.json().catch(() => ({}));
+      throw new Error(sendErr.detail || `HTTP ${sendRes.status} lors de l'envoi`);
+    }
+
+    return { success: true, campaignId: createData.id, message: `Campagne "${subject}" envoyée avec succès via Mailchimp.` };
+  } catch (e) {
+    return { error: e.message };
+  }
 }
 
 async function runTeams(connectors, message) {
@@ -1129,12 +1230,8 @@ async function runTeams(connectors, message) {
     return { error: "Erreur: Le connecteur Microsoft Teams n'est pas configuré. Veuillez insérer votre URL Webhook Teams." };
   }
   const token = info.token.trim();
-  if (token.startsWith("mock_") || token.startsWith("oauth_")) {
-    return {
-      success: true,
-      message: "Message simulé avec succès sur Microsoft Teams via Webhook !",
-      text: message
-    };
+  if (!isValidExternalUrl(token)) {
+    return { error: "Erreur de sécurité : L'URL de destination Teams est invalide ou pointe vers un hôte privé/local (SSRF bloqué)." };
   }
   try {
     const res = await fetch(token, {
@@ -1160,15 +1257,6 @@ async function runBrevo(connectors, to, subject, body) {
     return { error: "Erreur: Le connecteur Brevo API n'est pas configuré. Veuillez renseigner votre clé API Brevo." };
   }
   const token = info.token.trim();
-  if (token.startsWith("mock_") || token.startsWith("oauth_")) {
-    return {
-      success: true,
-      message: `E-mail simulé envoyé avec succès à ${to} via Brevo SMTP !`,
-      to: to,
-      subject: subject,
-      id: `brevo_mail_mock_${Math.random().toString(36).substring(2, 9)}`
-    };
-  }
   try {
     const res = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
